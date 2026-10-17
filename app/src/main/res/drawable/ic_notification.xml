@@ -4,7 +4,14 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
+    <!-- The Sonora microphone and broadcast arc, as a single-colour silhouette for the status bar. -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M12,3a3,3 0,0 0,-3 3v6a3,3 0,0 0,6 0V6a3,3 0,0 0,-3 -3zM17,11a5,5 0,0 1,-10 0H5a7,7 0,0 0,6 6.92V21h2v-3.08A7,7 0,0 0,19 11h-2z" />
+        android:pathData="M12,5a2,2 0,0 1,2 2v4a2,2 0,0 1,-4 0V7a2,2 0,0 1,2 -2z" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M8.6,10.5v1.5a3.4,3.4 0,0 0,6.8 0v-1.5M12,15.4v3.6M5.05,16.9A8.5,8.5 0,1 1,18.95 16.9" />
 </vector>
