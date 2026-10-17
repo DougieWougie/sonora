@@ -26,6 +26,7 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,11 +34,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -46,6 +49,9 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.text.DateFormat
 import java.util.Date
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import kotlinx.coroutines.flow.Flow
+import org.sonora.core.testing.TestTags
 import org.sonora.ui.theme.ThemeIntent
 import org.sonora.ui.theme.ThemeMode
 import org.sonora.ui.theme.ThemeViewModel
@@ -65,13 +71,7 @@ fun SettingsScreen(
         onPauseOrDispose {}
     }
 
-    LaunchedEffect(viewModel) {
-        viewModel.events.collect { event ->
-            if (event is SettingsEvent.OpenLoginUrl && openInBrowser(context, event.url)) {
-                viewModel.onIntent(SettingsIntent.BrowserLaunched)
-            }
-        }
-    }
+    OpenLoginUrlEffect(viewModel.events, open = { openInBrowser(context, it) }, onLaunched = { viewModel.onIntent(SettingsIntent.BrowserLaunched) })
 
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -139,8 +139,20 @@ fun SettingsScreen(
     }
 }
 
+/** Opens each login URL the view model asks for, and tells it once a browser took it so polling can begin. */
 @Composable
-private fun NextcloudCard(state: SettingsUiState, onIntent: (SettingsIntent) -> Unit) {
+internal fun OpenLoginUrlEffect(events: Flow<SettingsEvent>, open: (String) -> Boolean, onLaunched: () -> Unit) {
+    val currentOpen by rememberUpdatedState(open)
+    val currentOnLaunched by rememberUpdatedState(onLaunched)
+    LaunchedEffect(events) {
+        events.collect { event ->
+            if (event is SettingsEvent.OpenLoginUrl && currentOpen(event.url)) currentOnLaunched()
+        }
+    }
+}
+
+@Composable
+internal fun NextcloudCard(state: SettingsUiState, onIntent: (SettingsIntent) -> Unit) {
     var server by remember { mutableStateOf("") }
     SettingsCard("Nextcloud GPodder Sync") {
         when (val nc = state.nextcloud) {
@@ -152,38 +164,58 @@ private fun NextcloudCard(state: SettingsUiState, onIntent: (SettingsIntent) -> 
                     label = { Text("Server, e.g. cloud.example.com") },
                     singleLine = true,
                     isError = nc is NextcloudState.Error,
-                    supportingText = (nc as? NextcloudState.Error)?.let { { Text(it.message) } },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag(TestTags.NEXTCLOUD_SERVER_INPUT),
                 )
-                Button(onClick = { onIntent(SettingsIntent.StartLogin(server)) }, enabled = server.isNotBlank()) { Text("Connect") }
+                if (nc is NextcloudState.Error) {
+                    ErrorBanner(nc.message, canRetry = server.isNotBlank()) { onIntent(SettingsIntent.StartLogin(server)) }
+                }
+                Button(
+                    onClick = { onIntent(SettingsIntent.StartLogin(server)) },
+                    enabled = server.isNotBlank(),
+                    modifier = Modifier.testTag(TestTags.NEXTCLOUD_CONNECT_BUTTON),
+                ) { Text("Connect") }
             }
             is NextcloudState.WaitingForBrowserAuth -> {
                 Text("Opening your browser. Approve access there, then switch back to Sonora.", style = MaterialTheme.typography.bodyMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(onClick = { onIntent(SettingsIntent.BrowserLaunched) }) { Text("I've opened it") }
-                    TextButton(onClick = { onIntent(SettingsIntent.CancelLogin) }) { Text("Cancel") }
+                    TextButton(onClick = { onIntent(SettingsIntent.CancelLogin) }, modifier = Modifier.testTag(TestTags.NEXTCLOUD_CANCEL_POLLING_BUTTON)) { Text("Cancel") }
                 }
             }
             NextcloudState.Polling -> {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    LoadingIndicator(Modifier.size(48.dp))
+                    LoadingIndicator(Modifier.size(48.dp).testTag(TestTags.NEXTCLOUD_POLLING_INDICATOR))
                     Text("Approve access in the browser, then switch back to Sonora.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                 }
-                TextButton(onClick = { onIntent(SettingsIntent.CancelLogin) }) { Text("Cancel") }
+                TextButton(onClick = { onIntent(SettingsIntent.CancelLogin) }, modifier = Modifier.testTag(TestTags.NEXTCLOUD_CANCEL_POLLING_BUTTON)) { Text("Cancel") }
             }
             is NextcloudState.Connected -> {
-                Text("Connected as ${nc.username}", style = MaterialTheme.typography.titleMediumEmphasized)
+                Text(
+                    "${nc.username}@${nc.serverUrl.toHttpUrlOrNull()?.host ?: nc.serverUrl}",
+                    style = MaterialTheme.typography.titleMediumEmphasized,
+                    modifier = Modifier.testTag(TestTags.NEXTCLOUD_CONNECTED_BADGE),
+                )
                 Text(
                     nc.lastSyncTime?.let { "Last synced ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))}" } ?: "Not synced yet",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = { onIntent(SettingsIntent.SyncNow) }, enabled = !state.isSyncing) { Text("Sync now") }
+                    Button(onClick = { onIntent(SettingsIntent.SyncNow) }, enabled = !state.isSyncing, modifier = Modifier.testTag(TestTags.NEXTCLOUD_SYNC_NOW_BUTTON)) { Text("Sync now") }
                     if (state.isSyncing) LoadingIndicator(Modifier.size(40.dp))
                     OutlinedButton(onClick = { onIntent(SettingsIntent.Disconnect) }) { Text("Disconnect") }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ErrorBanner(message: String, canRetry: Boolean, onRetry: () -> Unit) {
+    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth().testTag(TestTags.NEXTCLOUD_ERROR_BANNER)) {
+        Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(message, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+            TextButton(onClick = onRetry, enabled = canRetry, modifier = Modifier.testTag(TestTags.NEXTCLOUD_RETRY_BUTTON)) { Text("Retry") }
         }
     }
 }

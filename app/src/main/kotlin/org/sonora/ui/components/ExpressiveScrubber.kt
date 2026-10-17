@@ -32,10 +32,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import org.sonora.core.testing.TestTags
 import org.sonora.ui.formatRemaining
 import org.sonora.ui.formatTimestamp
 import org.sonora.ui.theme.tabular
@@ -92,7 +94,7 @@ fun ExpressiveScrubber(
                     onSeek((dragFraction * durationMs).toLong())
                 },
                 enabled = enabled,
-                modifier = Modifier.semantics {
+                modifier = Modifier.testTag(TestTags.SEEK_SLIDER).semantics {
                     contentDescription = "Seek"
                     stateDescription = "${formatTimestamp(positionMs)} of ${formatTimestamp(durationMs)}"
                 },
@@ -116,9 +118,10 @@ fun ExpressiveScrubber(
             )
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(formatTimestamp(shownPosition), style = MaterialTheme.typography.labelLargeEmphasized.tabular())
+            Text(formatTimestamp(shownPosition), Modifier.testTag(TestTags.ELAPSED_TIME), style = MaterialTheme.typography.labelLargeEmphasized.tabular())
             Text(
                 formatRemaining(shownPosition, durationMs),
+                Modifier.testTag(TestTags.REMAINING_TIME),
                 style = MaterialTheme.typography.labelLargeEmphasized.tabular(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -17,6 +17,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -36,7 +37,15 @@ android {
     }
 
     testOptions {
+        unitTests.isIncludeAndroidResources = true
+        // JUnit 5 for the plain tests; the vintage engine runs the JUnit 4 Compose/Robolectric ones.
         unitTests.all { it.useJUnitPlatform() }
+    }
+
+    // Compose UI tests live in one place and run both on the JVM (Robolectric) and on a device.
+    sourceSets {
+        getByName("test").kotlin.directories.add("src/sharedTest/kotlin")
+        getByName("androidTest").kotlin.directories.add("src/sharedTest/kotlin")
     }
 }
 
@@ -101,6 +110,21 @@ dependencies {
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.kxml2)
     testImplementation(libs.xmlpull)
+
+    testImplementation(libs.junit4)
+    testRuntimeOnly(libs.junit.vintage.engine)
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.androidx.test.ext.junit)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    // Compose's transitive Espresso predates Android 17 (InputManager.getInstance is gone).
+    androidTestImplementation(libs.androidx.test.espresso.core)
 }
 
 ksp {

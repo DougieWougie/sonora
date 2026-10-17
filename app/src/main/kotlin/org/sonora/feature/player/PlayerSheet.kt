@@ -63,9 +63,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import org.sonora.core.testing.TestTags
 import org.sonora.ui.components.ArtworkImage
 import org.sonora.ui.components.ExpressiveScrubber
 import org.sonora.ui.components.MorphingPlayPauseButton
@@ -97,7 +99,7 @@ fun SharedTransitionScope.MiniPlayer(
         shape = RoundedCornerShape(28.dp),
         color = MaterialTheme.colorScheme.secondaryContainer,
         tonalElevation = 3.dp,
-        modifier = modifier.padding(horizontal = 8.dp, vertical = 4.dp).fillMaxWidth().clickable(onClick = onExpand),
+        modifier = modifier.padding(horizontal = 8.dp, vertical = 4.dp).fillMaxWidth().testTag(TestTags.MINI_PLAYER_BAR).clickable(onClick = onExpand),
     ) {
         Column {
             Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -120,7 +122,7 @@ fun SharedTransitionScope.MiniPlayer(
                     isPlaying = state.isPlaying,
                     onClick = { onIntent(PlayerIntent.TogglePlayPause) },
                     size = 48.dp,
-                    modifier = Modifier.sharedElement(rememberSharedContentState(KEY_PLAY), visibilityScope, boundsTransform = transform),
+                    modifier = Modifier.testTag(TestTags.PLAY_PAUSE_BUTTON).sharedElement(rememberSharedContentState(KEY_PLAY), visibilityScope, boundsTransform = transform),
                 )
             }
             LinearProgressIndicator(
@@ -145,7 +147,7 @@ fun SharedTransitionScope.FullPlayer(
     val transform = boundsTransform()
     var showQueue by remember { mutableStateOf(false) }
 
-    Surface(modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+    Surface(modifier.fillMaxSize().testTag(TestTags.FULL_PLAYER_SHEET), color = MaterialTheme.colorScheme.surface) {
         Column(
             Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -179,16 +181,16 @@ fun SharedTransitionScope.FullPlayer(
                 onSeek = { onIntent(PlayerIntent.SeekTo(it)) },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { onIntent(PlayerIntent.Rewind) }, modifier = Modifier.size(56.dp)) {
+                IconButton(onClick = { onIntent(PlayerIntent.Rewind) }, modifier = Modifier.size(56.dp).testTag(TestTags.SKIP_BACK_BUTTON)) {
                     Icon(Icons.Rounded.Replay, contentDescription = "Back 15 seconds", Modifier.size(32.dp))
                 }
                 MorphingPlayPauseButton(
                     isPlaying = state.isPlaying,
                     onClick = { onIntent(PlayerIntent.TogglePlayPause) },
                     size = 96.dp,
-                    modifier = Modifier.sharedElement(rememberSharedContentState(KEY_PLAY), visibilityScope, boundsTransform = transform),
+                    modifier = Modifier.testTag(TestTags.PLAY_PAUSE_BUTTON).sharedElement(rememberSharedContentState(KEY_PLAY), visibilityScope, boundsTransform = transform),
                 )
-                IconButton(onClick = { onIntent(PlayerIntent.SkipForward) }, modifier = Modifier.size(56.dp)) {
+                IconButton(onClick = { onIntent(PlayerIntent.SkipForward) }, modifier = Modifier.size(56.dp).testTag(TestTags.SKIP_FORWARD_BUTTON)) {
                     Icon(Icons.Rounded.Forward30, contentDescription = "Forward 30 seconds", Modifier.size(32.dp))
                 }
             }
@@ -203,6 +205,7 @@ fun SharedTransitionScope.FullPlayer(
 private fun SecondaryControls(state: PlayerUiState, onIntent: (PlayerIntent) -> Unit, onOpenQueue: () -> Unit) {
     HorizontalFloatingToolbar(
         expanded = true,
+        modifier = Modifier.testTag(TestTags.PLAYER_TOOLBAR),
         floatingActionButton = {
             FloatingToolbarDefaults.StandardFloatingActionButton(onClick = onOpenQueue) {
                 Icon(Icons.Rounded.QueueMusic, contentDescription = "Up next (${state.upNext.size})")
@@ -221,7 +224,7 @@ private fun SecondaryControls(state: PlayerUiState, onIntent: (PlayerIntent) -> 
 private fun SpeedPill(speed: Float, onIntent: (PlayerIntent) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        Button(onClick = { open = true }, shape = RoundedCornerShape(50)) {
+        Button(onClick = { open = true }, shape = RoundedCornerShape(50), modifier = Modifier.testTag(TestTags.SPEED_CONTROL_BUTTON)) {
             Text("%.1f×".format(speed), style = MaterialTheme.typography.labelLargeEmphasized.tabular())
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -229,6 +232,7 @@ private fun SpeedPill(speed: Float, onIntent: (PlayerIntent) -> Unit) {
             DropdownMenuItem(text = { Text("Slower (−0.1×)") }, onClick = { onIntent(PlayerIntent.StepSpeed(-1)) })
             listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f).forEach { preset ->
                 DropdownMenuItem(
+                    modifier = Modifier.testTag(TestTags.speedPreset(preset)),
                     text = { Text("%.2f×".format(preset).replace(Regex("0$"), "")) },
                     trailingIcon = { if (preset == speed) Icon(Icons.Rounded.Check, null) },
                     onClick = { open = false; onIntent(PlayerIntent.SetSpeed(preset)) },
@@ -243,6 +247,7 @@ private fun SkipSilenceChip(enabled: Boolean, onToggle: () -> Unit) {
     FilterChip(
         selected = enabled,
         onClick = onToggle,
+        modifier = Modifier.testTag(TestTags.SKIP_SILENCE_CHIP),
         label = { Text("Skip silence") },
         colors = FilterChipDefaults.filterChipColors(
             labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -276,9 +281,9 @@ private fun SleepTimerButton(remainingMs: Long?, onIntent: (PlayerIntent) -> Uni
     var open by remember { mutableStateOf(false) }
     Box {
         if (remainingMs == null) {
-            IconButton(onClick = { open = true }) { Icon(Icons.Rounded.Bedtime, contentDescription = "Sleep timer") }
+            IconButton(onClick = { open = true }, modifier = Modifier.testTag(TestTags.SLEEP_TIMER_BUTTON)) { Icon(Icons.Rounded.Bedtime, contentDescription = "Sleep timer") }
         } else {
-            TextButton(onClick = { open = true }) {
+            TextButton(onClick = { open = true }, modifier = Modifier.testTag(TestTags.SLEEP_TIMER_BUTTON)) {
                 Icon(Icons.Rounded.Bedtime, null, Modifier.size(18.dp))
                 Text(formatTimestamp(remainingMs, roundUp = true), Modifier.padding(start = 4.dp), style = MaterialTheme.typography.labelLargeEmphasized.tabular())
             }

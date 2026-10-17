@@ -46,14 +46,14 @@ class SettingsAndSyncViewModelTest {
         settings.account = NextcloudAccount("https://cloud.example", "alice", "pw")
         settings.lastSyncMillis.value = 1_700_000_000_000
         val vm = vm(); runCurrent()
-        assertEquals(NextcloudState.Connected("alice", 1_700_000_000_000), vm.nextcloud)
+        assertEquals(NextcloudState.Connected("alice", "https://cloud.example", 1_700_000_000_000), vm.nextcloud)
     }
 
     @Test
     fun `connected shows no sync time until a sync has succeeded`() = runTest {
         settings.account = NextcloudAccount("https://cloud.example", "alice", "pw")
         val vm = vm(); runCurrent()
-        assertEquals(NextcloudState.Connected("alice", null), vm.nextcloud)
+        assertEquals(NextcloudState.Connected("alice", "https://cloud.example", null), vm.nextcloud)
     }
 
     // --- login flow --------------------------------------------------------------------------
@@ -141,7 +141,7 @@ class SettingsAndSyncViewModelTest {
         assertEquals(NextcloudState.Polling, vm.nextcloud)
 
         advanceTimeBy(2_000); runCurrent()
-        assertEquals(NextcloudState.Connected("alice", null), vm.nextcloud)
+        assertEquals(NextcloudState.Connected("alice", "https://cloud.example", null), vm.nextcloud)
         assertEquals(3, login.polls)
         assertEquals(NextcloudAccount("https://cloud.example", "alice", "app-pass"), settings.account)
         assertEquals(1, sync.requests)
@@ -157,7 +157,7 @@ class SettingsAndSyncViewModelTest {
 
         vm.onIntent(SettingsIntent.ReturnedToApp); runCurrent()
 
-        assertEquals(NextcloudState.Connected("alice", null), vm.nextcloud)
+        assertEquals(NextcloudState.Connected("alice", "https://cloud.example", null), vm.nextcloud)
         assertEquals(2, login.polls)
     }
 
@@ -280,7 +280,7 @@ class SettingsAndSyncViewModelTest {
         assertTrue(vm.uiState.value.isSyncing)
 
         settings.recordSync(1_800_000_000_000); sync.running.value = false; runCurrent()
-        assertEquals(NextcloudState.Connected("alice", 1_800_000_000_000), vm.nextcloud)
+        assertEquals(NextcloudState.Connected("alice", "https://cloud.example", 1_800_000_000_000), vm.nextcloud)
         assertFalse(vm.uiState.value.isSyncing)
     }
 

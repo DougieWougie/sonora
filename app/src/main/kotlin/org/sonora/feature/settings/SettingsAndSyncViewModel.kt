@@ -29,7 +29,7 @@ sealed interface NextcloudState {
     data object Idle : NextcloudState
     data class WaitingForBrowserAuth(val loginUrl: String) : NextcloudState
     data object Polling : NextcloudState
-    data class Connected(val username: String, val lastSyncTime: Long?) : NextcloudState
+    data class Connected(val username: String, val serverUrl: String, val lastSyncTime: Long?) : NextcloudState
     data class Error(val message: String) : NextcloudState
 }
 
@@ -79,7 +79,7 @@ class SettingsAndSyncViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(
         SettingsUiState(
-            nextcloud = settings.nextcloudAccount()?.let { NextcloudState.Connected(it.loginName, settings.lastSyncMillis.value.orNull()) }
+            nextcloud = settings.nextcloudAccount()?.let { NextcloudState.Connected(it.loginName, it.serverUrl, settings.lastSyncMillis.value.orNull()) }
                 ?: NextcloudState.Idle,
             downloads = DownloadPrefs(settings.autoDownloadUnmeteredOnly, settings.deleteDownloadsWhenPlayed),
             allowCleartext = cleartextAtStart,
@@ -212,7 +212,7 @@ class SettingsAndSyncViewModel @Inject constructor(
     private fun connect(credentials: NextcloudCredentials) {
         settings.saveNextcloudAccount(NextcloudAccount(credentials.server, credentials.loginName, credentials.appPassword))
         session = null
-        setNextcloud(NextcloudState.Connected(credentials.loginName, settings.lastSyncMillis.value.orNull()))
+        setNextcloud(NextcloudState.Connected(credentials.loginName, credentials.server, settings.lastSyncMillis.value.orNull()))
         sync.syncNow()
     }
 
