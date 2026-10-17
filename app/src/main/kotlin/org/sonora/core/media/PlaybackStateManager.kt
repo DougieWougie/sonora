@@ -18,6 +18,7 @@ import org.sonora.core.database.EpisodeRepository
 import org.sonora.core.database.PodcastDao
 import org.sonora.core.model.DownloadState
 import org.sonora.core.network.isTransportAllowed
+import org.sonora.core.network.upgradedToHttps
 
 data class PlaybackState(
     val episodeId: Long? = null,
@@ -184,10 +185,12 @@ class PlaybackStateManager(
         return if (episode.downloadState == DownloadState.DOWNLOADED && path != null && fileExists(path)) {
             File(path).toURI().let { "file://${it.rawPath}" }
         } else {
-            check(isTransportAllowed(episode.enclosureUrl, allowCleartext)) {
-                "Refusing to stream ${episode.enclosureUrl}: not HTTPS (or cleartext is disabled)"
+            // Many feeds still list http:// enclosures; ask for https:// rather than refusing outright.
+            val url = episode.enclosureUrl.takeIf { allowCleartext } ?: upgradedToHttps(episode.enclosureUrl) ?: episode.enclosureUrl
+            check(isTransportAllowed(url, allowCleartext)) {
+                "Refusing to stream ${episode.enclosureUrl}: not HTTP(S)"
             }
-            episode.enclosureUrl
+            url
         }
     }
 

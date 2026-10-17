@@ -4,6 +4,7 @@ package org.sonora.ui
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import org.sonora.core.network.upgradedToHttps
 
 class HttpsUpgradeTest {
     @Test

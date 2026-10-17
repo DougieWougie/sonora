@@ -110,12 +110,12 @@ class PlaybackStateManagerTest {
     }
 
     @Test
-    fun `refuses to stream a cleartext enclosure unless cleartext is allowed`() = runTest {
+    fun `streams the https form of a cleartext enclosure unless cleartext is allowed`() = runTest {
         val id = seedWithUrl("http://cdn/g1.mp3")
 
-        assertThrows<IllegalStateException> { manager().play(id) }
-        assertTrue(engine.calls.isEmpty())
-        assertFalse(manager().state.value.isPlaying)
+        manager().play(id)
+
+        assertEquals("https://cdn/g1.mp3", engine.preparedUri)
     }
 
     @Test
