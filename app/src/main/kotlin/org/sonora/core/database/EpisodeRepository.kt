@@ -29,6 +29,11 @@ class EpisodeRepository(
         enqueuePlay(episode, startedSeconds, positionSeconds)
     }
 
+    /** Cheap periodic checkpoint: stores the position only, without touching the sync queue. */
+    suspend fun savePosition(episodeId: Long, positionSeconds: Long) {
+        episodeDao.update(requireEpisode(episodeId).copy(playbackPositionSeconds = positionSeconds))
+    }
+
     suspend fun markPlayed(episodeId: Long) = transactions.run {
         val episode = requireEpisode(episodeId)
         val end = episode.durationSeconds ?: episode.playbackPositionSeconds
@@ -43,15 +48,33 @@ class EpisodeRepository(
         enqueue(episode, SyncActionType.NEW)
     }
 
-    suspend fun markDownloaded(episodeId: Long, path: String) = transactions.run {
+    /** Tracks transfer progress locally; only completion and deletion are worth telling the server. */
+    suspend fun updateDownload(episodeId: Long, state: DownloadState, bytes: Long) {
         val episode = requireEpisode(episodeId)
-        episodeDao.update(episode.copy(downloadState = DownloadState.DOWNLOADED, downloadPath = path))
+        episodeDao.update(
+            episode.copy(
+                downloadState = state,
+                downloadedBytes = bytes,
+                downloadPath = episode.downloadPath.takeIf { state == DownloadState.DOWNLOADED },
+            ),
+        )
+    }
+
+    suspend fun markDownloaded(episodeId: Long, path: String, bytes: Long? = null) = transactions.run {
+        val episode = requireEpisode(episodeId)
+        episodeDao.update(
+            episode.copy(
+                downloadState = DownloadState.DOWNLOADED,
+                downloadPath = path,
+                downloadedBytes = bytes ?: episode.downloadedBytes,
+            ),
+        )
         enqueue(episode, SyncActionType.DOWNLOAD)
     }
 
     suspend fun deleteDownload(episodeId: Long) = transactions.run {
         val episode = requireEpisode(episodeId)
-        episodeDao.update(episode.copy(downloadState = DownloadState.NONE, downloadPath = null))
+        episodeDao.update(episode.copy(downloadState = DownloadState.NONE, downloadPath = null, downloadedBytes = 0))
         enqueue(episode, SyncActionType.DELETE)
     }
 

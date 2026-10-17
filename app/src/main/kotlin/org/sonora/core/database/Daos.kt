@@ -52,6 +52,9 @@ interface EpisodeDao {
     @Query("SELECT * FROM episode WHERE podcastId = :podcastId")
     suspend fun getForPodcast(podcastId: Long): List<EpisodeEntity>
 
+    @Query("SELECT * FROM episode WHERE downloadState = :state")
+    suspend fun getByDownloadState(state: org.sonora.core.model.DownloadState): List<EpisodeEntity>
+
     @Query("SELECT * FROM episode WHERE podcastId = :podcastId ORDER BY publishedAtMillis DESC")
     fun observeForPodcast(podcastId: Long): Flow<List<EpisodeEntity>>
 }

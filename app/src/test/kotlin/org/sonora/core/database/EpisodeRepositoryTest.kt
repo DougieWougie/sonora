@@ -138,4 +138,15 @@ class EpisodeRepositoryTest {
             assertEquals(42, awaitItem().single().playbackPositionSeconds)
         }
     }
+
+    @Test
+    fun `savePosition updates only the position and does not queue a sync action`() = runTest {
+        val id = seedEpisode()
+
+        repo.savePosition(id, positionSeconds = 33)
+
+        assertEquals(33, episodeDao.findById(id)!!.playbackPositionSeconds)
+        assertFalse(episodeDao.findById(id)!!.played)
+        assertTrue(queue.getAll().isEmpty())
+    }
 }

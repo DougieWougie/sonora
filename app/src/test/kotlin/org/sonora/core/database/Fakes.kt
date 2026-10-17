@@ -63,6 +63,8 @@ class FakeEpisodeDao : EpisodeDao {
     override suspend fun findById(id: Long) = rows.value.firstOrNull { it.id == id }
     override suspend fun findByEnclosureUrl(enclosureUrl: String) = rows.value.firstOrNull { it.enclosureUrl == enclosureUrl }
     override suspend fun getForPodcast(podcastId: Long) = rows.value.filter { it.podcastId == podcastId }
+    override suspend fun getByDownloadState(state: org.sonora.core.model.DownloadState) =
+        rows.value.filter { it.downloadState == state }
     override fun observeForPodcast(podcastId: Long): Flow<List<EpisodeEntity>> =
         rows.map { all -> all.filter { it.podcastId == podcastId } }
 }

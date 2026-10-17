@@ -18,6 +18,7 @@ data class PodcastEntity(
     val author: String? = null,
     val imageUrl: String? = null,
     val lastRefreshedAtMillis: Long = 0,
+    val autoDownload: Boolean = false,
 )
 
 @Entity(
@@ -51,6 +52,7 @@ data class EpisodeEntity(
     val played: Boolean = false,
     val downloadState: DownloadState = DownloadState.NONE,
     val downloadPath: String? = null,
+    val downloadedBytes: Long = 0,
 )
 
 /** A local change that has not yet been pushed to the sync server. Timestamps are UTC epoch millis. */

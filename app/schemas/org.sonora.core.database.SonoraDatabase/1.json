@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "5ebd03fd921ac328f4deb8a43fc8bee9",
+    "identityHash": "16be4e3b546d6bc7554d880a4f0e3a62",
     "entities": [
       {
         "tableName": "podcast",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `feedUrl` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT, `link` TEXT, `author` TEXT, `imageUrl` TEXT, `lastRefreshedAtMillis` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `feedUrl` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT, `link` TEXT, `author` TEXT, `imageUrl` TEXT, `lastRefreshedAtMillis` INTEGER NOT NULL, `autoDownload` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -51,6 +51,12 @@
             "columnName": "lastRefreshedAtMillis",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "autoDownload",
+            "columnName": "autoDownload",
+            "affinity": "INTEGER",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -73,7 +79,7 @@
       },
       {
         "tableName": "episode",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `podcastId` INTEGER NOT NULL, `guid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT, `enclosureUrl` TEXT NOT NULL, `mimeType` TEXT, `sizeBytes` INTEGER, `durationSeconds` INTEGER, `publishedAtMillis` INTEGER, `imageUrl` TEXT, `playbackPositionSeconds` INTEGER NOT NULL, `played` INTEGER NOT NULL, `downloadState` TEXT NOT NULL, `downloadPath` TEXT, FOREIGN KEY(`podcastId`) REFERENCES `podcast`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `podcastId` INTEGER NOT NULL, `guid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT, `enclosureUrl` TEXT NOT NULL, `mimeType` TEXT, `sizeBytes` INTEGER, `durationSeconds` INTEGER, `publishedAtMillis` INTEGER, `imageUrl` TEXT, `playbackPositionSeconds` INTEGER NOT NULL, `played` INTEGER NOT NULL, `downloadState` TEXT NOT NULL, `downloadPath` TEXT, `downloadedBytes` INTEGER NOT NULL, FOREIGN KEY(`podcastId`) REFERENCES `podcast`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -157,6 +163,12 @@
             "fieldPath": "downloadPath",
             "columnName": "downloadPath",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "downloadedBytes",
+            "columnName": "downloadedBytes",
+            "affinity": "INTEGER",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -325,7 +337,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5ebd03fd921ac328f4deb8a43fc8bee9')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '16be4e3b546d6bc7554d880a4f0e3a62')"
     ]
   }
 }
