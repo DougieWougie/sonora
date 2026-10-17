@@ -37,7 +37,7 @@ jobs:
       - name: Setup Gradle and Cache
         uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-home-cache-cleanup: true
+          cache-cleanup: on-success
 
       - name: Ensure gradlew is executable
         run: chmod +x ./gradlew
