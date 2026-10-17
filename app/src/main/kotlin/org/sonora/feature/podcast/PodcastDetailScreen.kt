@@ -69,7 +69,8 @@ fun PodcastDetailScreen(
     }
 
     Column(modifier.fillMaxSize()) {
-        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") }
+        // The 48dp button centres its 24dp icon 12dp in; 4dp more puts the arrow on the 16dp content edge.
+        IconButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") }
         PullToRefreshBox(
             isRefreshing = state.isRefreshing,
             onRefresh = { viewModel.onIntent(PodcastDetailIntent.Refresh) },
