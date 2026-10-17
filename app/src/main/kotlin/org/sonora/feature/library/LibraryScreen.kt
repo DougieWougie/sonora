@@ -79,7 +79,7 @@ fun LibraryScreen(
 
 @Composable
 private fun LibraryHeader(state: SubscriptionsUiState, onIntent: (SubscriptionsIntent) -> Unit) {
-    Column(Modifier.padding(horizontal = 16.dp).animateContentSize()) {
+    Column(Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp).animateContentSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Library", style = MaterialTheme.typography.headlineLargeEmphasized, modifier = Modifier.weight(1f))
             if (state.isRefreshing) LoadingIndicator(Modifier.size(40.dp))
