@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.sonora.ui.components.ArtworkImage
+import org.sonora.ui.components.SonoraLogo
 
 @Composable
 fun LibraryScreen(
@@ -113,11 +114,14 @@ private fun LibraryHeader(state: SubscriptionsUiState, onIntent: (SubscriptionsI
 @Composable
 private fun EmptyLibrary(filtered: Boolean) {
     Box(Modifier.fillMaxSize().padding(32.dp), Alignment.Center) {
-        Text(
-            if (filtered) "Nothing new right now." else "No subscriptions yet. Find shows in Discover, or import an OPML file there.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(24.dp)) {
+            if (!filtered) SonoraLogo(Modifier.fillMaxWidth(0.6f))
+            Text(
+                if (filtered) "Nothing new right now." else "No subscriptions yet. Find shows in Discover, or import an OPML file there.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

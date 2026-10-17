@@ -52,6 +52,7 @@ import java.util.Date
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import kotlinx.coroutines.flow.Flow
 import org.sonora.core.testing.TestTags
+import org.sonora.ui.components.SonoraLogo
 import org.sonora.ui.theme.ThemeIntent
 import org.sonora.ui.theme.ThemeMode
 import org.sonora.ui.theme.ThemeViewModel
@@ -136,6 +137,8 @@ fun SettingsScreen(
                 Text("Restart Sonora for this change to take effect.", color = MaterialTheme.colorScheme.tertiary)
             }
         }
+
+        AboutCard(versionName(context))
     }
 }
 
@@ -219,6 +222,20 @@ private fun ErrorBanner(message: String, canRetry: Boolean, onRetry: () -> Unit)
         }
     }
 }
+
+@Composable
+private fun AboutCard(version: String?) {
+    SettingsCard("About") {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SonoraLogo(Modifier.fillMaxWidth(0.7f))
+            version?.let { Text("Version $it", style = MaterialTheme.typography.bodyMedium) }
+            Text("Free software under the GPL-3.0-or-later", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+private fun versionName(context: Context): String? =
+    try { context.packageManager.getPackageInfo(context.packageName, 0).versionName } catch (_: Exception) { null }
 
 @Composable
 private fun SettingsCard(title: String, content: @Composable () -> Unit) {
