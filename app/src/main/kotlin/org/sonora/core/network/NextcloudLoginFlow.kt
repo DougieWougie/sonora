@@ -30,11 +30,13 @@ private data class CredentialsDto(val server: String, val loginName: String, val
 
 /** Nextcloud Login Flow v2: obtains an app password without the app ever seeing the user's real password. */
 class NextcloudLoginFlow(
-    private val client: OkHttpClient,
+    client: OkHttpClient,
     private val userAgent: String = "Sonora",
     private val allowCleartext: Boolean = false,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
+    private val client = client.withTransportPolicy(allowCleartext)
+
     suspend fun start(serverUrl: String): LoginFlowSession {
         val url = serverUrl.trimEnd('/') + "/index.php/login/v2"
         val body = post(url, FormBody.Builder().build()) ?: throw LoginFlowException("Server does not support Login Flow v2")
@@ -71,6 +73,9 @@ class NextcloudLoginFlow(
         return withContext(ioDispatcher) {
             try {
                 client.newCall(request).execute().use { response ->
+                    if (!isTransportAllowed(response.request.url.toString(), allowCleartext)) {
+                        throw LoginFlowException("Refusing response served over cleartext")
+                    }
                     when (response.code) {
                         200 -> response.body.string()
                         404 -> null
