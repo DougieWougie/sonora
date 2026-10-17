@@ -28,24 +28,31 @@ private data class PollDto(val token: String, val endpoint: String)
 @Serializable
 private data class CredentialsDto(val server: String, val loginName: String, val appPassword: String)
 
+/** The two calls of Login Flow v2, so the settings view model can be tested without a server. */
+interface LoginFlowApi {
+    suspend fun start(serverUrl: String): LoginFlowSession
+
+    /** One poll attempt: null while the user has not finished logging in yet. */
+    suspend fun poll(session: LoginFlowSession): NextcloudCredentials?
+}
+
 /** Nextcloud Login Flow v2: obtains an app password without the app ever seeing the user's real password. */
 class NextcloudLoginFlow(
     client: OkHttpClient,
     private val userAgent: String = "Sonora",
     private val allowCleartext: Boolean = false,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) {
+) : LoginFlowApi {
     private val client = client.withTransportPolicy(allowCleartext)
 
-    suspend fun start(serverUrl: String): LoginFlowSession {
+    override suspend fun start(serverUrl: String): LoginFlowSession {
         val url = serverUrl.trimEnd('/') + "/index.php/login/v2"
         val body = post(url, FormBody.Builder().build()) ?: throw LoginFlowException("Server does not support Login Flow v2")
         val dto = decode<StartDto>(body)
         return LoginFlowSession(dto.login, dto.poll.endpoint, dto.poll.token)
     }
 
-    /** One poll attempt: null while the user has not finished logging in yet. */
-    suspend fun poll(session: LoginFlowSession): NextcloudCredentials? {
+    override suspend fun poll(session: LoginFlowSession): NextcloudCredentials? {
         val form = FormBody.Builder().add("token", session.pollToken).build()
         val body = post(session.pollEndpoint, form) ?: return null
         val dto = decode<CredentialsDto>(body)

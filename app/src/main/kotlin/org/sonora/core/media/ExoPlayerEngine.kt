@@ -15,6 +15,8 @@ class ExoPlayerEngine(private val player: ExoPlayer) : PlayerEngine {
     override val positionMs: Long get() = player.currentPosition
     override val durationMs: Long get() = player.duration.takeIf { it != C.TIME_UNSET } ?: 0
 
+    override val bufferedMs: Long get() = player.bufferedPosition
+
     override fun prepare(uri: String, startPositionMs: Long, metadata: PlaybackMetadata) {
         val item = MediaItem.Builder()
             .setMediaId(metadata.mediaId)

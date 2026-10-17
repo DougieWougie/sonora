@@ -41,6 +41,23 @@ import org.sonora.core.work.WorkManagerDownloadScheduler
 import org.sonora.core.work.WorkManagerSyncScheduler
 import org.sonora.feature.discover.DiscoveryRepository
 import org.sonora.feature.settings.AppSettings
+import org.sonora.core.download.DefaultEpisodeActions
+import org.sonora.core.download.EpisodeActions
+import org.sonora.core.media.PersistentPlayQueue
+import org.sonora.core.media.PlayQueue
+import org.sonora.core.media.PlaybackHub
+import org.sonora.core.media.PlaybackPort
+import org.sonora.core.media.PrefsQueueStorage
+import org.sonora.core.network.LoginFlowApi
+import org.sonora.core.network.NextcloudLoginFlow
+import org.sonora.core.parser.OpmlParser
+import org.sonora.core.parser.OpmlWriter
+import org.sonora.core.work.SyncController
+import org.sonora.feature.discover.DefaultOpmlTransfer
+import org.sonora.feature.discover.DirectorySearch
+import org.sonora.feature.discover.OpmlTransfer
+import org.sonora.feature.settings.SettingsStore
+import org.sonora.ui.theme.ThemePreferenceStore
 import org.xmlpull.v1.XmlPullParserFactory
 
 private const val USER_AGENT = "Sonora/0.1 (+https://sonora.invalid)"
@@ -179,5 +196,47 @@ object AppModule {
                 )
             },
         )
+    }
+
+    @Provides @Singleton
+    fun themeStore(settings: AppSettings): ThemePreferenceStore = settings
+
+    @Provides @Singleton
+    fun settingsStore(settings: AppSettings): SettingsStore = settings
+
+    @Provides @Singleton
+    fun syncController(scheduler: WorkManagerSyncScheduler): SyncController = scheduler
+
+    @Provides @Singleton
+    fun playbackHub() = PlaybackHub()
+
+    @Provides @Singleton
+    fun playbackPort(hub: PlaybackHub): PlaybackPort = hub
+
+    @Provides @Singleton
+    fun playQueue(@ApplicationContext context: Context): PlayQueue = PersistentPlayQueue(PrefsQueueStorage(context))
+
+    @Provides @Singleton
+    fun episodeActions(
+        manager: EpisodeDownloadManager,
+        repository: EpisodeRepository,
+        scheduler: DownloadScheduler,
+    ): EpisodeActions = DefaultEpisodeActions(manager, repository, scheduler)
+
+    @Provides @Singleton
+    fun directorySearch(repository: DiscoveryRepository): DirectorySearch = repository
+
+    @Provides @Singleton
+    fun loginFlow(client: OkHttpClient, settings: AppSettings): LoginFlowApi =
+        NextcloudLoginFlow(client = client, userAgent = USER_AGENT, allowCleartext = settings.allowCleartext)
+
+    @Provides @Singleton
+    fun opmlTransfer(
+        podcasts: PodcastDao,
+        subscriptions: SubscriptionRepository,
+        settings: AppSettings,
+    ): OpmlTransfer {
+        val factory = XmlPullParserFactory.newInstance()
+        return DefaultOpmlTransfer(OpmlParser(factory), OpmlWriter(factory), podcasts, subscriptions) { settings.allowCleartext }
     }
 }

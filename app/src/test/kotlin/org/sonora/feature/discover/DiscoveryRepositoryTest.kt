@@ -110,4 +110,38 @@ class DiscoveryRepositoryTest {
             assertEquals("apple down", awaitError().message)
         }
     }
+
+    @Test
+    fun `searching one directory never touches the other`() = runTest {
+        val apple = FakeProvider(listOf(pod("A", "https://a")))
+        val index = FakeProvider(listOf(pod("I", "https://i")))
+        val creds = FakeCredentials(PodcastIndexCredentials("k", "s"))
+
+        repo(apple, index, creds).search("q", DirectorySource.PODCAST_INDEX).test {
+            assertEquals(listOf(pod("I", "https://i")), awaitItem())
+            awaitComplete()
+        }
+        assertEquals(emptyList<String>(), apple.queries)
+
+        repo(apple, index, creds).search("q", DirectorySource.APPLE).test {
+            assertEquals(listOf(pod("A", "https://a")), awaitItem())
+            awaitComplete()
+        }
+    }
+
+    @Test
+    fun `PodcastIndex without credentials fails with a clear error`() = runTest {
+        repo(FakeProvider(), FakeProvider(), FakeCredentials(null)).search("q", DirectorySource.PODCAST_INDEX).test {
+            assertTrue(awaitError() is DirectoryException)
+        }
+    }
+
+    @Test
+    fun `a failing selected directory is an error, not a silent fallback`() = runTest {
+        val apple = FakeProvider(error = DirectoryException("down"))
+        repo(apple, FakeProvider(listOf(pod("I", "https://i"))), FakeCredentials(PodcastIndexCredentials("k", "s")))
+            .search("q", DirectorySource.APPLE).test {
+                assertTrue(awaitError() is DirectoryException)
+            }
+    }
 }

@@ -3,6 +3,7 @@ package org.sonora.core.media
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
@@ -16,6 +17,7 @@ import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionError
 import androidx.media3.session.SessionCommands
 import androidx.media3.session.SessionResult
 import com.google.common.util.concurrent.Futures
@@ -23,6 +25,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -34,6 +37,8 @@ import org.sonora.core.database.EpisodeDao
 import org.sonora.core.database.EpisodeRepository
 import org.sonora.core.database.PodcastDao
 import org.sonora.core.download.EpisodeDownloadManager
+import org.sonora.core.network.withTransportPolicy
+import org.sonora.feature.settings.AppSettings
 
 @UnstableApi
 @AndroidEntryPoint
@@ -43,17 +48,29 @@ class PodcastMediaSessionService : MediaSessionService() {
     @Inject lateinit var episodeRepository: EpisodeRepository
     @Inject lateinit var okHttpClient: OkHttpClient
     @Inject lateinit var downloadManager: EpisodeDownloadManager
+    @Inject lateinit var settings: AppSettings
+    @Inject lateinit var playQueue: PlayQueue
+    @Inject lateinit var hub: PlaybackHub
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Main.immediate +
+            CoroutineExceptionHandler { _, e -> Log.w(TAG, "Playback command failed", e) },
+    )
     private lateinit var player: ExoPlayer
     private lateinit var manager: PlaybackStateManager
     private var session: MediaSession? = null
 
     override fun onCreate() {
         super.onCreate()
+        val allowCleartext = settings.allowCleartext
         player = ExoPlayer.Builder(this, SonoraRenderersFactory(this))
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(DefaultDataSource.Factory(this, OkHttpDataSource.Factory(okHttpClient))),
+                DefaultMediaSourceFactory(
+                    DefaultDataSource.Factory(
+                        this,
+                        OkHttpDataSource.Factory(okHttpClient.withTransportPolicy(allowCleartext)),
+                    ),
+                ),
             )
             // Speech content type + handleAudioFocus = true: pauses on focus loss, ducks for notifications.
             .setAudioAttributes(
@@ -77,8 +94,11 @@ class PodcastMediaSessionService : MediaSessionService() {
             episodeRepository = episodeRepository,
             fileExists = { File(it).isFile },
             scope = scope,
+            allowCleartext = allowCleartext,
+            queue = playQueue,
             onEpisodeCompleted = downloadManager::onEpisodeCompleted,
         )
+        hub.attach(manager)
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_ENDED) scope.launch { manager.onPlaybackEnded() }
@@ -111,6 +131,7 @@ class PodcastMediaSessionService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        hub.detach(manager)
         session?.release()
         session = null
         player.release()
@@ -149,11 +170,21 @@ class PodcastMediaSessionService : MediaSessionService() {
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
         ): MediaSession.ConnectionResult {
+            // Custom commands (play any episode id, ...) are for our own UI and system controllers only.
+            val privileged = controller.isTrusted || controller.packageName == packageName
             val commands = SessionCommands.Builder()
                 .addSessionCommands(MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.commands)
-                .apply { PlaybackCommands.ALL.forEach(::add) }
+                .apply { if (privileged) PlaybackCommands.ALL.forEach(::add) }
                 .build()
-            return MediaSession.ConnectionResult.accept(commands, MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS)
+            val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
+                .apply {
+                    if (!privileged) {
+                        remove(Player.COMMAND_SET_MEDIA_ITEM)
+                        remove(Player.COMMAND_CHANGE_MEDIA_ITEMS)
+                    }
+                }
+                .build()
+            return MediaSession.ConnectionResult.accept(commands, playerCommands)
         }
 
         override fun onCustomCommand(
@@ -162,10 +193,22 @@ class PodcastMediaSessionService : MediaSessionService() {
             customCommand: SessionCommand,
             args: Bundle,
         ): ListenableFuture<SessionResult> {
+            if (!controller.isTrusted && controller.packageName != packageName) {
+                return Futures.immediateFuture(SessionResult(SessionError.ERROR_PERMISSION_DENIED))
+            }
+            val valid = when (customCommand) {
+                PlaybackCommands.PLAY_EPISODE -> args.containsKey(PlaybackCommands.EXTRA_EPISODE_ID)
+                PlaybackCommands.SET_SPEED -> args.getFloat(PlaybackCommands.EXTRA_SPEED, Float.NaN).isFinite()
+                PlaybackCommands.SET_SKIP_SILENCE -> args.containsKey(PlaybackCommands.EXTRA_ENABLED)
+                PlaybackCommands.START_SLEEP_TIMER -> args.getLong(PlaybackCommands.EXTRA_DURATION_MS, 0) > 0
+                PlaybackCommands.CANCEL_SLEEP_TIMER -> true
+                else -> false
+            }
+            if (!valid) return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
             scope.launch {
                 when (customCommand) {
                     PlaybackCommands.PLAY_EPISODE -> manager.play(args.getLong(PlaybackCommands.EXTRA_EPISODE_ID))
-                    PlaybackCommands.SET_SPEED -> manager.setSpeed(args.getFloat(PlaybackCommands.EXTRA_SPEED, 1f))
+                    PlaybackCommands.SET_SPEED -> manager.setSpeed(args.getFloat(PlaybackCommands.EXTRA_SPEED))
                     PlaybackCommands.SET_SKIP_SILENCE ->
                         manager.setSkipSilence(args.getBoolean(PlaybackCommands.EXTRA_ENABLED))
                     PlaybackCommands.START_SLEEP_TIMER ->
@@ -178,6 +221,7 @@ class PodcastMediaSessionService : MediaSessionService() {
     }
 
     private companion object {
+        const val TAG = "PodcastMediaSession"
         const val NOTIFICATION_CHANNEL_ID = "playback"
         const val SEEK_BACK_MS = 10_000L
         const val SEEK_FORWARD_MS = 30_000L

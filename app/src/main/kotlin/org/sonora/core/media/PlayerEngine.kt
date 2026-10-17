@@ -16,6 +16,7 @@ data class PlaybackMetadata(
 interface PlayerEngine {
     val positionMs: Long
     val durationMs: Long
+    val bufferedMs: Long
 
     fun prepare(uri: String, startPositionMs: Long, metadata: PlaybackMetadata)
     fun play()

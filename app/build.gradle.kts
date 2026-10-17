@@ -42,6 +42,17 @@ android {
 
 kotlin {
     jvmToolchain(17)
+    compilerOptions {
+        // Material 3 Expressive, shared element transitions and Media3 are opt-in APIs by design.
+        optIn.addAll(
+            "androidx.compose.material3.ExperimentalMaterial3Api",
+            "androidx.compose.material3.ExperimentalMaterial3ExpressiveApi",
+            "androidx.compose.animation.ExperimentalSharedTransitionApi",
+            "androidx.compose.foundation.ExperimentalFoundationApi",
+            "androidx.compose.foundation.layout.ExperimentalLayoutApi",
+            "androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi",
+        )
+    }
 }
 
 dependencies {
@@ -50,6 +61,17 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.graphics.shapes)
+    implementation(libs.androidx.palette.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.browser)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.kotlinx.coroutines.guava)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

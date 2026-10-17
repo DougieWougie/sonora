@@ -8,6 +8,9 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import org.sonora.core.model.SyncActionType
 
+/** Per-podcast aggregates for the library grid. */
+data class PodcastEpisodeStats(val podcastId: Long, val unplayed: Int, val latestPublishedAtMillis: Long?)
+
 @Dao
 interface PodcastDao {
     @Insert
@@ -24,6 +27,9 @@ interface PodcastDao {
 
     @Query("SELECT * FROM podcast WHERE id = :id")
     suspend fun findById(id: Long): PodcastEntity?
+
+    @Query("SELECT * FROM podcast WHERE id = :id")
+    fun observeById(id: Long): Flow<PodcastEntity?>
 
     @Query("SELECT * FROM podcast ORDER BY title COLLATE NOCASE")
     fun observeAll(): Flow<List<PodcastEntity>>
@@ -54,6 +60,15 @@ interface EpisodeDao {
 
     @Query("SELECT * FROM episode WHERE downloadState = :state")
     suspend fun getByDownloadState(state: org.sonora.core.model.DownloadState): List<EpisodeEntity>
+
+    @Query(
+        "SELECT podcastId, SUM(CASE WHEN played = 0 THEN 1 ELSE 0 END) AS unplayed, " +
+            "MAX(publishedAtMillis) AS latestPublishedAtMillis FROM episode GROUP BY podcastId",
+    )
+    fun observeStats(): Flow<List<PodcastEpisodeStats>>
+
+    @Query("SELECT * FROM episode WHERE played = 0 ORDER BY publishedAtMillis DESC LIMIT :limit")
+    fun observeUnplayed(limit: Int): Flow<List<EpisodeEntity>>
 
     @Query("SELECT * FROM episode WHERE podcastId = :podcastId ORDER BY publishedAtMillis DESC")
     fun observeForPodcast(podcastId: Long): Flow<List<EpisodeEntity>>

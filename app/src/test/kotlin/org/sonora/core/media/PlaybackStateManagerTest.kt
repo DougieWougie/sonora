@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.core.media
 
+import app.cash.turbine.test
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -29,6 +30,7 @@ class FakePlayerEngine : PlayerEngine {
     var preparedMetadata: PlaybackMetadata? = null
     override var positionMs: Long = 0
     override var durationMs: Long = 0
+    override var bufferedMs: Long = 0
     var appliedSpeed = 1f
     var silenceSkipping = false
 
@@ -63,6 +65,9 @@ class PlaybackStateManagerTest {
     private var existingFiles = emptySet<String>()
     private val completed = mutableListOf<Long>()
 
+    private var allowCleartext = false
+    private val playQueue = PersistentPlayQueue(FakeQueueStorage())
+
     private fun TestScope.manager() = PlaybackStateManager(
         engine = engine,
         episodeDao = episodeDao,
@@ -70,6 +75,8 @@ class PlaybackStateManagerTest {
         episodeRepository = repo,
         fileExists = { it in existingFiles },
         scope = backgroundScope,
+        allowCleartext = allowCleartext,
+        queue = playQueue,
         onEpisodeCompleted = { completed += it },
     )
 
@@ -95,6 +102,41 @@ class PlaybackStateManagerTest {
     }
 
     // --- source resolution -------------------------------------------------------------------
+
+    private suspend fun seedWithUrl(url: String): Long {
+        val id = seed()
+        episodeDao.update(episodeDao.findById(id)!!.copy(enclosureUrl = url))
+        return id
+    }
+
+    @Test
+    fun `refuses to stream a cleartext enclosure unless cleartext is allowed`() = runTest {
+        val id = seedWithUrl("http://cdn/g1.mp3")
+
+        assertThrows<IllegalStateException> { manager().play(id) }
+        assertTrue(engine.calls.isEmpty())
+        assertFalse(manager().state.value.isPlaying)
+    }
+
+    @Test
+    fun `streams a cleartext enclosure when the user opted in`() = runTest {
+        allowCleartext = true
+        val id = seedWithUrl("http://cdn/g1.mp3")
+
+        manager().play(id)
+
+        assertEquals("http://cdn/g1.mp3", engine.preparedUri)
+    }
+
+    @Test
+    fun `refuses non-http schemes in the enclosure even when cleartext is allowed`() = runTest {
+        allowCleartext = true
+        for (url in listOf("file:///etc/passwd", "content://x/y", "rtmp://h/s")) {
+            val id = seedWithUrl(url)
+            assertThrows<IllegalStateException> { manager().play(id) }
+        }
+        assertTrue(engine.calls.isEmpty())
+    }
 
     @Test
     fun `streams the enclosure url and resumes from the saved position`() = runTest {
@@ -362,7 +404,111 @@ class PlaybackStateManagerTest {
         assertEquals(77L, queue.getAll().single { it.episodeUrl == "https://cdn/g1.mp3" }.positionSeconds)
     }
 
+    // --- queue -------------------------------------------------------------------------------
+
+    @Test
+    fun `starting an episode takes it off the queue`() = runTest {
+        val a = seed(guid = "a"); val b = seed(guid = "b")
+        playQueue.enqueue(a); playQueue.enqueue(b)
+
+        manager().play(a)
+
+        assertEquals(listOf(b), playQueue.items.value)
+    }
+
+    @Test
+    fun `when an episode ends the next queued one starts`() = runTest {
+        val a = seed(guid = "a"); val b = seed(guid = "b")
+        playQueue.enqueue(b)
+        val m = manager()
+        m.play(a)
+
+        m.onPlaybackEnded()
+
+        assertEquals("https://cdn/b.mp3", engine.preparedUri)
+        assertEquals(b, m.state.value.episodeId)
+        assertTrue(m.state.value.isPlaying)
+        assertTrue(playQueue.items.value.isEmpty())
+    }
+
+    @Test
+    fun `when the queue is empty the player just stops at the end`() = runTest {
+        val a = seed(guid = "a")
+        val m = manager()
+        m.play(a)
+
+        m.onPlaybackEnded()
+
+        assertFalse(m.state.value.isPlaying)
+        assertEquals(a, m.state.value.episodeId)
+    }
+
+    @Test
+    fun `a queued episode that no longer exists is skipped`() = runTest {
+        val a = seed(guid = "a"); val c = seed(guid = "c")
+        playQueue.enqueue(9_999); playQueue.enqueue(c)
+        val m = manager()
+        m.play(a)
+
+        m.onPlaybackEnded()
+
+        assertEquals(c, m.state.value.episodeId)
+    }
+
+    // --- progress ----------------------------------------------------------------------------
+
+    @Test
+    fun `progress is empty until an episode is loaded`() = runTest {
+        manager().progress().test {
+            assertEquals(PlaybackProgress.None, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `progress follows the engine position, buffer and duration`() = runTest {
+        val id = seed(duration = 600)
+        val m = manager()
+        m.play(id)
+        engine.durationMs = 590_000
+
+        m.progress().test {
+            assertEquals(PlaybackProgress(0, 0, 590_000), awaitItem())
+            engine.positionMs = 5_000
+            engine.bufferedMs = 20_000
+            assertEquals(PlaybackProgress(5_000, 20_000, 590_000), awaitItem())
+            engine.positionMs = 6_000
+            assertEquals(PlaybackProgress(6_000, 20_000, 590_000), awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `progress falls back to the feed duration while the engine does not know it yet`() = runTest {
+        val id = seed(duration = 600)
+        val m = manager()
+        m.play(id)
+        engine.durationMs = 0
+
+        m.progress().test {
+            assertEquals(600_000, awaitItem().durationMs)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     // --- speed, silence, sleep timer ---------------------------------------------------------
+
+    @Test
+    fun `non-finite speeds are ignored`() = runTest {
+        val m = manager()
+        m.setSpeed(1.5f)
+
+        m.setSpeed(Float.NaN)
+        m.setSpeed(Float.POSITIVE_INFINITY)
+
+        assertEquals(1.5f, m.state.value.speed)
+        assertEquals(1.5f, engine.appliedSpeed)
+    }
 
     @Test
     fun `speed is clamped to 0_5x - 3_0x and forwarded to the engine`() = runTest {

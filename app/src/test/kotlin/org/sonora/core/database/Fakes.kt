@@ -44,6 +44,7 @@ class FakePodcastDao : PodcastDao {
     override suspend fun findByFeedUrl(feedUrl: String) = rows.value.firstOrNull { it.feedUrl == feedUrl }
     override suspend fun findById(id: Long) = rows.value.firstOrNull { it.id == id }
     override fun observeAll(): Flow<List<PodcastEntity>> = rows
+    override fun observeById(id: Long): Flow<PodcastEntity?> = rows.map { all -> all.firstOrNull { it.id == id } }
     override suspend fun getAll() = rows.value
 }
 
@@ -66,7 +67,16 @@ class FakeEpisodeDao : EpisodeDao {
     override suspend fun getByDownloadState(state: org.sonora.core.model.DownloadState) =
         rows.value.filter { it.downloadState == state }
     override fun observeForPodcast(podcastId: Long): Flow<List<EpisodeEntity>> =
-        rows.map { all -> all.filter { it.podcastId == podcastId } }
+        rows.map { all -> all.filter { it.podcastId == podcastId }.sortedByDescending { it.publishedAtMillis } }
+
+    override fun observeStats(): Flow<List<PodcastEpisodeStats>> = rows.map { all ->
+        all.groupBy { it.podcastId }.map { (id, eps) ->
+            PodcastEpisodeStats(id, eps.count { !it.played }, eps.mapNotNull { it.publishedAtMillis }.maxOrNull())
+        }
+    }
+
+    override fun observeUnplayed(limit: Int): Flow<List<EpisodeEntity>> =
+        rows.map { all -> all.filter { !it.played }.sortedByDescending { it.publishedAtMillis }.take(limit) }
 }
 
 class FakeSyncQueueDao : SyncQueueDao {

@@ -5,8 +5,11 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.sonora.core.database.EpisodeDao
@@ -14,6 +17,7 @@ import org.sonora.core.database.EpisodeEntity
 import org.sonora.core.database.EpisodeRepository
 import org.sonora.core.database.PodcastDao
 import org.sonora.core.model.DownloadState
+import org.sonora.core.network.isTransportAllowed
 
 data class PlaybackState(
     val episodeId: Long? = null,
@@ -39,12 +43,15 @@ class PlaybackStateManager(
     private val scope: CoroutineScope,
     private val progressIntervalMs: Long = 10_000,
     private val completionWindowSeconds: Long = 30,
+    private val allowCleartext: Boolean = false,
+    private val queue: PlayQueue? = null,
     private val onEpisodeCompleted: suspend (episodeId: Long) -> Unit = {},
 ) {
     private val _state = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = _state
 
     private var loadedId: Long? = null
+    private var loadedDurationMs = 0L
     private var sessionStartSeconds = 0L
     private var progressJob: Job? = null
     private var sleepJob: Job? = null
@@ -69,8 +76,10 @@ class PlaybackStateManager(
             engine.prepare(resolveUri(episode), startSeconds * 1000, metadata)
             sessionStartSeconds = startSeconds
             loadedId = episodeId
+            loadedDurationMs = (episode.durationSeconds ?: 0) * 1000
         }
         engine.play()
+        queue?.remove(episodeId)
         _state.update { it.copy(episodeId = episodeId, isPlaying = true) }
         startProgressTicker(episodeId)
     }
@@ -90,6 +99,7 @@ class PlaybackStateManager(
         checkpoint()
         engine.stop()
         loadedId = null
+        loadedDurationMs = 0
         _state.update { it.copy(episodeId = null, isPlaying = false) }
     }
 
@@ -106,9 +116,38 @@ class PlaybackStateManager(
         progressJob?.cancel()
         _state.update { it.copy(isPlaying = false) }
         checkpoint(forceComplete = true)
+        playNextInQueue()
     }
 
+    /** Starts the first queued episode that still exists. */
+    private suspend fun playNextInQueue() {
+        val queue = queue ?: return
+        while (true) {
+            val next = queue.pop() ?: return
+            if (episodeDao.findById(next) != null) return play(next)
+        }
+    }
+
+    /** Polls the engine for the scrubber; only distinct values are emitted. Collect while the UI is visible. */
+    fun progress(): Flow<PlaybackProgress> = flow {
+        while (true) {
+            emit(
+                if (loadedId == null) {
+                    PlaybackProgress.None
+                } else {
+                    PlaybackProgress(
+                        positionMs = engine.positionMs,
+                        bufferedMs = engine.bufferedMs,
+                        durationMs = engine.durationMs.takeIf { it > 0 } ?: loadedDurationMs,
+                    )
+                },
+            )
+            delay(PROGRESS_POLL_MS)
+        }
+    }.distinctUntilChanged()
+
     fun setSpeed(speed: Float) {
+        if (!speed.isFinite()) return
         val clamped = speed.coerceIn(MIN_SPEED, MAX_SPEED)
         engine.setSpeed(clamped)
         _state.update { it.copy(speed = clamped) }
@@ -145,6 +184,9 @@ class PlaybackStateManager(
         return if (episode.downloadState == DownloadState.DOWNLOADED && path != null && fileExists(path)) {
             File(path).toURI().let { "file://${it.rawPath}" }
         } else {
+            check(isTransportAllowed(episode.enclosureUrl, allowCleartext)) {
+                "Refusing to stream ${episode.enclosureUrl}: not HTTPS (or cleartext is disabled)"
+            }
             episode.enclosureUrl
         }
     }
@@ -174,5 +216,6 @@ class PlaybackStateManager(
         const val MIN_SPEED = 0.5f
         const val MAX_SPEED = 3.0f
         private const val SLEEP_TICK_MS = 1_000L
+        private const val PROGRESS_POLL_MS = 500L
     }
 }
