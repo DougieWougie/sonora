@@ -42,6 +42,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.text.DateFormat
 import java.util.Date
@@ -58,6 +59,11 @@ fun SettingsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val theme by themeViewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onIntent(SettingsIntent.ReturnedToApp)
+        onPauseOrDispose {}
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
@@ -152,7 +158,7 @@ private fun NextcloudCard(state: SettingsUiState, onIntent: (SettingsIntent) -> 
                 Button(onClick = { onIntent(SettingsIntent.StartLogin(server)) }, enabled = server.isNotBlank()) { Text("Connect") }
             }
             is NextcloudState.WaitingForBrowserAuth -> {
-                Text("Opening your browser to approve access…", style = MaterialTheme.typography.bodyMedium)
+                Text("Opening your browser. Approve access there, then switch back to Sonora.", style = MaterialTheme.typography.bodyMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(onClick = { onIntent(SettingsIntent.BrowserLaunched) }) { Text("I've opened it") }
                     TextButton(onClick = { onIntent(SettingsIntent.CancelLogin) }) { Text("Cancel") }
@@ -161,7 +167,7 @@ private fun NextcloudCard(state: SettingsUiState, onIntent: (SettingsIntent) -> 
             NextcloudState.Polling -> {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     LoadingIndicator(Modifier.size(48.dp))
-                    Text("Waiting for you to approve access in the browser…", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text("Approve access in the browser, then switch back to Sonora.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                 }
                 TextButton(onClick = { onIntent(SettingsIntent.CancelLogin) }) { Text("Cancel") }
             }

@@ -51,6 +51,8 @@ sealed interface SettingsIntent {
     data class StartLogin(val serverUrl: String) : SettingsIntent
     /** The UI opened the login URL; start polling for the approval. */
     data object BrowserLaunched : SettingsIntent
+    /** The user came back from the browser; Login Flow v2 has no redirect, so check for approval now. */
+    data object ReturnedToApp : SettingsIntent
     data object CancelLogin : SettingsIntent
     data object Disconnect : SettingsIntent
     data object SyncNow : SettingsIntent
@@ -112,6 +114,7 @@ class SettingsAndSyncViewModel @Inject constructor(
         when (intent) {
             is SettingsIntent.StartLogin -> startLogin(intent.serverUrl)
             SettingsIntent.BrowserLaunched -> startPolling()
+            SettingsIntent.ReturnedToApp -> if (_state.value.nextcloud == NextcloudState.Polling) startPolling()
             SettingsIntent.CancelLogin -> {
                 stopLogin()
                 setNextcloud(NextcloudState.Idle)
@@ -178,7 +181,7 @@ class SettingsAndSyncViewModel @Inject constructor(
 
     private fun startPolling() {
         val active = session ?: return
-        if (_state.value.nextcloud !is NextcloudState.WaitingForBrowserAuth) return
+        if (_state.value.nextcloud !is NextcloudState.WaitingForBrowserAuth && _state.value.nextcloud != NextcloudState.Polling) return
         setNextcloud(NextcloudState.Polling)
         loginJob?.cancel()
         loginJob = viewModelScope.launch {
@@ -191,7 +194,9 @@ class SettingsAndSyncViewModel @Inject constructor(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: LoginFlowException) {
-                    if (++failures >= MAX_POLL_FAILURES) {
+                    // A backgrounded app often has no network; that is not a failed login, so keep waiting.
+                    val offline = e.cause is java.io.IOException
+                    if (!offline && ++failures >= MAX_POLL_FAILURES) {
                         return@launch setNextcloud(NextcloudState.Error(e.message ?: "Login failed"))
                     }
                 }

@@ -148,6 +148,28 @@ class SettingsAndSyncViewModelTest {
     }
 
     @Test
+    fun `returning to the app while polling checks for approval straight away`() = runTest {
+        login.pollResults = mutableListOf(Result.success(null), Result.success(creds))
+        val vm = vm()
+        vm.onIntent(SettingsIntent.StartLogin("cloud.example")); advanceUntilIdle()
+        vm.onIntent(SettingsIntent.BrowserLaunched); runCurrent()
+        assertEquals(NextcloudState.Polling, vm.nextcloud)
+
+        vm.onIntent(SettingsIntent.ReturnedToApp); runCurrent()
+
+        assertEquals(NextcloudState.Connected("alice", null), vm.nextcloud)
+        assertEquals(2, login.polls)
+    }
+
+    @Test
+    fun `returning to the app does nothing when no login is in progress`() = runTest {
+        val vm = vm()
+        vm.onIntent(SettingsIntent.ReturnedToApp); runCurrent()
+        assertEquals(NextcloudState.Idle, vm.nextcloud)
+        assertEquals(0, login.polls)
+    }
+
+    @Test
     fun `polling stops after connecting`() = runTest {
         login.pollResults = mutableListOf(Result.success(creds))
         val vm = vm()
@@ -189,6 +211,17 @@ class SettingsAndSyncViewModelTest {
         vm.onIntent(SettingsIntent.StartLogin("cloud.example")); advanceUntilIdle()
         vm.onIntent(SettingsIntent.BrowserLaunched)
         advanceTimeBy(10_000); runCurrent()
+        assertTrue(vm.nextcloud is NextcloudState.Connected)
+    }
+
+    @Test
+    fun `losing the network while the browser is open does not abandon the login`() = runTest {
+        val offline = Result.failure<NextcloudCredentials?>(LoginFlowException("Network error", java.io.IOException("offline")))
+        login.pollResults = MutableList(30) { offline }.apply { add(Result.success(creds)) }
+        val vm = vm()
+        vm.onIntent(SettingsIntent.StartLogin("cloud.example")); advanceUntilIdle()
+        vm.onIntent(SettingsIntent.BrowserLaunched)
+        advanceTimeBy(70_000); runCurrent()
         assertTrue(vm.nextcloud is NextcloudState.Connected)
     }
 
