@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,8 +41,9 @@ import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
@@ -171,7 +174,6 @@ fun SharedTransitionScope.FullPlayer(
             }
             ExpressiveScrubber(
                 positionMs = state.positionMs,
-                bufferedMs = state.bufferedMs,
                 durationMs = state.durationMs,
                 isPlaying = state.isPlaying,
                 onSeek = { onIntent(PlayerIntent.SeekTo(it)) },
@@ -209,6 +211,7 @@ private fun SecondaryControls(state: PlayerUiState, onIntent: (PlayerIntent) -> 
         colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
     ) {
         SpeedPill(state.speed, onIntent)
+        Spacer(Modifier.width(8.dp))
         SkipSilenceChip(state.skipSilence) { onIntent(PlayerIntent.ToggleSkipSilence) }
         SleepTimerButton(state.sleepTimerRemainingMs, onIntent)
     }
@@ -218,7 +221,7 @@ private fun SecondaryControls(state: PlayerUiState, onIntent: (PlayerIntent) -> 
 private fun SpeedPill(speed: Float, onIntent: (PlayerIntent) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        FilledTonalButton(onClick = { open = true }, shape = RoundedCornerShape(50)) {
+        Button(onClick = { open = true }, shape = RoundedCornerShape(50)) {
             Text("%.1f×".format(speed), style = MaterialTheme.typography.labelLargeEmphasized.tabular())
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -241,6 +244,19 @@ private fun SkipSilenceChip(enabled: Boolean, onToggle: () -> Unit) {
         selected = enabled,
         onClick = onToggle,
         label = { Text("Skip silence") },
+        colors = FilterChipDefaults.filterChipColors(
+            labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            iconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            selectedContainerColor = MaterialTheme.colorScheme.primary,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = enabled,
+            borderColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            selectedBorderColor = MaterialTheme.colorScheme.primary,
+        ),
         leadingIcon = {
             AnimatedContent(
                 targetState = enabled,

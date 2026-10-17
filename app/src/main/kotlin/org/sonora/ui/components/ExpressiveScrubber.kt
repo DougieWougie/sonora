@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -43,12 +42,11 @@ import org.sonora.ui.theme.tabular
 
 /**
  * A tactile seek bar: the played part is a wave that rises while audio is playing and flattens when
- * paused, with the buffered range as a thin line beneath. A tooltip shows the target time while dragging.
+ * paused. A tooltip shows the target time while dragging.
  */
 @Composable
 fun ExpressiveScrubber(
     positionMs: Long,
-    bufferedMs: Long,
     durationMs: Long,
     isPlaying: Boolean,
     onSeek: (Long) -> Unit,
@@ -59,7 +57,6 @@ fun ExpressiveScrubber(
     val enabled = durationMs > 0
     val playedFraction = if (enabled) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
     val fraction = if (dragging) dragFraction else playedFraction
-    val bufferedFraction = if (enabled) (bufferedMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
     val amplitude by animateFloatAsState(
         targetValue = if (isPlaying && !dragging) 1f else 0f,
         animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
@@ -87,14 +84,6 @@ fun ExpressiveScrubber(
                     )
                 }
             }
-            LinearProgressIndicator(
-                progress = { bufferedFraction },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp).padding(bottom = 4.dp).height(2.dp),
-                color = MaterialTheme.colorScheme.outlineVariant,
-                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                gapSize = 0.dp,
-                drawStopIndicator = {},
-            )
             Slider(
                 state = sliderState,
                 onValueChange = { dragging = true; dragFraction = it; sliderState.value = it },
