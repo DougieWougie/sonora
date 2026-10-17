@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Plain Show</title>
+    <image><url>https://example.org/plain.png</url><title>Plain Show</title></image>
+    <item>
+      <title>Only item</title>
+      <guid>plain-1</guid>
+      <pubDate>15 Jan 2024 12:00:00 GMT</pubDate>
+      <enclosure url="https://example.org/plain.ogg" length="10" type="audio/ogg"/>
+    </item>
+  </channel>
+</rss>

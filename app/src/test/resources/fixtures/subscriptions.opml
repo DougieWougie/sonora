@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head><title>My Subscriptions</title></head>
+  <body>
+    <outline text="Tech" title="Tech">
+      <outline type="rss" text="Show A" title="Show A" xmlUrl="https://a.example.org/feed.xml" htmlUrl="https://a.example.org"/>
+      <outline type="rss" text="Show B &amp; Friends" xmlUrl="https://b.example.org/rss"/>
+    </outline>
+    <outline type="rss" text="Show C" xmlUrl="https://c.example.org/rss"/>
+    <outline text="Not a feed, no xmlUrl"/>
+  </body>
+</opml>

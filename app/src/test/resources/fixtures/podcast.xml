@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Example Show</title>
+    <link>https://example.org/show</link>
+    <description>A show about &amp; things</description>
+    <itunes:author>Jane Host</itunes:author>
+    <itunes:image href="https://example.org/art/show.jpg"/>
+    <item>
+      <title>Episode 3: Full</title>
+      <description>Third episode</description>
+      <guid isPermaLink="false">ep-3-guid</guid>
+      <pubDate>Tue, 03 Jun 2025 10:30:00 +0200</pubDate>
+      <enclosure url="https://cdn.example.org/ep3.mp3" length="12345678" type="audio/mpeg"/>
+      <itunes:duration>01:02:03</itunes:duration>
+      <itunes:image href="https://example.org/art/ep3.jpg"/>
+    </item>
+    <item>
+      <title>Episode 2: Minutes only</title>
+      <guid>ep-2-guid</guid>
+      <pubDate>Mon, 02 Jun 2025 08:00:00 GMT</pubDate>
+      <enclosure url="https://cdn.example.org/ep2.mp3" length="999" type="audio/mpeg"/>
+      <itunes:duration>45:10</itunes:duration>
+    </item>
+    <item>
+      <title>Episode 1: Seconds only</title>
+      <guid>ep-1-guid</guid>
+      <pubDate>not a real date</pubDate>
+      <enclosure url="https://cdn.example.org/ep1.mp3" type="audio/mpeg"/>
+      <itunes:duration>754</itunes:duration>
+    </item>
+    <item>
+      <title>No guid, bad duration</title>
+      <pubDate>Sun, 01 Jun 2025 08:00:00 GMT</pubDate>
+      <enclosure url="https://cdn.example.org/noguid.mp3" length="" type="audio/mpeg"/>
+      <itunes:duration>soon</itunes:duration>
+    </item>
+    <item>
+      <title>Blog-only item without enclosure</title>
+      <guid>text-only</guid>
+    </item>
+  </channel>
+</rss>
