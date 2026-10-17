@@ -1,0 +1,11 @@
+version = 1
+SPDX-PackageName = "Sonora"
+SPDX-PackageSupplier = "Dougie Richardson"
+
+# Kotlin sources carry their own SPDX-License-Identifier header; this covers everything else
+# (resources, build files, images, documentation).
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Dougie Richardson"
+SPDX-License-Identifier = "GPL-3.0-or-later"
