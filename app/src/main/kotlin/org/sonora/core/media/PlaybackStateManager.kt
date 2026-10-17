@@ -72,7 +72,8 @@ class PlaybackStateManager(
                 mediaId = episode.id.toString(),
                 title = episode.title,
                 artist = podcast?.title,
-                artworkUrl = episode.imageUrl ?: podcast?.imageUrl,
+                artworkUrl = (episode.imageUrl ?: podcast?.imageUrl)
+                    ?.let { if (allowCleartext) it else upgradedToHttps(it) ?: it },
             )
             engine.prepare(resolveUri(episode), startSeconds * 1000, metadata)
             sessionStartSeconds = startSeconds

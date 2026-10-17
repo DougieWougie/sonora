@@ -20,6 +20,7 @@ import org.sonora.core.database.EpisodeEntity
 import org.sonora.core.database.EpisodeRepository
 import org.sonora.core.model.DownloadState
 import org.sonora.core.network.isTransportAllowed
+import org.sonora.core.network.upgradedToHttps
 import org.sonora.core.network.withTransportPolicy
 
 data class DownloadPolicy(val deleteWhenPlayed: Boolean = true)
@@ -72,7 +73,7 @@ class EpisodeDownloadManager(
             return@flow
         }
         try {
-            if (!isTransportAllowed(episode.enclosureUrl, allowCleartext)) {
+            if (!isTransportAllowed(downloadUrl(episode), allowCleartext)) {
                 throw DownloadException("Refusing non-HTTPS download URL", retryable = false)
             }
             downloadsDir.mkdirs()
@@ -138,12 +139,16 @@ class EpisodeDownloadManager(
         return removed
     }
 
+    /** Feeds often list http:// enclosures; fetch the https:// form unless the user opted in to cleartext. */
+    private fun downloadUrl(episode: EpisodeEntity): String =
+        if (allowCleartext) episode.enclosureUrl else upgradedToHttps(episode.enclosureUrl) ?: episode.enclosureUrl
+
     private suspend fun transfer(episode: EpisodeEntity, emit: suspend (DownloadProgress) -> Unit) {
         val part = partFile(episode)
         var offset = if (part.isFile) part.length() else 0L
 
         while (true) {
-            val request = Request.Builder().url(episode.enclosureUrl)
+            val request = Request.Builder().url(downloadUrl(episode))
                 .apply { if (offset > 0) header("Range", "bytes=$offset-") }
                 .build()
             val outcome = client.newCall(request).execute().use { response ->

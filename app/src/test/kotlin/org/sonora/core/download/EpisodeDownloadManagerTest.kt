@@ -261,13 +261,32 @@ class EpisodeDownloadManagerTest {
     }
 
     @Test
-    fun `refuses cleartext urls unless allowed`() = runTest {
+    fun `requests the https form of a cleartext url unless cleartext is allowed`() = runTest {
         val id = seed()
+        val requested = mutableListOf<String>()
+        val recording = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                requested += chain.request().url.toString()
+                throw java.io.IOException("stop here")
+            }
+            .build()
         val strict = EpisodeDownloadManager(
-            episodeDao, repo, OkHttpClient(), dir, { policy }, Dispatchers.IO, allowCleartext = false,
+            episodeDao, repo, recording, dir, { policy }, Dispatchers.IO, allowCleartext = false,
         )
 
-        val failure = assertThrows<DownloadException> { strict.downloadToCompletion(id) }
+        assertThrows<DownloadException> { strict.downloadToCompletion(id) }
+
+        assertEquals(1, requested.size)
+        assertTrue(requested.single().startsWith("https://"), requested.single())
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `refuses non-http urls even when cleartext is allowed`() = runTest {
+        val id = seed()
+        episodeDao.update(episodeDao.findById(id)!!.copy(enclosureUrl = "ftp://cdn/a.mp3"))
+
+        val failure = assertThrows<DownloadException> { manager.downloadToCompletion(id) }
 
         assertFalse(failure.retryable)
         assertEquals(0, server.requestCount)

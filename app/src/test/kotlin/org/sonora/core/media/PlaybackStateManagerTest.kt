@@ -195,6 +195,16 @@ class PlaybackStateManagerTest {
     }
 
     @Test
+    fun `notification artwork is requested over https unless cleartext is allowed`() = runTest {
+        val id = seed()
+        episodeDao.update(episodeDao.findById(id)!!.copy(imageUrl = "http://img.example/a.jpg"))
+
+        manager().play(id)
+
+        assertEquals("https://img.example/a.jpg", engine.preparedMetadata?.artworkUrl)
+    }
+
+    @Test
     fun `playing an unknown episode fails`() = runTest {
         assertThrows<NoSuchElementException> { manager().play(99) }
     }
