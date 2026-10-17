@@ -59,7 +59,6 @@ kotlin {
             "androidx.compose.animation.ExperimentalSharedTransitionApi",
             "androidx.compose.foundation.ExperimentalFoundationApi",
             "androidx.compose.foundation.layout.ExperimentalLayoutApi",
-            "androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi",
         )
     }
 }
@@ -76,6 +75,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
     implementation(libs.androidx.browser)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.coil.compose)

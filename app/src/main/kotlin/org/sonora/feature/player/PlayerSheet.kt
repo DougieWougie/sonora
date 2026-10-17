@@ -37,7 +37,7 @@ import androidx.compose.material.icons.rounded.Forward30
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -208,7 +208,7 @@ private fun SecondaryControls(state: PlayerUiState, onIntent: (PlayerIntent) -> 
         modifier = Modifier.testTag(TestTags.PLAYER_TOOLBAR),
         floatingActionButton = {
             FloatingToolbarDefaults.StandardFloatingActionButton(onClick = onOpenQueue) {
-                Icon(Icons.Rounded.QueueMusic, contentDescription = "Up next (${state.upNext.size})")
+                Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = "Up next (${state.upNext.size})")
             }
         },
         colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
@@ -311,7 +311,7 @@ private fun QueueSheet(state: PlayerUiState, onIntent: (PlayerIntent) -> Unit, o
                 ListItem(
                     modifier = Modifier.clickable { onIntent(PlayerIntent.PlayQueued(next.id)); onDismiss() },
                     leadingContent = { ArtworkImage(next.artworkUrl, null, Modifier.size(48.dp), RoundedCornerShape(12.dp)) },
-                    headlineContent = { Text(next.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                    content = { Text(next.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                     supportingContent = next.podcastTitle?.let { { Text(it, maxLines = 1) } },
                     trailingContent = {
                         IconButton(onClick = { onIntent(PlayerIntent.RemoveFromQueue(next.id)) }) {

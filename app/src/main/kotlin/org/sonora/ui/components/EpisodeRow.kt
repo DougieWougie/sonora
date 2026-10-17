@@ -16,7 +16,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -30,6 +30,7 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,17 +60,17 @@ data class EpisodeActionsUi(
  */
 @Composable
 fun SwipeableEpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: Modifier = Modifier) {
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> actions.onToggleQueue(item)
-                SwipeToDismissBoxValue.EndToStart ->
-                    if (item.downloadState == DownloadState.DOWNLOADED) actions.onDeleteDownload(item) else actions.onDownload(item)
-                SwipeToDismissBoxValue.Settled -> Unit
-            }
-            false
-        },
-    )
+    val state = rememberSwipeToDismissBoxState()
+    // Act on the swipe, then snap back: the state change shows up in the row itself.
+    LaunchedEffect(state.currentValue) {
+        when (state.currentValue) {
+            SwipeToDismissBoxValue.StartToEnd -> actions.onToggleQueue(item)
+            SwipeToDismissBoxValue.EndToStart ->
+                if (item.downloadState == DownloadState.DOWNLOADED) actions.onDeleteDownload(item) else actions.onDownload(item)
+            SwipeToDismissBoxValue.Settled -> return@LaunchedEffect
+        }
+        state.reset()
+    }
     SwipeToDismissBox(
         state = state,
         modifier = modifier,
@@ -77,7 +78,7 @@ fun SwipeableEpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: 
             val direction = state.dismissDirection
             val (icon, alignment) = when (direction) {
                 SwipeToDismissBoxValue.StartToEnd ->
-                    (if (item.queued) Icons.Rounded.PlaylistRemove else Icons.Rounded.PlaylistAdd) to Alignment.CenterStart
+                    (if (item.queued) Icons.Rounded.PlaylistRemove else Icons.AutoMirrored.Rounded.PlaylistAdd) to Alignment.CenterStart
                 SwipeToDismissBoxValue.EndToStart ->
                     (if (item.downloadState == DownloadState.DOWNLOADED) Icons.Rounded.Delete else Icons.Rounded.Download) to Alignment.CenterEnd
                 SwipeToDismissBoxValue.Settled -> null to Alignment.Center
@@ -101,7 +102,7 @@ fun EpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: Modifier 
         modifier = modifier.clickable { actions.onPlay(item) },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
         overlineContent = item.podcastTitle?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
-        headlineContent = {
+        content = {
             Text(
                 item.title,
                 maxLines = 2,
@@ -119,7 +120,7 @@ fun EpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: Modifier 
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
                         text = { Text(if (item.queued) "Remove from queue" else "Add to queue") },
-                        leadingIcon = { Icon(if (item.queued) Icons.Rounded.PlaylistRemove else Icons.Rounded.PlaylistAdd, null) },
+                        leadingIcon = { Icon(if (item.queued) Icons.Rounded.PlaylistRemove else Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
                         onClick = { menuOpen = false; actions.onToggleQueue(item) },
                     )
                     if (item.downloadState == DownloadState.DOWNLOADED) {
@@ -161,6 +162,6 @@ private fun EpisodeSubtitle(item: EpisodeItem) {
             DownloadState.FAILED -> Text("Download failed", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
             DownloadState.NONE -> Unit
         }
-        if (item.queued) Icon(Icons.Rounded.PlaylistAdd, "In queue", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.tertiary)
+        if (item.queued) Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, "In queue", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.tertiary)
     }
 }

@@ -48,7 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.sonora.ui.components.ArtworkImage
 
@@ -135,7 +135,7 @@ fun DiscoverScreen(
         items(state.results, key = { it.podcast.feedUrl }) { result ->
             ListItem(
                 leadingContent = { ArtworkImage(result.podcast.artworkUrl, result.podcast.title, Modifier.size(64.dp)) },
-                headlineContent = { Text(result.podcast.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMediumEmphasized) },
+                content = { Text(result.podcast.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMediumEmphasized) },
                 supportingContent = result.podcast.author?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
                 trailingContent = {
                     FilledTonalButton(

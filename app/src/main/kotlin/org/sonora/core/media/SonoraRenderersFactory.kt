@@ -22,7 +22,7 @@ class SonoraRenderersFactory(context: Context) : DefaultRenderersFactory(context
         enableAudioTrackPlaybackParams: Boolean,
     ): AudioSink = DefaultAudioSink.Builder(context)
         .setEnableFloatOutput(enableFloatOutput)
-        .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+        .setEnableAudioOutputPlaybackParameters(enableAudioTrackPlaybackParams)
         .setAudioProcessorChain(
             DefaultAudioSink.DefaultAudioProcessorChain(
                 emptyArray<AudioProcessor>(),

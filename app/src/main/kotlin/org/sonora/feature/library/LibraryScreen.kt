@@ -21,7 +21,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.ViewList
+import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.FilterChip
@@ -40,7 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.sonora.ui.components.ArtworkImage
 import org.sonora.ui.components.SonoraLogo
@@ -89,7 +89,7 @@ private fun LibraryHeader(state: SubscriptionsUiState, onIntent: (SubscriptionsI
                 onCheckedChange = { onIntent(SubscriptionsIntent.SetLayout(if (it) LibraryLayout.LIST else LibraryLayout.GRID)) },
             ) {
                 Icon(
-                    if (state.layout == LibraryLayout.GRID) Icons.Rounded.ViewList else Icons.Rounded.GridView,
+                    if (state.layout == LibraryLayout.GRID) Icons.AutoMirrored.Rounded.ViewList else Icons.Rounded.GridView,
                     contentDescription = if (state.layout == LibraryLayout.GRID) "Show as list" else "Show as grid",
                 )
             }
@@ -159,7 +159,7 @@ private fun PodcastList(podcasts: List<PodcastItem>, onOpen: (Long) -> Unit) {
             ListItem(
                 modifier = Modifier.clickable { onOpen(podcast.id) },
                 leadingContent = { ArtworkImage(podcast.imageUrl, podcast.title, Modifier.size(64.dp)) },
-                headlineContent = { Text(podcast.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMediumEmphasized) },
+                content = { Text(podcast.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMediumEmphasized) },
                 supportingContent = podcast.author?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
                 trailingContent = { if (podcast.unplayedCount > 0) Badge { Text(podcast.unplayedCount.toString()) } },
             )
