@@ -16,6 +16,8 @@ import org.sonora.core.database.FakePodcastDao
 import org.sonora.core.database.PodcastEntity
 import org.sonora.core.media.FakeQueueStorage
 import org.sonora.core.media.PersistentPlayQueue
+import org.sonora.core.media.PlaybackFailure
+import org.sonora.core.media.PlaybackFailureReason
 import org.sonora.core.media.PlaybackProgress
 import org.sonora.testutil.FakePlaybackPort
 import org.sonora.testutil.MainDispatcherExtension
@@ -107,6 +109,17 @@ class PlayerViewModelTest {
         vm().uiState.test {
             val state = awaitUntil { it.upNext.isNotEmpty() }
             assertEquals(listOf("Episode 3", "Episode 4"), state.upNext.map { it.title })
+        }
+    }
+
+    // --- errors ------------------------------------------------------------------------------
+
+    @Test
+    fun `playback failures from the port become events`() = runTest {
+        val vm = vm()
+        vm.events.test {
+            port.errorFlow.emit(PlaybackFailure(PlaybackFailureReason.SERVER, httpStatus = 404))
+            assertEquals(PlayerEvent.PlaybackFailed(PlaybackFailure(PlaybackFailureReason.SERVER, 404)), awaitItem())
         }
     }
 

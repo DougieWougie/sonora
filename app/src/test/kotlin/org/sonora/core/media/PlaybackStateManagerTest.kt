@@ -139,6 +139,68 @@ class PlaybackStateManagerTest {
     }
 
     @Test
+    fun `refusing an address raises a typed exception and reports it`() = runTest {
+        val id = seedWithUrl("rtmp://h/s")
+        val m = manager()
+        m.errors.test {
+            assertThrows<StreamRefusedException> { m.play(id) }
+            assertEquals(PlaybackFailure(PlaybackFailureReason.BAD_ADDRESS), awaitItem())
+        }
+    }
+
+    // --- player errors -----------------------------------------------------------------------
+
+    @Test
+    fun `a player error stops playing, keeps the episode and reports the failure`() = runTest {
+        val id = seed()
+        val m = manager()
+        m.play(id)
+        engine.positionMs = 42_000
+
+        m.errors.test {
+            m.onPlayerError(PlaybackFailure(PlaybackFailureReason.NETWORK))
+            assertEquals(PlaybackFailure(PlaybackFailureReason.NETWORK), awaitItem())
+        }
+
+        assertFalse(m.state.value.isPlaying)
+        assertEquals(id, m.state.value.episodeId)
+        assertEquals(42L, episodeDao.findById(id)!!.playbackPositionSeconds)
+    }
+
+    @Test
+    fun `playing again after an error prepares the player afresh`() = runTest {
+        val id = seed()
+        val m = manager()
+        m.play(id)
+        m.onPlayerError(PlaybackFailure(PlaybackFailureReason.SERVER, httpStatus = 503))
+
+        m.play(id)
+
+        assertEquals(listOf("prepare", "play", "prepare", "play"), engine.calls.filter { it == "prepare" || it == "play" })
+        assertTrue(m.state.value.isPlaying)
+    }
+
+    @Test
+    fun `a player error with nothing loaded is ignored`() = runTest {
+        val m = manager()
+        m.errors.test {
+            m.onPlayerError(PlaybackFailure(PlaybackFailureReason.OTHER))
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `a player error does not advance the queue`() = runTest {
+        val a = seed(guid = "a"); val b = seed(guid = "b")
+        playQueue.enqueue(b)
+        val m = manager()
+        m.play(a)
+        m.onPlayerError(PlaybackFailure(PlaybackFailureReason.OTHER))
+        assertEquals(a, m.state.value.episodeId)
+        assertEquals(listOf(b), playQueue.items.value)
+    }
+
+    @Test
     fun `streams the enclosure url and resumes from the saved position`() = runTest {
         val id = seed(position = 125)
         val m = manager()

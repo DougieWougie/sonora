@@ -7,9 +7,11 @@ import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -102,6 +104,11 @@ class PodcastMediaSessionService : MediaSessionService() {
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_ENDED) scope.launch { manager.onPlaybackEnded() }
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                Log.w(TAG, "Playback error", error)
+                scope.launch { manager.onPlayerError(failureOf(error)) }
             }
 
             // The player pauses itself on focus loss / unplugged headphones; mirror that into our state.
@@ -226,4 +233,12 @@ class PodcastMediaSessionService : MediaSessionService() {
         const val SEEK_BACK_MS = 10_000L
         const val SEEK_FORWARD_MS = 30_000L
     }
+}
+
+/** Reads the HTTP status, if any, out of the player's error chain before reducing it to a [PlaybackFailure]. */
+private fun failureOf(error: PlaybackException): PlaybackFailure {
+    val status = generateSequence<Throwable>(error) { it.cause }
+        .filterIsInstance<HttpDataSource.InvalidResponseCodeException>()
+        .firstOrNull()?.responseCode
+    return PlaybackFailure.fromErrorCode(error.errorCode, status)
 }

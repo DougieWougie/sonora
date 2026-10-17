@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -51,14 +52,20 @@ class PlaybackStateManager(
     private val _state = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = _state
 
+    private val _errors = MutableSharedFlow<PlaybackFailure>(extraBufferCapacity = 8)
+    /** Failures worth telling the listener about: the player gave up, or the episode could not be started. */
+    val errors: Flow<PlaybackFailure> = _errors
+
     private var loadedId: Long? = null
+    /** The player errored on the loaded item, so it must be prepared again before it can play. */
+    private var failed = false
     private var loadedDurationMs = 0L
     private var sessionStartSeconds = 0L
     private var progressJob: Job? = null
     private var sleepJob: Job? = null
 
     suspend fun play(episodeId: Long) {
-        if (loadedId == episodeId) {
+        if (loadedId == episodeId && !failed) {
             sessionStartSeconds = engine.positionMs / 1000
         } else {
             val episode = episodeDao.findById(episodeId)
@@ -75,7 +82,14 @@ class PlaybackStateManager(
                 artworkUrl = (episode.imageUrl ?: podcast?.imageUrl)
                     ?.let { if (allowCleartext) it else upgradedToHttps(it) ?: it },
             )
-            engine.prepare(resolveUri(episode), startSeconds * 1000, metadata)
+            val uri = try {
+                resolveUri(episode)
+            } catch (e: StreamRefusedException) {
+                _errors.tryEmit(PlaybackFailure(PlaybackFailureReason.BAD_ADDRESS))
+                throw e
+            }
+            engine.prepare(uri, startSeconds * 1000, metadata)
+            failed = false
             sessionStartSeconds = startSeconds
             loadedId = episodeId
             loadedDurationMs = (episode.durationSeconds ?: 0) * 1000
@@ -110,6 +124,16 @@ class PlaybackStateManager(
         engine.seekTo(positionMs)
         checkpoint()
         sessionStartSeconds = positionMs / 1000
+    }
+
+    /** Called by the engine adapter when the player gives up on the loaded item. */
+    suspend fun onPlayerError(failure: PlaybackFailure) {
+        if (loadedId == null) return
+        progressJob?.cancel()
+        failed = true
+        _state.update { it.copy(isPlaying = false) }
+        checkpoint()
+        _errors.emit(failure)
     }
 
     /** Called by the engine adapter when the media item has played to its end. */
@@ -188,8 +212,8 @@ class PlaybackStateManager(
         } else {
             // Many feeds still list http:// enclosures; ask for https:// rather than refusing outright.
             val url = episode.enclosureUrl.takeIf { allowCleartext } ?: upgradedToHttps(episode.enclosureUrl) ?: episode.enclosureUrl
-            check(isTransportAllowed(url, allowCleartext)) {
-                "Refusing to stream ${episode.enclosureUrl}: not HTTP(S)"
+            if (!isTransportAllowed(url, allowCleartext)) {
+                throw StreamRefusedException("Refusing to stream ${episode.enclosureUrl}: not HTTP(S)")
             }
             url
         }

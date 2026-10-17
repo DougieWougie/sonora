@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -15,6 +16,7 @@ import kotlinx.coroutines.launch
 import org.sonora.core.database.EpisodeDao
 import org.sonora.core.database.PodcastDao
 import org.sonora.core.media.PlayQueue
+import org.sonora.core.media.PlaybackFailure
 import org.sonora.core.media.PlaybackPort
 import org.sonora.core.media.PlaybackStateManager
 
@@ -47,6 +49,10 @@ sealed interface PlayerIntent {
     data class RemoveFromQueue(val episodeId: Long) : PlayerIntent
 }
 
+sealed interface PlayerEvent {
+    data class PlaybackFailed(val failure: PlaybackFailure) : PlayerEvent
+}
+
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val port: PlaybackPort,
@@ -71,6 +77,9 @@ class PlayerViewModel @Inject constructor(
             )
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), PlayerUiState())
+
+    /** Playback problems to tell the listener about, from whichever screen started playback. */
+    val events: Flow<PlayerEvent> = port.errors.map { PlayerEvent.PlaybackFailed(it) }
 
     fun onIntent(intent: PlayerIntent) {
         val state = uiState.value
@@ -102,7 +111,7 @@ class PlayerViewModel @Inject constructor(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: Exception) {
-                // The service refused (e.g. cleartext stream); the notification/UI keeps its last state.
+                // Already reported through [events]; the UI keeps its last state.
             }
         }
     }

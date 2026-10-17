@@ -12,6 +12,8 @@ data class PlaybackProgress(val positionMs: Long, val bufferedMs: Long, val dura
 /** What the UI layer needs from playback, whichever process-local object actually owns the player. */
 interface PlaybackPort {
     val state: Flow<PlaybackState>
+    /** One-off failures to tell the listener about; not replayed to late collectors. */
+    val errors: Flow<PlaybackFailure>
     fun progress(): Flow<PlaybackProgress>
 
     suspend fun play(episodeId: Long)

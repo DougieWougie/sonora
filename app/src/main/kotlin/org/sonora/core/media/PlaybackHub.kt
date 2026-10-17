@@ -3,11 +3,15 @@ package org.sonora.core.media
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.withTimeout
 
 /**
@@ -32,8 +36,17 @@ class PlaybackHub(private val timeoutMs: Long = 5_000) : PlaybackPort {
     override fun progress(): Flow<PlaybackProgress> =
         manager.flatMapLatest { it?.progress() ?: flowOf(PlaybackProgress.None) }
 
+    private val hubErrors = MutableSharedFlow<PlaybackFailure>(extraBufferCapacity = 8)
+
+    override val errors: Flow<PlaybackFailure> = merge(manager.flatMapLatest { it?.errors ?: emptyFlow() }, hubErrors)
+
     private suspend fun awaitManager(): PlaybackStateManager =
-        manager.value ?: withTimeout(timeoutMs) { manager.filterNotNull().first() }
+        manager.value ?: try {
+            withTimeout(timeoutMs) { manager.filterNotNull().first() }
+        } catch (e: TimeoutCancellationException) {
+            hubErrors.tryEmit(PlaybackFailure(PlaybackFailureReason.OTHER))
+            throw e
+        }
 
     override suspend fun play(episodeId: Long) = awaitManager().play(episodeId)
     override suspend fun pause() = awaitManager().pause()

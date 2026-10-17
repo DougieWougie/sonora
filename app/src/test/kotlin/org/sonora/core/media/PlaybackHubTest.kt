@@ -65,6 +65,20 @@ class PlaybackHubTest {
     }
 
     @Test
+    fun `forwards the attached manager's playback errors`() = runTest {
+        val hub = PlaybackHub(timeoutMs = 1_000)
+        val id = seedEpisode()
+        val m = manager()
+        hub.attach(m)
+        hub.play(id)
+
+        hub.errors.test {
+            m.onPlayerError(PlaybackFailure(PlaybackFailureReason.NETWORK))
+            assertEquals(PlaybackFailure(PlaybackFailureReason.NETWORK), awaitItem())
+        }
+    }
+
+    @Test
     fun `a command issued before the service attaches waits for it`() = runTest {
         val hub = PlaybackHub(timeoutMs = 5_000)
         val id = seedEpisode()
@@ -83,6 +97,15 @@ class PlaybackHubTest {
     fun `a command times out when no service ever attaches`() = runTest {
         val hub = PlaybackHub(timeoutMs = 2_000)
         assertThrows<TimeoutCancellationException> { hub.play(1) }
+    }
+
+    @Test
+    fun `a command that times out waiting for the service reports a failure`() = runTest {
+        val hub = PlaybackHub(timeoutMs = 2_000)
+        hub.errors.test {
+            assertThrows<TimeoutCancellationException> { hub.play(1) }
+            assertEquals(PlaybackFailure(PlaybackFailureReason.OTHER), awaitItem())
+        }
     }
 
     @Test

@@ -21,16 +21,22 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
@@ -51,7 +57,12 @@ import kotlinx.serialization.Serializable
 import org.sonora.feature.discover.DiscoverScreen
 import org.sonora.feature.episodes.EpisodesScreen
 import org.sonora.feature.library.LibraryScreen
+import kotlinx.coroutines.flow.Flow
 import org.sonora.feature.player.FullPlayer
+import org.sonora.feature.player.PlayerEvent
+import org.sonora.feature.player.PlayerIntent
+import org.sonora.feature.player.canRetry
+import org.sonora.feature.player.userMessage
 import org.sonora.feature.player.MiniPlayer
 import org.sonora.feature.player.PlayerViewModel
 import org.sonora.feature.podcast.PodcastDetailScreen
@@ -92,15 +103,35 @@ fun SonoraRoot(
     }
 
     PodcastExpressiveTheme(theme) {
-        SonoraScaffold(player, playerViewModel::onIntent)
+        SonoraScaffold(player, playerViewModel.events, playerViewModel::onIntent)
     }
 }
 
 @Composable
-private fun SonoraScaffold(player: org.sonora.feature.player.PlayerUiState, onPlayerIntent: (org.sonora.feature.player.PlayerIntent) -> Unit) {
+private fun SonoraScaffold(
+    player: org.sonora.feature.player.PlayerUiState,
+    playerEvents: Flow<PlayerEvent>,
+    onPlayerIntent: (org.sonora.feature.player.PlayerIntent) -> Unit,
+) {
     val navController = rememberNavController()
     val snackbar = remember { SnackbarHostState() }
+    // The full player covers the scaffold, so while it is open errors are shown above it instead.
+    val fullPlayerSnackbar = remember { SnackbarHostState() }
     var expanded by rememberSaveable { mutableStateOf(false) }
+    val currentExpanded by rememberUpdatedState(expanded)
+    val currentOnPlayerIntent by rememberUpdatedState(onPlayerIntent)
+    LaunchedEffect(playerEvents) {
+        playerEvents.collect { event ->
+            if (event !is PlayerEvent.PlaybackFailed) return@collect
+            val host = if (currentExpanded) fullPlayerSnackbar else snackbar
+            val result = host.showSnackbar(
+                message = event.failure.userMessage(),
+                actionLabel = if (event.failure.canRetry) "Retry" else null,
+                withDismissAction = true,
+            )
+            if (result == SnackbarResult.ActionPerformed) currentOnPlayerIntent(PlayerIntent.TogglePlayPause)
+        }
+    }
     val widthDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
     val compact = widthDp < COMPACT_WIDTH
     val hasEpisode = player.episode != null
@@ -130,6 +161,10 @@ private fun SonoraScaffold(player: org.sonora.feature.player.PlayerUiState, onPl
             AnimatedVisibility(visible = hasEpisode && expanded, enter = fadeIn(), exit = fadeOut()) {
                 FullPlayer(player, this, onPlayerIntent, onCollapse = { expanded = false })
             }
+            SnackbarHost(
+                fullPlayerSnackbar,
+                Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing),
+            )
         }
     }
 }

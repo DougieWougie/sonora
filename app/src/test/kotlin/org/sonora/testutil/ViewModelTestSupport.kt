@@ -7,6 +7,7 @@ import java.io.OutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.extension.AfterEachCallback
 import org.junit.jupiter.api.extension.BeforeEachCallback
 import org.junit.jupiter.api.extension.ExtensionContext
 import org.sonora.core.download.EpisodeActions
+import org.sonora.core.media.PlaybackFailure
 import org.sonora.core.media.PlaybackPort
 import org.sonora.core.media.PlaybackProgress
 import org.sonora.core.media.PlaybackState
@@ -133,10 +135,12 @@ class FakeOpmlTransfer : OpmlTransfer {
 class FakePlaybackPort : PlaybackPort {
     val stateFlow = MutableStateFlow(PlaybackState())
     val progressFlow = MutableStateFlow(PlaybackProgress.None)
+    val errorFlow = MutableSharedFlow<PlaybackFailure>(extraBufferCapacity = 8)
     val calls = mutableListOf<String>()
     var failure: Exception? = null
 
     override val state: StateFlow<PlaybackState> = stateFlow
+    override val errors: Flow<PlaybackFailure> = errorFlow
     override fun progress(): Flow<PlaybackProgress> = progressFlow
 
     override suspend fun play(episodeId: Long) {
