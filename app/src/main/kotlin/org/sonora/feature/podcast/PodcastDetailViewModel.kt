@@ -31,6 +31,7 @@ import org.sonora.core.model.DownloadState
 import org.sonora.core.work.SyncController
 import org.sonora.feature.common.EpisodeItem
 import org.sonora.feature.common.toItem
+import org.sonora.ui.htmlToSearchText
 
 enum class EpisodeFilter { ALL, UNPLAYED, DOWNLOADED }
 
@@ -168,7 +169,7 @@ class PodcastDetailViewModel @Inject constructor(
             EpisodeFilter.DOWNLOADED -> downloadState == DownloadState.DOWNLOADED
         }
         val q = controls.query.trim()
-        return filterOk && (q.isEmpty() || title.contains(q, ignoreCase = true) || description.orEmpty().contains(q, ignoreCase = true))
+        return filterOk && (q.isEmpty() || title.contains(q, ignoreCase = true) || description?.let { htmlToSearchText(it) }.orEmpty().contains(q, ignoreCase = true))
     }
 
     private fun PodcastEntity.toHeader() = PodcastHeader(id, feedUrl, title, author, description, imageUrl, autoDownload)
