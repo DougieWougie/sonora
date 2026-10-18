@@ -14,7 +14,10 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertAny
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
@@ -88,6 +91,14 @@ class ExpressivePlayerSheetTest {
         composeTestRule.onNodeWithTag(TestTags.SEEK_SLIDER).assertIsDisplayed()
         composeTestRule.onNodeWithTag(TestTags.PLAYER_TOOLBAR).assertIsDisplayed()
         composeTestRule.onNodeWithTag(TestTags.MINI_PLAYER_BAR).assertDoesNotExist()
+    }
+
+    @Test
+    fun miniPlayerIsRoomyWithALargePlayButton() {
+        setContent()
+
+        composeTestRule.onNodeWithTag(TestTags.MINI_PLAYER_BAR).assertHeightIsAtLeast(88.dp)
+        composeTestRule.onNodeWithTag(TestTags.PLAY_PAUSE_BUTTON).assertHeightIsAtLeast(56.dp).assertWidthIsAtLeast(56.dp)
     }
 
     @Test

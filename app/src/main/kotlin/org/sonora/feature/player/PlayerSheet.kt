@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
@@ -104,35 +105,43 @@ fun SharedTransitionScope.MiniPlayer(
         shape = RoundedCornerShape(28.dp),
         color = MaterialTheme.colorScheme.secondaryContainer,
         tonalElevation = 3.dp,
-        modifier = modifier.padding(horizontal = 8.dp, vertical = 4.dp).fillMaxWidth().testTag(TestTags.MINI_PLAYER_BAR).clickable(onClick = onExpand),
+        modifier = modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth().testTag(TestTags.MINI_PLAYER_BAR).clickable(onClick = onExpand),
     ) {
         Column {
-            Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.padding(start = 16.dp, top = 12.dp, end = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 ArtworkImage(
                     episode.artworkUrl, null,
-                    Modifier.size(48.dp).sharedElement(rememberSharedContentState(KEY_ARTWORK), visibilityScope, boundsTransform = transform),
-                    shape = RoundedCornerShape(12.dp),
+                    Modifier.size(64.dp).sharedElement(rememberSharedContentState(KEY_ARTWORK), visibilityScope, boundsTransform = transform),
+                    shape = RoundedCornerShape(16.dp),
                 )
                 Column(Modifier.weight(1f)) {
                     Text(
                         episode.title,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.titleSmallEmphasized,
+                        style = MaterialTheme.typography.titleMediumEmphasized,
                         modifier = Modifier.sharedBounds(rememberSharedContentState(KEY_TITLE), visibilityScope, boundsTransform = transform),
                     )
-                    episode.podcastTitle?.let { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall) }
+                    episode.podcastTitle?.let {
+                        Text(
+                            it,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                        )
+                    }
                 }
                 MorphingPlayPauseButton(
                     isPlaying = state.isPlaying,
                     onClick = { onIntent(PlayerIntent.TogglePlayPause) },
-                    size = 48.dp,
+                    size = 56.dp,
                     modifier = Modifier.testTag(TestTags.PLAY_PAUSE_BUTTON).sharedElement(rememberSharedContentState(KEY_PLAY), visibilityScope, boundsTransform = transform),
                 )
             }
             LinearProgressIndicator(
                 progress = { if (state.durationMs > 0) (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 6.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 10.dp).height(4.dp),
                 gapSize = 0.dp,
                 drawStopIndicator = {},
             )
