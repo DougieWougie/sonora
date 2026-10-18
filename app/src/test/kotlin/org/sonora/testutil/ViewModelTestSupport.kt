@@ -18,7 +18,9 @@ import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.extension.AfterEachCallback
 import org.junit.jupiter.api.extension.BeforeEachCallback
 import org.junit.jupiter.api.extension.ExtensionContext
+import org.sonora.core.download.DownloadWaits
 import org.sonora.core.download.EpisodeActions
+import org.sonora.core.download.WaitReason
 import org.sonora.core.media.PlaybackFailure
 import org.sonora.core.media.PlaybackPort
 import org.sonora.core.media.PlaybackProgress
@@ -67,7 +69,13 @@ class FakeEpisodeActions : EpisodeActions {
     override suspend fun download(episodeId: Long) { calls += "download:$episodeId" }
     override suspend fun deleteDownload(episodeId: Long) { calls += "delete:$episodeId" }
     override suspend fun cancelDownload(episodeId: Long) { calls += "cancel:$episodeId" }
-    override suspend fun deleteAllPlayedDownloads(): Int { calls += "deleteAllPlayed"; return 0 }
+    var playedDeleted = 0
+    var failure: Exception? = null
+    override suspend fun deleteAllPlayedDownloads(): Int {
+        failure?.let { throw it }
+        calls += "deleteAllPlayed"
+        return playedDeleted
+    }
     override suspend fun markPlayed(episodeId: Long) { calls += "played:$episodeId" }
     override suspend fun markUnplayed(episodeId: Long) { calls += "unplayed:$episodeId" }
 }
@@ -168,4 +176,9 @@ class FakePlaybackPort : PlaybackPort {
     override fun setSkipSilence(enabled: Boolean) { calls += "silence:$enabled"; stateFlow.value = stateFlow.value.copy(skipSilence = enabled) }
     override fun startSleepTimer(durationMs: Long) { calls += "sleep:$durationMs"; stateFlow.value = stateFlow.value.copy(sleepTimerRemainingMs = durationMs) }
     override fun cancelSleepTimer() { calls += "sleep:cancel"; stateFlow.value = stateFlow.value.copy(sleepTimerRemainingMs = null) }
+}
+
+class FakeDownloadWaits : DownloadWaits {
+    val reasons = MutableStateFlow<Map<Long, WaitReason>>(emptyMap())
+    override fun observe(): Flow<Map<Long, WaitReason>> = reasons
 }
