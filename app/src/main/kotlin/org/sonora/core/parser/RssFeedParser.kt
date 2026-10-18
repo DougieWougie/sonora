@@ -81,6 +81,7 @@ class RssFeedParser(private val factory: XmlPullParserFactory) {
         var guid: String? = null
         var title = ""
         var description: String? = null
+        var showNotes: String? = null
         var enclosureUrl: String? = null
         var mimeType: String? = null
         var size: Long? = null
@@ -99,6 +100,7 @@ class RssFeedParser(private val factory: XmlPullParserFactory) {
                     val summary = p.readText().ifEmpty { null }
                     description = description ?: summary
                 }
+                p.name == "encoded" && p.namespace == CONTENT_NS -> showNotes = p.readText().ifEmpty { null }
                 p.name == "pubDate" -> published = parseDate(p.readText())
                 p.name == "duration" && p.namespace == ITUNES_NS -> duration = parseDuration(p.readText())
                 p.name == "image" && p.namespace == ITUNES_NS -> {
@@ -115,11 +117,12 @@ class RssFeedParser(private val factory: XmlPullParserFactory) {
             }
         }
         val url = enclosureUrl ?: return null
-        return ParsedEpisode(guid ?: url, title, description, url, mimeType, size, duration, published, image)
+        return ParsedEpisode(guid ?: url, title, showNotes ?: description, url, mimeType, size, duration, published, image)
     }
 
     internal companion object {
         const val ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
+        const val CONTENT_NS = "http://purl.org/rss/1.0/modules/content/"
 
         /** Returns epoch millis, or null for anything that is not a recognisable date. */
         fun parseDate(raw: String): Long? {

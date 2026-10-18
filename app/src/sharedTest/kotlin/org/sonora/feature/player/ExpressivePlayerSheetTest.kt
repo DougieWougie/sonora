@@ -158,4 +158,32 @@ class ExpressivePlayerSheetTest {
 
         assertEquals(listOf<PlayerIntent>(PlayerIntent.SeekTo(900_000)), intents)
     }
+
+    @Test
+    fun showNotesAreShownAsTextWithoutTheMarkup() {
+        state = state.copy(episode = episode.copy(showNotes = "<p>Hello <b>bold</b> <a href=\"https://example.org\">link</a></p><script>boom()</script>"))
+        setContent(expanded = true)
+
+        tagged(TestTags.SHOW_NOTES).assertTextEquals("Hello bold link")
+    }
+
+    @Test
+    fun showNotesFollowTheCurrentEpisode() {
+        state = state.copy(episode = episode.copy(showNotes = "First notes"))
+        setContent(expanded = true)
+        tagged(TestTags.SHOW_NOTES).assertTextEquals("First notes")
+
+        state = state.copy(episode = episode.copy(id = 2, showNotes = "<p>Second notes</p>"))
+        tagged(TestTags.SHOW_NOTES).assertTextEquals("Second notes")
+    }
+
+    @Test
+    fun noShowNotesSectionWhenTheEpisodeHasNone() {
+        setContent(expanded = true)
+        composeTestRule.onNodeWithTag(TestTags.FULL_PLAYER_SHEET).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(TestTags.SHOW_NOTES).assertDoesNotExist()
+
+        state = state.copy(episode = episode.copy(showNotes = "<p> </p>"))
+        composeTestRule.onNodeWithTag(TestTags.SHOW_NOTES).assertDoesNotExist()
+    }
 }

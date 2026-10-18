@@ -16,7 +16,11 @@ object TestTags {
     const val PLAYER_TOOLBAR = "player_toolbar"
     const val ELAPSED_TIME = "elapsed_time"
     const val REMAINING_TIME = "remaining_time"
+    const val SHOW_NOTES = "show_notes"
     fun speedPreset(speed: Float) = "speed_preset_$speed"
+
+    // Podcast detail
+    const val PODCAST_DESCRIPTION = "podcast_description"
 
     // Nextcloud sync
     const val NEXTCLOUD_SERVER_INPUT = "nextcloud_server_input"

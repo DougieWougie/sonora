@@ -102,6 +102,29 @@ class PodcastDetailViewModelTest {
     }
 
     @Test
+    fun `search reads the text of html descriptions, not the markup`() = runTest {
+        seed()
+        episodes.insertAll(
+            listOf(
+                EpisodeEntity(
+                    podcastId = podcastId, guid = "h", title = "Rich notes", enclosureUrl = "https://e/h", publishedAtMillis = 400,
+                    description = "<p>Tom &amp; <b>Jerry</b> visit <a href=\"https://rockets.example\">the moon</a></p>",
+                ),
+            ),
+        )
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.episodes.isNotEmpty() }
+            vm.onIntent(PodcastDetailIntent.SetQuery("rockets"))
+            assertEquals(emptyList<String>(), awaitUntil { it.query == "rockets" }.episodes.map { it.title })
+            vm.onIntent(PodcastDetailIntent.SetQuery("<b>"))
+            assertEquals(emptyList<String>(), awaitUntil { it.query == "<b>" }.episodes.map { it.title })
+            vm.onIntent(PodcastDetailIntent.SetQuery("tom & jerry visit the moon"))
+            assertEquals(listOf("Rich notes"), awaitUntil { it.query == "tom & jerry visit the moon" }.episodes.map { it.title })
+        }
+    }
+
+    @Test
     fun `search and filter combine`() = runTest {
         seed()
         val vm = vm()
