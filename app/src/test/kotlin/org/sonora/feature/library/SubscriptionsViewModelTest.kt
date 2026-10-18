@@ -14,6 +14,7 @@ import org.sonora.core.database.FakePodcastDao
 import org.sonora.core.database.PodcastEntity
 import org.sonora.core.media.PersistentPlayQueue
 import org.sonora.core.media.FakeQueueStorage
+import org.sonora.testutil.FakeLibraryPreferences
 import org.sonora.testutil.FakeSyncController
 import org.sonora.testutil.MainDispatcherExtension
 import org.sonora.testutil.awaitUntil
@@ -27,7 +28,9 @@ class SubscriptionsViewModelTest {
     private val queue = PersistentPlayQueue(FakeQueueStorage())
     private val sync = FakeSyncController()
 
-    private fun vm() = SubscriptionsViewModel(podcasts, episodes, queue, sync)
+    private val preferences = FakeLibraryPreferences()
+
+    private fun vm() = SubscriptionsViewModel(podcasts, episodes, queue, sync, preferences)
 
     private suspend fun podcast(title: String, autoDownload: Boolean = false): Long =
         podcasts.insert(PodcastEntity(feedUrl = "https://f/$title", title = title, author = "by $title", autoDownload = autoDownload))
@@ -151,5 +154,25 @@ class SubscriptionsViewModelTest {
             queue.enqueue(5); queue.enqueue(6)
             assertEquals(2, awaitUntil { it.queueSize == 2 }.queueSize)
         }
+    }
+
+    @Test
+    fun `starts in the layout the user last chose`() = runTest {
+        preferences.setLayout(LibraryLayout.LIST)
+
+        vm().uiState.test {
+            assertEquals(LibraryLayout.LIST, awaitUntil { !it.isLoading }.layout)
+        }
+    }
+
+    @Test
+    fun `choosing a layout remembers it`() = runTest {
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { !it.isLoading }
+            vm.onIntent(SubscriptionsIntent.SetLayout(LibraryLayout.LIST))
+            awaitUntil { it.layout == LibraryLayout.LIST }
+        }
+        assertEquals(LibraryLayout.LIST, preferences.layout.value)
     }
 }

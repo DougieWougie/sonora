@@ -33,6 +33,8 @@ import org.sonora.core.network.LoginFlowSession
 import org.sonora.core.network.NextcloudCredentials
 import org.sonora.core.network.discovery.PodcastIndexCredentials
 import org.sonora.core.work.SyncController
+import org.sonora.feature.library.LibraryLayout
+import org.sonora.feature.library.LibraryPreferences
 import org.sonora.feature.discover.DirectorySearch
 import org.sonora.feature.discover.DirectorySource
 import org.sonora.feature.discover.OpmlImportResult
@@ -194,4 +196,10 @@ class FakeEvictionNotices : EvictionNotices {
     override val unplayedRemoved: StateFlow<Int> = count
     override fun record(unplayedRemoved: Int) { count.value += unplayedRemoved }
     override fun dismiss() { count.value = 0 }
+}
+
+class FakeLibraryPreferences(initial: LibraryLayout = LibraryLayout.GRID) : LibraryPreferences {
+    private val current = MutableStateFlow(initial)
+    override val layout: StateFlow<LibraryLayout> = current
+    override fun setLayout(layout: LibraryLayout) { current.value = layout }
 }

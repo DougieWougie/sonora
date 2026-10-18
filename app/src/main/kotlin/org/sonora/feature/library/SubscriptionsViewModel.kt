@@ -61,9 +61,9 @@ class SubscriptionsViewModel @Inject constructor(
     episodeDao: EpisodeDao,
     queue: PlayQueue,
     private val sync: SyncController,
+    private val preferences: LibraryPreferences,
 ) : ViewModel() {
     private data class Controls(
-        val layout: LibraryLayout = LibraryLayout.GRID,
         val sort: LibrarySort = LibrarySort.TITLE,
         val unplayedOnly: Boolean = false,
     )
@@ -75,16 +75,16 @@ class SubscriptionsViewModel @Inject constructor(
     val uiState: StateFlow<SubscriptionsUiState> = combine(
         podcastDao.observeAll(),
         episodeDao.observeStats(),
-        controls,
+        controls.combine(preferences.layout, ::Pair),
         queue.items,
         sync.syncing,
-    ) { podcasts, stats, controls, queued, syncing ->
+    ) { podcasts, stats, (controls, layout), queued, syncing ->
         val unplayed = stats.associateBy(PodcastEpisodeStats::podcastId)
         val items = podcasts.map { it.toItem(unplayed[it.id]?.unplayed ?: 0) to unplayed[it.id]?.latestPublishedAtMillis }
             .filter { (item, _) -> !controls.unplayedOnly || item.unplayedCount > 0 }
         SubscriptionsUiState(
             podcasts = items.sortedWith(comparatorFor(controls.sort)).map { it.first },
-            layout = controls.layout,
+            layout = layout,
             sort = controls.sort,
             unplayedOnly = controls.unplayedOnly,
             isRefreshing = syncing,
@@ -95,7 +95,7 @@ class SubscriptionsViewModel @Inject constructor(
 
     fun onIntent(intent: SubscriptionsIntent) {
         when (intent) {
-            is SubscriptionsIntent.SetLayout -> controls.update { it.copy(layout = intent.layout) }
+            is SubscriptionsIntent.SetLayout -> preferences.setLayout(intent.layout)
             is SubscriptionsIntent.SetSort -> controls.update { it.copy(sort = intent.sort) }
             is SubscriptionsIntent.SetUnplayedOnly -> controls.update { it.copy(unplayedOnly = intent.enabled) }
             SubscriptionsIntent.Refresh -> {
