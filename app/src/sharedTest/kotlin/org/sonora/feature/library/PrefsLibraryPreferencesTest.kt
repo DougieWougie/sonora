@@ -5,6 +5,8 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,5 +40,34 @@ class PrefsLibraryPreferencesTest {
         context.getSharedPreferences("library", Context.MODE_PRIVATE).edit().putString("layout", "CAROUSEL").commit()
 
         assertEquals(LibraryLayout.GRID, PrefsLibraryPreferences(context).layout.value)
+    }
+
+    @Test
+    fun sortAndFilterDefaultToTitleAndAllEpisodes() {
+        val prefs = PrefsLibraryPreferences(context)
+
+        assertEquals(LibrarySort.TITLE, prefs.sort.value)
+        assertFalse(prefs.unplayedOnly.value)
+    }
+
+    @Test
+    fun theChosenSortAndFilterArePublishedAndSurviveARestart() {
+        val prefs = PrefsLibraryPreferences(context)
+
+        prefs.setSort(LibrarySort.UNPLAYED)
+        prefs.setUnplayedOnly(true)
+
+        assertEquals(LibrarySort.UNPLAYED, prefs.sort.value)
+        assertTrue(prefs.unplayedOnly.value)
+        val restarted = PrefsLibraryPreferences(context)
+        assertEquals(LibrarySort.UNPLAYED, restarted.sort.value)
+        assertTrue(restarted.unplayedOnly.value)
+    }
+
+    @Test
+    fun anUnrecognisedStoredSortFallsBackToTitle() {
+        context.getSharedPreferences("library", Context.MODE_PRIVATE).edit().putString("sort", "SHUFFLE").commit()
+
+        assertEquals(LibrarySort.TITLE, PrefsLibraryPreferences(context).sort.value)
     }
 }

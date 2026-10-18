@@ -35,6 +35,7 @@ import org.sonora.core.network.discovery.PodcastIndexCredentials
 import org.sonora.core.work.SyncController
 import org.sonora.feature.library.LibraryLayout
 import org.sonora.feature.library.LibraryPreferences
+import org.sonora.feature.library.LibrarySort
 import org.sonora.feature.discover.DirectorySearch
 import org.sonora.feature.discover.DirectorySource
 import org.sonora.feature.discover.OpmlImportResult
@@ -199,7 +200,13 @@ class FakeEvictionNotices : EvictionNotices {
 }
 
 class FakeLibraryPreferences(initial: LibraryLayout = LibraryLayout.GRID) : LibraryPreferences {
-    private val current = MutableStateFlow(initial)
-    override val layout: StateFlow<LibraryLayout> = current
-    override fun setLayout(layout: LibraryLayout) { current.value = layout }
+    private val currentLayout = MutableStateFlow(initial)
+    private val currentSort = MutableStateFlow(LibrarySort.TITLE)
+    private val currentUnplayedOnly = MutableStateFlow(false)
+    override val layout: StateFlow<LibraryLayout> = currentLayout
+    override val sort: StateFlow<LibrarySort> = currentSort
+    override val unplayedOnly: StateFlow<Boolean> = currentUnplayedOnly
+    override fun setLayout(layout: LibraryLayout) { currentLayout.value = layout }
+    override fun setSort(sort: LibrarySort) { currentSort.value = sort }
+    override fun setUnplayedOnly(enabled: Boolean) { currentUnplayedOnly.value = enabled }
 }
