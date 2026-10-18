@@ -69,7 +69,7 @@ data class SyncOutcome(
 
 /**
  * The background sync run: server sync, then feed refreshes (bounded parallelism), then
- * auto-download scheduling. Each step is isolated, so a failure in one never prevents the rest.
+ * auto-download scheduling, then retention. Each step is isolated, so a failure in one never prevents the rest.
  *
  * [RemoteSync] is the existing pull -> resolve -> push reconciliation: pushing before pulling would
  * let local state always win and defeat latest-timestamp-wins conflict resolution.
@@ -82,6 +82,7 @@ class PodcastSyncPipeline(
     private val feedFetcher: FeedFetcher,
     private val downloads: DownloadScheduler,
     private val unmeteredOnlyForAutoDownload: suspend () -> Boolean,
+    private val enforceRetention: suspend () -> Unit = {},
     private val maxConcurrentRefreshes: Int = 4,
     private val maxAutoDownloadsPerPodcast: Int = 3,
 ) {
@@ -94,12 +95,23 @@ class PodcastSyncPipeline(
         val toDownload = results.flatMap { it.newEpisodeIds }
 
         if (toDownload.isNotEmpty()) downloads.schedule(toDownload, unmeteredOnlyForAutoDownload())
+        retain()
         return SyncOutcome(
             remote = remote,
             refreshedFeeds = results.count { it.failure == null },
             failedFeeds = failed,
             queuedDownloads = toDownload.size,
         )
+    }
+
+    /** Housekeeping: a failure here must not turn an otherwise good sync into a failed one. */
+    private suspend fun retain() {
+        try {
+            enforceRetention()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
     }
 
     private suspend fun syncRemote(): RemoteStatus = try {

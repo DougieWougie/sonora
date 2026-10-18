@@ -37,6 +37,11 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
         get() = prefs.getLong(MAX_STORAGE, 0)
         set(value) = prefs.edit().putLong(MAX_STORAGE, value).apply()
 
+    /** Newest downloads kept per podcast; 0 means unlimited. */
+    var keepPerPodcast: Int
+        get() = prefs.getInt(KEEP_PER_PODCAST, 0)
+        set(value) = prefs.edit().putInt(KEEP_PER_PODCAST, value.coerceAtLeast(0)).apply()
+
     var syncIntervalHours: Long
         get() = prefs.getLong(SYNC_INTERVAL, 6)
         set(value) = prefs.edit().putLong(SYNC_INTERVAL, value.coerceAtLeast(1)).apply()
@@ -62,7 +67,11 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
         _theme.value = preferences
     }
 
-    fun downloadPolicy() = DownloadPolicy(deleteWhenPlayed = deleteDownloadsWhenPlayed)
+    fun downloadPolicy() = DownloadPolicy(
+        deleteWhenPlayed = deleteDownloadsWhenPlayed,
+        keepPerPodcast = keepPerPodcast,
+        maxStorageBytes = maxStorageBytes,
+    )
 
     override fun nextcloudAccount(): NextcloudAccount? {
         val server = prefs.getString(NC_SERVER, null) ?: return null
@@ -102,6 +111,7 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
         const val UNMETERED_ONLY = "auto_download_unmetered_only"
         const val DELETE_PLAYED = "delete_downloads_when_played"
         const val MAX_STORAGE = "max_storage_bytes"
+        const val KEEP_PER_PODCAST = "keep_per_podcast"
         const val THEME_MODE = "theme_mode"
         const val ARTWORK_COLORS = "artwork_colors"
         const val LAST_SYNC = "last_sync_millis"

@@ -34,6 +34,13 @@ class DownloadEpisodeWorker @AssistedInject constructor(
                 setProgress(Data.Builder().putLong(KEY_BYTES, progress.bytesDownloaded).build())
                 showForeground(episode.title, progress.bytesDownloaded, progress.totalBytes)
             }
+            try {
+                manager.enforceRetention(inUse = setOf(episodeId))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Housekeeping only: the download itself succeeded.
+            }
             Result.success()
         } catch (e: CancellationException) {
             throw e

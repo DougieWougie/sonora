@@ -370,24 +370,55 @@ class EpisodeDownloadManagerTest {
     }
 
     @Test
-    fun `trimToLimit evicts the oldest played downloads first and never touches unplayed ones`() = runTest {
-        val oldPlayed = downloaded("old", published = 1, played = true, size = 1000)
-        val newPlayed = downloaded("new", published = 3, played = true, size = 1000)
-        val unplayed = downloaded("unplayed", published = 0, played = false, size = 1000)
+    fun `enforceRetention evicts played downloads first and then the oldest unplayed ones`() = runTest {
+        policy = DownloadPolicy(maxStorageBytes = 1500)
+        val oldPlayed = downloaded("old", published = 1, played = true)
+        val newPlayed = downloaded("new", published = 3, played = true)
+        val unplayed = downloaded("unplayed", published = 0, played = false)
 
-        val freed = manager.trimToLimit(maxBytes = 2000)
+        val evicted = manager.enforceRetention()
 
-        assertEquals(1, freed)
+        assertEquals(listOf(oldPlayed, newPlayed), evicted)
         assertFalse(finalFile(oldPlayed).exists())
-        assertTrue(finalFile(newPlayed).exists())
+        assertFalse(finalFile(newPlayed).exists())
         assertTrue(finalFile(unplayed).exists())
-        assertEquals(listOf(SyncActionType.DELETE), queue.getAll().map { it.type })
+        assertEquals(listOf(SyncActionType.DELETE, SyncActionType.DELETE), queue.getAll().map { it.type })
     }
 
     @Test
-    fun `trimToLimit does nothing when under the limit`() = runTest {
-        downloaded("a", published = 1, played = true, size = 1000)
+    fun `enforceRetention keeps only the newest downloads per podcast`() = runTest {
+        policy = DownloadPolicy(keepPerPodcast = 1)
+        val older = downloaded("older", published = 1)
+        val newer = downloaded("newer", published = 2)
 
-        assertEquals(0, manager.trimToLimit(maxBytes = 5000))
+        assertEquals(listOf(older), manager.enforceRetention())
+        assertEquals(DownloadState.NONE, episodeDao.findById(older)!!.downloadState)
+        assertEquals(DownloadState.DOWNLOADED, episodeDao.findById(newer)!!.downloadState)
+    }
+
+    @Test
+    fun `enforceRetention never evicts episodes in use`() = runTest {
+        policy = DownloadPolicy(maxStorageBytes = 1)
+        val playing = downloaded("playing", published = 1, played = true)
+        val other = downloaded("other", published = 2)
+
+        assertEquals(listOf(other), manager.enforceRetention(inUse = setOf(playing)))
+        assertTrue(finalFile(playing).exists())
+    }
+
+    @Test
+    fun `enforceRetention does nothing under an unlimited policy`() = runTest {
+        downloaded("a", published = 1, played = true)
+
+        assertEquals(emptyList<Long>(), manager.enforceRetention())
+    }
+
+    @Test
+    fun `enforceRetention ignores downloads that are not complete`() = runTest {
+        policy = DownloadPolicy(maxStorageBytes = 1)
+        val queued = seed(guid = "queued", state = DownloadState.QUEUED, published = 1)
+
+        assertEquals(emptyList<Long>(), manager.enforceRetention())
+        assertEquals(DownloadState.QUEUED, episodeDao.findById(queued)!!.downloadState)
     }
 }

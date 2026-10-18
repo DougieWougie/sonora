@@ -35,6 +35,8 @@ class PodcastSyncPipelineTest {
     private var inFlight = 0
     private var maxInFlight = 0
 
+    private var retention: suspend () -> Unit = { events += "retention" }
+
     private fun pipeline(concurrency: Int = 4, maxAuto: Int = 3) = PodcastSyncPipeline(
         remoteSync = RemoteSync {
             events += "remote"
@@ -59,6 +61,7 @@ class PodcastSyncPipelineTest {
             scheduled += ids to unmetered
         },
         unmeteredOnlyForAutoDownload = { unmeteredOnly },
+        enforceRetention = { retention() },
         maxConcurrentRefreshes = concurrency,
         maxAutoDownloadsPerPodcast = maxAuto,
     )
@@ -86,7 +89,19 @@ class PodcastSyncPipelineTest {
 
         pipeline().run()
 
-        assertEquals(listOf("remote", "fetch:https://a", "schedule"), events)
+        assertEquals(listOf("remote", "fetch:https://a", "schedule", "retention"), events)
+    }
+
+    @Test
+    fun `a failing retention pass does not fail the sync`() = runTest {
+        subscribe("https://a")
+        feeds["https://a"] = { feed(episode("a", 1)) }
+        retention = { error("disk gone") }
+
+        val outcome = pipeline().run()
+
+        assertEquals(1, outcome.refreshedFeeds)
+        assertEquals(WorkOutcome.SUCCESS, outcome.toWorkOutcome(attempt = 1))
     }
 
     @Test

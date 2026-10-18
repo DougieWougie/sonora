@@ -24,6 +24,7 @@ import org.sonora.core.database.SubscriptionRepository
 import org.sonora.core.database.SyncQueueDao
 import org.sonora.core.database.SyncStateDao
 import org.sonora.core.database.TransactionRunner
+import kotlinx.coroutines.flow.first
 import org.sonora.core.download.EpisodeDownloadManager
 import org.sonora.core.network.OkHttpFeedFetcher
 import org.sonora.core.network.discovery.ApplePodcastSearchProvider
@@ -167,6 +168,8 @@ object AppModule {
         repository: PodcastRepository,
         fetcher: FeedFetcher,
         downloads: DownloadScheduler,
+        downloadManager: EpisodeDownloadManager,
+        playback: PlaybackPort,
         settings: AppSettings,
     ) = PodcastSyncPipeline(
         remoteSync = remote,
@@ -176,6 +179,10 @@ object AppModule {
         feedFetcher = fetcher,
         downloads = downloads,
         unmeteredOnlyForAutoDownload = { settings.autoDownloadUnmeteredOnly },
+        enforceRetention = {
+            val playing = playback.state.first().episodeId
+            downloadManager.enforceRetention(inUse = setOfNotNull(playing))
+        },
     )
 
     @Provides @Singleton

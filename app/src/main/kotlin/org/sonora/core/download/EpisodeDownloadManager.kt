@@ -23,7 +23,12 @@ import org.sonora.core.network.isTransportAllowed
 import org.sonora.core.network.upgradedToHttps
 import org.sonora.core.network.withTransportPolicy
 
-data class DownloadPolicy(val deleteWhenPlayed: Boolean = true)
+/** [keepPerPodcast] and [maxStorageBytes] are both "0 means unlimited". */
+data class DownloadPolicy(
+    val deleteWhenPlayed: Boolean = true,
+    val keepPerPodcast: Int = 0,
+    val maxStorageBytes: Long = 0,
+)
 
 data class DownloadProgress(val bytesDownloaded: Long, val totalBytes: Long?)
 
@@ -122,21 +127,17 @@ class EpisodeDownloadManager(
     }
 
     /**
-     * Deletes the oldest *played* downloads until the total size is within [maxBytes]. Unplayed
-     * episodes are never evicted. Returns the number of episodes removed.
+     * Deletes downloads until the policy's per-podcast and storage limits hold (see [RetentionPlanner]),
+     * sparing the [inUse] episodes. Returns the ids removed, in eviction order.
      */
-    suspend fun trimToLimit(maxBytes: Long): Int {
-        val downloaded = episodeDao.getByDownloadState(DownloadState.DOWNLOADED)
-        var total = downloaded.sumOf { sizeOnDisk(it) }
-        var removed = 0
-        val evictable = downloaded.filter { it.played }.sortedBy { it.publishedAtMillis ?: Long.MIN_VALUE }
-        for (episode in evictable) {
-            if (total <= maxBytes) break
-            total -= sizeOnDisk(episode)
-            deleteDownload(episode.id)
-            removed++
+    suspend fun enforceRetention(inUse: Set<Long> = emptySet()): List<Long> {
+        val current = policy()
+        val downloads = episodeDao.getByDownloadState(DownloadState.DOWNLOADED).map {
+            DownloadedEpisode(it.id, it.podcastId, it.publishedAtMillis, it.played, sizeOnDisk(it), it.id in inUse)
         }
-        return removed
+        val evicted = RetentionPlanner.plan(downloads, RetentionPolicy(current.keepPerPodcast, current.maxStorageBytes))
+        evicted.forEach { deleteDownload(it) }
+        return evicted
     }
 
     /** Feeds often list http:// enclosures; fetch the https:// form unless the user opted in to cleartext. */
