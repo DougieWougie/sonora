@@ -52,6 +52,7 @@ import java.util.Date
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import kotlinx.coroutines.flow.Flow
 import org.sonora.core.testing.TestTags
+import org.sonora.feature.downloads.DownloadsLink
 import org.sonora.ui.components.SonoraLogo
 import org.sonora.ui.theme.ThemeIntent
 import org.sonora.ui.theme.ThemeMode
@@ -59,6 +60,7 @@ import org.sonora.ui.theme.ThemeViewModel
 
 @Composable
 fun SettingsScreen(
+    onOpenDownloads: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsAndSyncViewModel = hiltViewModel(),
     themeViewModel: ThemeViewModel = hiltViewModel(),
@@ -106,6 +108,7 @@ fun SettingsScreen(
         }
 
         SettingsCard("Downloads") {
+            DownloadsLink(onClick = onOpenDownloads)
             SwitchRow("Auto-download on Wi-Fi only", null, state.downloads.unmeteredOnly) { viewModel.onIntent(SettingsIntent.SetUnmeteredOnly(it)) }
             SwitchRow("Auto-download only while charging", null, state.downloads.chargingOnly) { viewModel.onIntent(SettingsIntent.SetChargingOnly(it)) }
             ChoiceRow(

@@ -37,4 +37,58 @@ class FormatTest {
         assertEquals("15:00", formatTimestamp(14 * 60_000L + 59_001, roundUp = true))
         assertEquals("0:01", formatTimestamp(1, roundUp = true))
     }
+
+    // --- sizes -------------------------------------------------------------------------------
+
+    private fun bytes(n: Long) = formatBytes(n, java.util.Locale.US)
+
+    @Test
+    fun `small sizes are shown in bytes`() {
+        assertEquals("0 B", bytes(0))
+        assertEquals("999 B", bytes(999))
+    }
+
+    @Test
+    fun `sizes under ten of a unit keep one decimal, larger ones are whole`() {
+        assertEquals("1 KB", bytes(1_000))
+        assertEquals("1.5 KB", bytes(1_500))
+        assertEquals("48 KB", bytes(48_000))
+        assertEquals("48 MB", bytes(48_000_000))
+        assertEquals("1.4 GB", bytes(1_400_000_000))
+        assertEquals("12 GB", bytes(12_345_000_000))
+    }
+
+    @Test
+    fun `a size that rounds up to the next unit is shown in it`() {
+        assertEquals("1 MB", bytes(999_999))
+    }
+
+    @Test
+    fun `negative sizes read as zero`() {
+        assertEquals("0 B", bytes(-5))
+    }
+
+    @Test
+    fun `sizes follow the locale's decimal separator`() {
+        assertEquals("1,5 KB", formatBytes(1_500, java.util.Locale.GERMANY))
+    }
+
+    private fun summary(usage: org.sonora.feature.downloads.StorageUsage) = formatUsageSummary(usage, java.util.Locale.US)
+
+    @Test
+    fun `usage summary says when nothing is downloaded`() {
+        assertEquals("No downloads", summary(org.sonora.feature.downloads.StorageUsage()))
+    }
+
+    @Test
+    fun `usage summary shows the total and episode count`() {
+        val usage = org.sonora.feature.downloads.StorageUsage(totalBytes = 1_400_000_000, downloadedCount = 12)
+        assertEquals("1.4 GB · 12 episodes", summary(usage))
+    }
+
+    @Test
+    fun `usage summary includes the limit when there is one`() {
+        val usage = org.sonora.feature.downloads.StorageUsage(totalBytes = 1_400_000_000, limitBytes = 5_000_000_000, downloadedCount = 1)
+        assertEquals("1.4 GB of 5 GB · 1 episode", summary(usage))
+    }
 }

@@ -18,6 +18,20 @@ object TestTags {
     const val REMAINING_TIME = "remaining_time"
     fun speedPreset(speed: Float) = "speed_preset_$speed"
 
+    // Downloads
+    const val DOWNLOADS_USAGE_SUMMARY = "downloads_usage_summary"
+    const val DOWNLOADS_LINK = "downloads_link"
+    const val DOWNLOADS_BACK = "downloads_back"
+    const val DOWNLOADS_EMPTY = "downloads_empty"
+    const val DOWNLOADS_DELETE_PLAYED_BUTTON = "downloads_delete_played_button"
+    const val DOWNLOADS_CONFIRM_DELETE_PLAYED = "downloads_confirm_delete_played"
+    const val DOWNLOADS_DISMISS_DELETE_PLAYED = "downloads_dismiss_delete_played"
+    fun downloadRow(id: Long) = "download_row_$id"
+    fun downloadCancel(id: Long) = "download_cancel_$id"
+    fun downloadRetry(id: Long) = "download_retry_$id"
+    fun downloadDelete(id: Long) = "download_delete_$id"
+    fun downloadSort(name: String) = "download_sort_$name"
+
     // Nextcloud sync
     const val NEXTCLOUD_SERVER_INPUT = "nextcloud_server_input"
     const val NEXTCLOUD_CONNECT_BUTTON = "nextcloud_connect_button"

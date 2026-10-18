@@ -155,7 +155,7 @@ class DownloadsViewModelTest {
 
         vm().uiState.test {
             val usage = awaitUntil { it.downloaded.size == 3 }.usage
-            assertEquals(StorageUsage(totalBytes = 1_500, playedBytes = 500, playedCount = 2, limitBytes = 5_000), usage)
+            assertEquals(StorageUsage(totalBytes = 1_500, playedBytes = 500, playedCount = 2, limitBytes = 5_000, downloadedCount = 3), usage)
             assertEquals(1_000, usage.unplayedBytes)
         }
     }

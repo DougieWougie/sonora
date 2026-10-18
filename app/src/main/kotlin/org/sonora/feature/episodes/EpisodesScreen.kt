@@ -23,12 +23,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.sonora.feature.downloads.DownloadsLink
 import org.sonora.ui.components.EpisodeActionsUi
 import org.sonora.ui.components.SwipeableEpisodeRow
 
 @Composable
 fun EpisodesScreen(
     snackbar: SnackbarHostState,
+    onOpenDownloads: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: EpisodesViewModel = hiltViewModel(),
 ) {
@@ -52,6 +54,7 @@ fun EpisodesScreen(
     }
     LazyColumn(modifier.fillMaxSize()) {
         item { Text("Episodes", style = MaterialTheme.typography.headlineLargeEmphasized, modifier = Modifier.padding(16.dp)) }
+        item { DownloadsLink(onClick = onOpenDownloads) }
         item {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Up next", style = MaterialTheme.typography.titleMediumEmphasized)

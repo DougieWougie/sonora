@@ -12,10 +12,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.sonora.core.database.EpisodeDao
+import org.sonora.core.database.EpisodeEntity
 import org.sonora.core.database.PodcastDao
 import org.sonora.core.download.DownloadWaits
 import org.sonora.core.download.EpisodeActions
@@ -37,6 +39,7 @@ data class StorageUsage(
     val playedBytes: Long = 0,
     val playedCount: Int = 0,
     val limitBytes: Long = 0,
+    val downloadedCount: Int = 0,
 ) {
     val unplayedBytes: Long get() = totalBytes - playedBytes
 }
@@ -65,6 +68,18 @@ sealed interface DownloadsEvent {
     data class Message(val text: String) : DownloadsEvent
 }
 
+private fun storageUsage(episodes: List<EpisodeEntity>, limitBytes: Long): StorageUsage {
+    val downloaded = episodes.filter { it.downloadState == DownloadState.DOWNLOADED }
+    val played = downloaded.filter { it.played }
+    return StorageUsage(
+        totalBytes = downloaded.sumOf { it.downloadedBytes },
+        playedBytes = played.sumOf { it.downloadedBytes },
+        playedCount = played.size,
+        limitBytes = limitBytes,
+        downloadedCount = downloaded.size,
+    )
+}
+
 @HiltViewModel
 class DownloadsViewModel @Inject constructor(
     episodeDao: EpisodeDao,
@@ -88,15 +103,9 @@ class DownloadsViewModel @Inject constructor(
         val byId = podcasts.associateBy { it.id }
         val items = episodes.map { it.toItem(byId[it.podcastId], queued = false) }
         val downloaded = items.filter { it.downloadState == DownloadState.DOWNLOADED }
-        val played = downloaded.filter { it.played }
         DownloadsUiState(
             isLoading = false,
-            usage = StorageUsage(
-                totalBytes = downloaded.sumOf { it.downloadedBytes },
-                playedBytes = played.sumOf { it.downloadedBytes },
-                playedCount = played.size,
-                limitBytes = settings.maxStorageBytes,
-            ),
+            usage = storageUsage(episodes, settings.maxStorageBytes),
             active = items
                 .filter { it.downloadState == DownloadState.QUEUED || it.downloadState == DownloadState.DOWNLOADING }
                 .sortedWith(compareBy<EpisodeItem> { it.downloadState != DownloadState.DOWNLOADING }.then(NEWEST_FIRST))
@@ -146,4 +155,15 @@ class DownloadsViewModel @Inject constructor(
         val NEWEST_FIRST = compareByDescending<EpisodeItem> { it.publishedAtMillis ?: Long.MIN_VALUE }
         const val STOP_TIMEOUT_MS = 5_000L
     }
+}
+
+/** Usage of completed downloads, for the places that only need the headline figures. */
+@HiltViewModel
+class DownloadsSummaryViewModel @Inject constructor(
+    episodeDao: EpisodeDao,
+    private val settings: SettingsStore,
+) : ViewModel() {
+    val usage: StateFlow<StorageUsage> = episodeDao.observeByDownloadStates(listOf(DownloadState.DOWNLOADED))
+        .map { storageUsage(it, settings.maxStorageBytes) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), StorageUsage())
 }
