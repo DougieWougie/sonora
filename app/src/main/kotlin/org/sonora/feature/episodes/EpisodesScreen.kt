@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.sonora.ui.components.EpisodeActionsUi
+import org.sonora.ui.components.MarkOlderPlayedDialog
 import org.sonora.ui.components.SwipeableEpisodeRow
 
 @Composable
@@ -43,6 +44,15 @@ fun EpisodesScreen(
             onDownload = { viewModel.onIntent(EpisodesIntent.Download(it.id)) },
             onDeleteDownload = { viewModel.onIntent(EpisodesIntent.DeleteDownload(it.id)) },
             onSetPlayed = { item, played -> viewModel.onIntent(EpisodesIntent.SetPlayed(item.id, played)) },
+            onMarkOlderPlayed = { viewModel.onIntent(EpisodesIntent.RequestMarkOlderPlayed(it.id)) },
+        )
+    }
+
+    state.pendingMarkOlder?.let {
+        MarkOlderPlayedDialog(
+            it,
+            onConfirm = { viewModel.onIntent(EpisodesIntent.ConfirmMarkOlderPlayed) },
+            onDismiss = { viewModel.onIntent(EpisodesIntent.DismissMarkOlderPlayed) },
         )
     }
 

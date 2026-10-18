@@ -34,11 +34,26 @@ class EpisodeRepository(
         episodeDao.update(requireEpisode(episodeId).copy(playbackPositionSeconds = positionSeconds))
     }
 
-    suspend fun markPlayed(episodeId: Long) = transactions.run {
-        val episode = requireEpisode(episodeId)
+    suspend fun markPlayed(episodeId: Long) = transactions.run { markPlayed(requireEpisode(episodeId)) }
+
+    private suspend fun markPlayed(episode: EpisodeEntity) {
         val end = episode.durationSeconds ?: episode.playbackPositionSeconds
         episodeDao.update(episode.copy(played = true, playbackPositionSeconds = end))
         enqueuePlay(episode, startedSeconds = 0, positionSeconds = end)
+    }
+
+    /** How many unplayed episodes of the same podcast were published before this one. */
+    suspend fun countOlderUnplayed(episodeId: Long): Int = olderUnplayed(requireEpisode(episodeId)).size
+
+    /** Marks those episodes played in one transaction and returns their ids. */
+    suspend fun markOlderPlayed(episodeId: Long): List<Long> = transactions.run {
+        olderUnplayed(requireEpisode(episodeId)).onEach { markPlayed(it) }.map { it.id }
+    }
+
+    /** Episodes without a publish date have no place in the order, so they are never "older". */
+    private suspend fun olderUnplayed(episode: EpisodeEntity): List<EpisodeEntity> {
+        val published = episode.publishedAtMillis ?: return emptyList()
+        return episodeDao.getOlderUnplayed(episode.podcastId, published)
     }
 
     suspend fun markNew(episodeId: Long) = transactions.run {

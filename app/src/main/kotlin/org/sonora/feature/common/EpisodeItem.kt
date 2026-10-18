@@ -22,6 +22,9 @@ data class EpisodeItem(
     val queued: Boolean,
 )
 
+/** A "mark older episodes as played" request waiting for the user to confirm it. */
+data class PendingMarkOlder(val episodeId: Long, val count: Int)
+
 fun EpisodeEntity.toItem(podcast: PodcastEntity?, queued: Boolean) = EpisodeItem(
     id = id,
     podcastId = podcastId,
