@@ -149,4 +149,80 @@ class EpisodeRepositoryTest {
         assertFalse(episodeDao.findById(id)!!.played)
         assertTrue(queue.getAll().isEmpty())
     }
+
+    // --- marking older episodes -----------------------------------------------------------------
+
+    private class Series(val podcastId: Long, val ids: Map<String, Long>)
+
+    /** Show A: a1 (100), a2 (200, already played), a3 (300), a4 (400), undated; show B: b1 (50). */
+    private suspend fun seedSeries(): Series {
+        val a = podcastDao.insert(PodcastEntity(feedUrl = "https://a/feed", title = "A"))
+        val b = podcastDao.insert(PodcastEntity(feedUrl = "https://b/feed", title = "B"))
+        fun ep(podcast: Long, guid: String, published: Long?, played: Boolean = false) = EpisodeEntity(
+            podcastId = podcast, guid = guid, title = guid, enclosureUrl = "https://cdn/$guid.mp3",
+            durationSeconds = 600, publishedAtMillis = published, played = played,
+        )
+        episodeDao.insertAll(
+            listOf(
+                ep(a, "a1", 100), ep(a, "a2", 200, played = true), ep(a, "a3", 300), ep(a, "a4", 400),
+                ep(a, "undated", null), ep(b, "b1", 50),
+            ),
+        )
+        return Series(a, episodeDao.rows.value.associate { it.guid to it.id })
+    }
+
+    private fun Series.played() = episodeDao.rows.value.filter { it.played }.map { it.guid }.toSet()
+
+    @Test
+    fun `markOlderPlayed marks only older unplayed episodes of the same podcast`() = runTest {
+        val series = seedSeries()
+
+        val marked = repo.markOlderPlayed(series.ids.getValue("a3"))
+
+        assertEquals(listOf(series.ids.getValue("a1")), marked)
+        assertEquals(setOf("a1", "a2"), series.played())
+        assertEquals(600L, episodeDao.findById(series.ids.getValue("a1"))!!.playbackPositionSeconds)
+    }
+
+    @Test
+    fun `markOlderPlayed queues one PLAY action per episode it changed`() = runTest {
+        val series = seedSeries()
+
+        repo.markOlderPlayed(series.ids.getValue("a4"))
+
+        val actions = queue.getAll()
+        assertEquals(setOf("https://cdn/a1.mp3", "https://cdn/a3.mp3"), actions.map { it.episodeUrl }.toSet())
+        assertEquals(2, actions.size)
+        assertTrue(actions.all { it.type == SyncActionType.PLAY && it.positionSeconds == 600L })
+    }
+
+    @Test
+    fun `markOlderPlayed on the oldest episode changes nothing`() = runTest {
+        val series = seedSeries()
+
+        val marked = repo.markOlderPlayed(series.ids.getValue("a1"))
+
+        assertEquals(emptyList<Long>(), marked)
+        assertEquals(setOf("a2"), series.played())
+        assertTrue(queue.getAll().isEmpty())
+    }
+
+    @Test
+    fun `markOlderPlayed does nothing for an episode without a publish date`() = runTest {
+        val series = seedSeries()
+
+        assertEquals(emptyList<Long>(), repo.markOlderPlayed(series.ids.getValue("undated")))
+        assertEquals(setOf("a2"), series.played())
+    }
+
+    @Test
+    fun `countOlderUnplayed counts what markOlderPlayed would change and changes nothing`() = runTest {
+        val series = seedSeries()
+
+        assertEquals(1, repo.countOlderUnplayed(series.ids.getValue("a3")))
+        assertEquals(2, repo.countOlderUnplayed(series.ids.getValue("a4")))
+        assertEquals(0, repo.countOlderUnplayed(series.ids.getValue("a1")))
+        assertEquals(setOf("a2"), series.played())
+        assertTrue(queue.getAll().isEmpty())
+    }
 }

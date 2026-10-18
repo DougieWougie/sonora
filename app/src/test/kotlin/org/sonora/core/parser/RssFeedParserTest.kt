@@ -114,4 +114,39 @@ class RssFeedParserTest {
             parser.parse(ByteArrayInputStream("<html><body>".toByteArray()))
         }
     }
+
+    private fun parseItems(items: String): ParsedFeed {
+        val xml = """<?xml version="1.0"?>
+            <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>T</title>$items</channel></rss>"""
+        return parser.parse(ByteArrayInputStream(xml.toByteArray()))
+    }
+
+    @Test
+    fun `prefers content encoded show notes over the short description`() {
+        val feed = parseItems(
+            """<item><title>E</title><description>Short</description>
+               <content:encoded><![CDATA[<p>Long <b>show notes</b></p>]]></content:encoded>
+               <enclosure url="https://e/1.mp3"/></item>""",
+        )
+        assertEquals("<p>Long <b>show notes</b></p>", feed.episodes.single().description)
+    }
+
+    @Test
+    fun `prefers content encoded regardless of element order`() {
+        val feed = parseItems(
+            """<item><title>E</title>
+               <content:encoded>Long notes</content:encoded><description>Short</description>
+               <enclosure url="https://e/1.mp3"/></item>""",
+        )
+        assertEquals("Long notes", feed.episodes.single().description)
+    }
+
+    @Test
+    fun `falls back to the description when content encoded is empty`() {
+        val feed = parseItems(
+            """<item><title>E</title><description>Short</description><content:encoded> </content:encoded>
+               <enclosure url="https://e/1.mp3"/></item>""",
+        )
+        assertEquals("Short", feed.episodes.single().description)
+    }
 }

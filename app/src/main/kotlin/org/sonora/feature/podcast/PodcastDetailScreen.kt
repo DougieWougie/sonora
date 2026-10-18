@@ -39,13 +39,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.sonora.core.testing.TestTags
 import org.sonora.ui.components.ArtworkImage
 import org.sonora.ui.components.EpisodeActionsUi
+import org.sonora.ui.components.MarkOlderPlayedDialog
 import org.sonora.ui.components.SwipeableEpisodeRow
+import org.sonora.ui.htmlToPlainText
 
 @Composable
 fun PodcastDetailScreen(
@@ -65,6 +69,15 @@ fun PodcastDetailScreen(
             onDownload = { viewModel.onIntent(PodcastDetailIntent.Download(it.id)) },
             onDeleteDownload = { viewModel.onIntent(PodcastDetailIntent.DeleteDownload(it.id)) },
             onSetPlayed = { item, played -> viewModel.onIntent(PodcastDetailIntent.SetPlayed(item.id, played)) },
+            onMarkOlderPlayed = { viewModel.onIntent(PodcastDetailIntent.RequestMarkOlderPlayed(it.id)) },
+        )
+    }
+
+    state.pendingMarkOlder?.let {
+        MarkOlderPlayedDialog(
+            it,
+            onConfirm = { viewModel.onIntent(PodcastDetailIntent.ConfirmMarkOlderPlayed) },
+            onDismiss = { viewModel.onIntent(PodcastDetailIntent.DismissMarkOlderPlayed) },
         )
     }
 
@@ -107,7 +120,7 @@ private fun Header(state: PodcastDetailUiState, onIntent: (PodcastDetailIntent) 
                 podcast.author?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }
-        podcast.description?.let { Text(it, maxLines = 4, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium) }
+        podcast.description?.let { DescriptionPreview(it) }
         SubscribeSplitButton(state, onIntent)
     }
 }
@@ -170,4 +183,17 @@ private fun Controls(state: PodcastDetailUiState, onIntent: (PodcastDetailIntent
             }
         }
     }
+}
+
+/** A few lines of the podcast description as plain text: feeds write it as HTML, a preview should not show the tags. */
+@Composable
+internal fun DescriptionPreview(html: String, modifier: Modifier = Modifier) {
+    val text = remember(html) { htmlToPlainText(html) }
+    Text(
+        text,
+        modifier.testTag(TestTags.PODCAST_DESCRIPTION),
+        maxLines = 4,
+        overflow = TextOverflow.Ellipsis,
+        style = MaterialTheme.typography.bodyMedium,
+    )
 }

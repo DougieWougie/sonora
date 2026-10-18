@@ -59,4 +59,18 @@ class DefaultEpisodeActionsTest {
         actions.markUnplayed(5)
         coVerify { repository.markNew(5) }
     }
+
+    @Test
+    fun `marking older episodes played goes through the manager so the download policy applies`() = runTest {
+        coEvery { manager.markOlderPlayed(6) } returns 3
+
+        assertEquals(3, actions.markOlderPlayed(6))
+    }
+
+    @Test
+    fun `counting older unplayed episodes asks the repository`() = runTest {
+        coEvery { repository.countOlderUnplayed(8) } returns 5
+
+        assertEquals(5, actions.countOlderUnplayed(8))
+    }
 }

@@ -20,7 +20,7 @@ import org.sonora.core.media.PlaybackFailure
 import org.sonora.core.media.PlaybackPort
 import org.sonora.core.media.PlaybackStateManager
 
-data class PlayerEpisode(val id: Long, val title: String, val podcastTitle: String?, val artworkUrl: String?)
+data class PlayerEpisode(val id: Long, val title: String, val podcastTitle: String?, val artworkUrl: String?, val showNotes: String? = null)
 
 data class PlayerUiState(
     val episode: PlayerEpisode? = null,
@@ -122,7 +122,7 @@ class PlayerViewModel @Inject constructor(
     private suspend fun resolve(id: Long): PlayerEpisode? = episodeCache[id] ?: run {
         val episode = episodeDao.findById(id) ?: return null
         val podcast = podcastDao.findById(episode.podcastId)
-        PlayerEpisode(id, episode.title, podcast?.title, episode.imageUrl ?: podcast?.imageUrl).also { episodeCache[id] = it }
+        PlayerEpisode(id, episode.title, podcast?.title, episode.imageUrl ?: podcast?.imageUrl, episode.description).also { episodeCache[id] = it }
     }
 
     private companion object {

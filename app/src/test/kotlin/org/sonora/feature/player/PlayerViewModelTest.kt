@@ -60,6 +60,25 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `carries the episode show notes for the player`() = runTest {
+        val podcastId = podcasts.insert(PodcastEntity(feedUrl = "https://f", title = "Show"))
+        episodes.insertAll(
+            listOf(
+                EpisodeEntity(podcastId = podcastId, guid = "n", title = "Noted", enclosureUrl = "https://e/n", description = "<p>Notes</p>"),
+                EpisodeEntity(podcastId = podcastId, guid = "b", title = "Bare", enclosureUrl = "https://e/b"),
+            ),
+        )
+        val (noted, bare) = episodes.getForPodcast(podcastId).map { it.id }
+        port.stateFlow.value = port.stateFlow.value.copy(episodeId = noted)
+
+        vm().uiState.test {
+            assertEquals("<p>Notes</p>", awaitUntil { it.episode != null }.episode?.showNotes)
+            port.stateFlow.value = port.stateFlow.value.copy(episodeId = bare)
+            assertNull(awaitUntil { it.episode?.id == bare }.episode?.showNotes)
+        }
+    }
+
+    @Test
     fun `maps the current episode, its artwork and the playback state`() = runTest {
         val (first) = seed()
         port.stateFlow.value = port.stateFlow.value.copy(episodeId = first, isPlaying = true, speed = 1.5f, skipSilence = true, sleepTimerRemainingMs = 90_000)

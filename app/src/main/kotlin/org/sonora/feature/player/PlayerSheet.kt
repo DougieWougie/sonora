@@ -72,6 +72,7 @@ import org.sonora.ui.components.ArtworkImage
 import org.sonora.ui.components.ExpressiveScrubber
 import org.sonora.ui.components.MorphingPlayPauseButton
 import org.sonora.ui.formatTimestamp
+import org.sonora.ui.rememberHtml
 import org.sonora.ui.theme.tabular
 
 private const val KEY_ARTWORK = "player-artwork"
@@ -195,9 +196,21 @@ fun SharedTransitionScope.FullPlayer(
                 }
             }
             SecondaryControls(state, onIntent, onOpenQueue = { showQueue = true })
+            episode.showNotes?.let { ShowNotes(it) }
         }
     }
     if (showQueue) QueueSheet(state, onIntent, onDismiss = { showQueue = false })
+}
+
+/** The episode's show notes, with their links and emphasis. Nothing is drawn when the feed has none worth showing. */
+@Composable
+private fun ShowNotes(html: String) {
+    val notes = rememberHtml(html)
+    if (notes.isEmpty()) return
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Show notes", style = MaterialTheme.typography.titleMediumEmphasized)
+        Text(notes, Modifier.testTag(TestTags.SHOW_NOTES), style = MaterialTheme.typography.bodyMedium)
+    }
 }
 
 /** Speed, silence trimming, sleep timer and the queue, in one floating toolbar. */

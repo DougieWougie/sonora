@@ -78,6 +78,11 @@ class FakeEpisodeActions : EpisodeActions {
     }
     override suspend fun markPlayed(episodeId: Long) { calls += "played:$episodeId" }
     override suspend fun markUnplayed(episodeId: Long) { calls += "unplayed:$episodeId" }
+
+    /** How many older unplayed episodes each episode has, as the real repository would count them. */
+    val olderCounts = mutableMapOf<Long, Int>()
+    override suspend fun countOlderUnplayed(episodeId: Long) = olderCounts[episodeId] ?: 0
+    override suspend fun markOlderPlayed(episodeId: Long): Int { calls += "older:$episodeId"; return olderCounts[episodeId] ?: 0 }
 }
 
 class FakeSettingsStore : SettingsStore {

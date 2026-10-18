@@ -11,4 +11,6 @@ interface EpisodeActions {
     suspend fun deleteAllPlayedDownloads(): Int
     suspend fun markPlayed(episodeId: Long)
     suspend fun markUnplayed(episodeId: Long)
+    suspend fun countOlderUnplayed(episodeId: Long): Int
+    suspend fun markOlderPlayed(episodeId: Long): Int
 }

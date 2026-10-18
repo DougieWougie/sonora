@@ -8,9 +8,11 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -21,11 +23,13 @@ import org.sonora.core.download.EpisodeActions
 import org.sonora.core.media.PlayQueue
 import org.sonora.core.media.PlaybackPort
 import org.sonora.feature.common.EpisodeItem
+import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.feature.common.toItem
 
 data class EpisodesUiState(
     val inbox: List<EpisodeItem> = emptyList(),
     val queue: List<EpisodeItem> = emptyList(),
+    val pendingMarkOlder: PendingMarkOlder? = null,
     val isLoading: Boolean = true,
 )
 
@@ -37,6 +41,9 @@ sealed interface EpisodesIntent {
     data class Download(val episodeId: Long) : EpisodesIntent
     data class DeleteDownload(val episodeId: Long) : EpisodesIntent
     data class SetPlayed(val episodeId: Long, val played: Boolean) : EpisodesIntent
+    data class RequestMarkOlderPlayed(val episodeId: Long) : EpisodesIntent
+    data object ConfirmMarkOlderPlayed : EpisodesIntent
+    data object DismissMarkOlderPlayed : EpisodesIntent
 }
 
 sealed interface EpisodesEvent {
@@ -51,6 +58,7 @@ class EpisodesViewModel @Inject constructor(
     private val actions: EpisodeActions,
     private val playback: PlaybackPort,
 ) : ViewModel() {
+    private val pendingMarkOlder = MutableStateFlow<PendingMarkOlder?>(null)
     private val _events = Channel<EpisodesEvent>(Channel.BUFFERED)
     val events: Flow<EpisodesEvent> = _events.receiveAsFlow()
 
@@ -58,12 +66,14 @@ class EpisodesViewModel @Inject constructor(
         episodeDao.observeUnplayed(INBOX_LIMIT),
         podcastDao.observeAll(),
         queue.items,
-    ) { unplayed, podcasts, queued ->
+        pendingMarkOlder,
+    ) { unplayed, podcasts, queued, pending ->
         val byId = podcasts.associateBy { it.id }
         val queuedSet = queued.toSet()
         EpisodesUiState(
             inbox = unplayed.map { it.toItem(byId[it.podcastId], it.id in queuedSet) },
             queue = queued.mapNotNull { id -> episodeDao.findById(id)?.let { it.toItem(byId[it.podcastId], true) } },
+            pendingMarkOlder = pending,
             isLoading = false,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), EpisodesUiState())
@@ -79,6 +89,14 @@ class EpisodesViewModel @Inject constructor(
             is EpisodesIntent.SetPlayed -> attempt {
                 if (intent.played) actions.markPlayed(intent.episodeId) else actions.markUnplayed(intent.episodeId)
             }
+            is EpisodesIntent.RequestMarkOlderPlayed -> attempt {
+                pendingMarkOlder.value = PendingMarkOlder(intent.episodeId, actions.countOlderUnplayed(intent.episodeId))
+            }
+            EpisodesIntent.ConfirmMarkOlderPlayed -> {
+                val pending = pendingMarkOlder.getAndUpdate { null }
+                if (pending != null && pending.count > 0) attempt { actions.markOlderPlayed(pending.episodeId) }
+            }
+            EpisodesIntent.DismissMarkOlderPlayed -> pendingMarkOlder.value = null
         }
     }
 
