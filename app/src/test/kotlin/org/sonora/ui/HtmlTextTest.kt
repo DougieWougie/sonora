@@ -115,4 +115,32 @@ class HtmlTextTest {
         assertEquals("Nothing fancy", rich.text)
         assertTrue(rich.getLinkAnnotations(0, rich.length).isEmpty())
     }
+
+    // --- hostile input -------------------------------------------------------------------------
+
+    @Test
+    fun `an unclosed script swallows the rest instead of leaking its code`() {
+        assertEquals("Before", htmlToPlainText("Before<script>alert(1); more text"))
+        assertEquals("Before", htmlToPlainText("Before<STYLE type=\"text/css\">p { }"))
+    }
+
+    @Test
+    fun `script and style match case-insensitively and leave similar tags alone`() {
+        assertEquals("AB", htmlToPlainText("A<SCRIPT>x</ScRiPt >B"))
+        assertEquals("a b", htmlToPlainText("<scripted>a</scripted> <styles>b</styles>"))
+    }
+
+    @Test(timeout = 30_000)
+    fun `many unterminated openers are handled in linear time`() {
+        listOf("<script", "<style", "<img", "<a", "<p", "<li", "<!").forEach { opener ->
+            htmlToPlainText(opener.repeat(200_000))
+            htmlToAnnotatedString(opener.repeat(200_000))
+        }
+    }
+
+    @Test
+    fun `huge input is cut off rather than parsed whole`() {
+        val text = htmlToPlainText("x".repeat(1_000_000))
+        assertTrue(text.length in 1..200_000)
+    }
 }

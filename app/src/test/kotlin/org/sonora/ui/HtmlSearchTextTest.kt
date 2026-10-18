@@ -26,4 +26,10 @@ class HtmlSearchTextTest {
     fun `leaves plain text alone`() {
         assertEquals("space-saving tips", htmlToSearchText("space-saving tips"))
     }
+
+    @Test
+    @org.junit.jupiter.api.Timeout(30)
+    fun `many unterminated openers are handled in linear time`() {
+        listOf("<script", "<a", "<p", "<!", "&#").forEach { htmlToSearchText(it.repeat(200_000)) }
+    }
 }
