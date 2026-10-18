@@ -4,6 +4,7 @@ package org.sonora.core.download
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.util.concurrent.Executors
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -59,5 +60,16 @@ class PrefsEvictionNoticesTest {
 
         assertEquals(0, notices.unplayedRemoved.value)
         assertEquals(0, PrefsEvictionNotices(context).unplayedRemoved.value)
+    }
+
+    @Test
+    fun concurrentRecordsAreNotLost() {
+        val notices = PrefsEvictionNotices(context)
+        val pool = Executors.newFixedThreadPool(8)
+
+        List(200) { pool.submit { notices.record(1) } }.forEach { it.get() }
+        pool.shutdown()
+
+        assertEquals(200, notices.unplayedRemoved.value)
     }
 }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.core.database
 
+import org.sonora.testutil.showId
+import org.sonora.testutil.episodeEntity
 import app.cash.turbine.test
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -20,15 +22,8 @@ class EpisodeRepositoryTest {
     private val repo = EpisodeRepository(podcastDao, episodeDao, queue, FakeTransactionRunner(), clock)
 
     private suspend fun seedEpisode(duration: Long? = 600): Long {
-        val podcastId = podcastDao.insert(PodcastEntity(feedUrl = "https://f/feed", title = "Show"))
-        episodeDao.insertAll(
-            listOf(
-                EpisodeEntity(
-                    podcastId = podcastId, guid = "g1", title = "Ep", enclosureUrl = "https://cdn/g1.mp3",
-                    durationSeconds = duration,
-                ),
-            ),
-        )
+        val podcastId = podcastDao.showId()
+        episodeDao.insertAll(listOf(episodeEntity(podcastId, "g1", title = "Ep", durationSeconds = duration)))
         return episodeDao.getForPodcast(podcastId).single().id
     }
 
@@ -158,10 +153,8 @@ class EpisodeRepositoryTest {
     private suspend fun seedSeries(): Series {
         val a = podcastDao.insert(PodcastEntity(feedUrl = "https://a/feed", title = "A"))
         val b = podcastDao.insert(PodcastEntity(feedUrl = "https://b/feed", title = "B"))
-        fun ep(podcast: Long, guid: String, published: Long?, played: Boolean = false) = EpisodeEntity(
-            podcastId = podcast, guid = guid, title = guid, enclosureUrl = "https://cdn/$guid.mp3",
-            durationSeconds = 600, publishedAtMillis = published, played = played,
-        )
+        fun ep(podcast: Long, guid: String, published: Long?, played: Boolean = false) =
+            episodeEntity(podcast, guid, durationSeconds = 600, publishedAtMillis = published, played = played)
         episodeDao.insertAll(
             listOf(
                 ep(a, "a1", 100), ep(a, "a2", 200, played = true), ep(a, "a3", 300), ep(a, "a4", 400),

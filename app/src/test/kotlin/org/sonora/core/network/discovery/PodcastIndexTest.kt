@@ -4,28 +4,24 @@ package org.sonora.core.network.discovery
 import java.security.MessageDigest
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
-import mockwebserver3.MockWebServer
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.api.assertThrows
+import org.sonora.testutil.MockWebServerExtension
 import org.sonora.core.database.MutableClock
 import org.sonora.core.model.DirectoryPodcast
 
 class PodcastIndexTest {
-    private val server = MockWebServer()
+    @JvmField @RegisterExtension val web = MockWebServerExtension()
+    private val server get() = web.server
     private val clock = MutableClock(nowMillis = 1_700_000_123_456)
     private val credentials = PodcastIndexCredentials("KEY123", "s3cr3t")
 
-    @BeforeEach
-    fun setUp() = server.start()
 
-    @AfterEach
-    fun tearDown() = server.close()
 
     private fun json(body: String, code: Int = 200) = MockResponse.Builder()
         .code(code).addHeader("Content-Type", "application/json").body(body).build()

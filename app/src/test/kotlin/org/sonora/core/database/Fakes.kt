@@ -23,7 +23,8 @@ class FakeTransactionRunner : TransactionRunner {
     }
 }
 
-class FakePodcastDao : PodcastDao {
+/** [episodes], when given, receive the cascade that the foreign key performs on delete in Room. */
+class FakePodcastDao(private val episodes: FakeEpisodeDao? = null) : PodcastDao {
     val rows = MutableStateFlow<List<PodcastEntity>>(emptyList())
     private var nextId = 1L
 
@@ -38,12 +39,14 @@ class FakePodcastDao : PodcastDao {
     }
 
     override suspend fun deleteByFeedUrl(feedUrl: String) {
+        val removed = rows.value.filter { it.feedUrl == feedUrl }.map { it.id }.toSet()
         rows.value = rows.value.filterNot { it.feedUrl == feedUrl }
+        episodes?.removeForPodcasts(removed)
     }
 
     override suspend fun findByFeedUrl(feedUrl: String) = rows.value.firstOrNull { it.feedUrl == feedUrl }
     override suspend fun findById(id: Long) = rows.value.firstOrNull { it.id == id }
-    override fun observeAll(): Flow<List<PodcastEntity>> = rows
+    override fun observeAll(): Flow<List<PodcastEntity>> = rows.map { all -> all.sortedBy { it.title.lowercase() } }
     override fun observeById(id: Long): Flow<PodcastEntity?> = rows.map { all -> all.firstOrNull { it.id == id } }
     override suspend fun getAll() = rows.value
 }
@@ -58,6 +61,10 @@ class FakeEpisodeDao : EpisodeDao {
 
     override suspend fun update(episode: EpisodeEntity) {
         rows.value = rows.value.map { if (it.id == episode.id) episode else it }
+    }
+
+    fun removeForPodcasts(podcastIds: Set<Long>) {
+        rows.value = rows.value.filterNot { it.podcastId in podcastIds }
     }
 
     override suspend fun updateAll(episodes: List<EpisodeEntity>) = episodes.forEach { update(it) }

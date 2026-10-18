@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.core.sync
 
+import org.sonora.testutil.episodeEntity
 import java.io.IOException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
@@ -8,7 +9,6 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.sonora.core.database.EpisodeEntity
 import org.sonora.core.database.FakeEpisodeDao
 import org.sonora.core.database.FakePodcastDao
 import org.sonora.core.database.FakeTransactionRunner
@@ -80,7 +80,7 @@ class PodcastSyncPipelineTest {
     private suspend fun subscribe(url: String, autoDownload: Boolean = false, existing: List<String> = emptyList()): Long {
         val id = podcastDao.insert(PodcastEntity(feedUrl = url, title = url, autoDownload = autoDownload))
         episodeDao.insertAll(
-            existing.map { EpisodeEntity(podcastId = id, guid = it, title = it, enclosureUrl = "https://cdn/$it.mp3") },
+            existing.map { episodeEntity(id, it) },
         )
         return id
     }

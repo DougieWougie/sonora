@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.core.media
 
+import org.sonora.testutil.showId
+import org.sonora.testutil.episodeEntity
 import app.cash.turbine.test
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -12,14 +14,12 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.sonora.core.database.EpisodeEntity
 import org.sonora.core.database.EpisodeRepository
 import org.sonora.core.database.FakeEpisodeDao
 import org.sonora.core.database.FakePodcastDao
 import org.sonora.core.database.FakeSyncQueueDao
 import org.sonora.core.database.FakeTransactionRunner
 import org.sonora.core.database.MutableClock
-import org.sonora.core.database.PodcastEntity
 import org.sonora.core.model.DownloadState
 import org.sonora.core.model.SyncActionType
 
@@ -87,14 +87,12 @@ class PlaybackStateManagerTest {
         path: String? = null,
         guid: String = "g1",
     ): Long {
-        val podcastId = podcastDao.findByFeedUrl("https://f/feed")?.id
-            ?: podcastDao.insert(PodcastEntity(feedUrl = "https://f/feed", title = "Show"))
+        val podcastId = podcastDao.showId()
         episodeDao.insertAll(
             listOf(
-                EpisodeEntity(
-                    podcastId = podcastId, guid = guid, title = "Ep $guid", enclosureUrl = "https://cdn/$guid.mp3",
-                    durationSeconds = duration, playbackPositionSeconds = position,
-                    downloadState = state, downloadPath = path,
+                episodeEntity(
+                    podcastId, guid, title = "Ep $guid", durationSeconds = duration,
+                    playbackPositionSeconds = position, downloadState = state, downloadPath = path,
                 ),
             ),
         )
