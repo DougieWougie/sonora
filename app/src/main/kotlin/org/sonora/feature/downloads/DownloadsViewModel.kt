@@ -170,7 +170,11 @@ class DownloadsViewModel @Inject constructor(
 class DownloadsSummaryViewModel @Inject constructor(
     episodeDao: EpisodeDao,
     private val settings: SettingsStore,
+    notices: EvictionNotices,
 ) : ViewModel() {
+    /** Unplayed episodes retention removed since the notice was last dismissed. */
+    val evictedUnplayed: StateFlow<Int> = notices.unplayedRemoved
+
     val usage: StateFlow<StorageUsage> = episodeDao.observeByDownloadStates(listOf(DownloadState.DOWNLOADED))
         .map { storageUsage(it, settings.maxStorageBytes) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), StorageUsage())

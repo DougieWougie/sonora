@@ -24,6 +24,7 @@ object TestTags {
     const val DOWNLOADS_EVICTION_BANNER = "downloads_eviction_banner"
     const val DOWNLOADS_EVICTION_DISMISS = "downloads_eviction_dismiss"
     const val DOWNLOADS_LINK = "downloads_link"
+    const val DOWNLOADS_LINK_BADGE = "downloads_link_badge"
     const val DOWNLOADS_BACK = "downloads_back"
     const val DOWNLOADS_EMPTY = "downloads_empty"
     const val DOWNLOADS_DELETE_PLAYED_BUTTON = "downloads_delete_played_button"
