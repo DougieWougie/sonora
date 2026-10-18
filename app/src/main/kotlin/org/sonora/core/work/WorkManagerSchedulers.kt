@@ -79,6 +79,8 @@ class WorkManagerDownloadScheduler(
             if (!manager.enqueue(id)) continue
             val request = OneTimeWorkRequestBuilder<DownloadEpisodeWorker>()
                 .setConstraints(constraints)
+                .addTag(TAG_DOWNLOAD)
+                .addTag(episodeTag(id))
                 .setInputData(workDataOf(DownloadEpisodeWorker.KEY_EPISODE_ID to id))
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, BACKOFF_MINUTES, TimeUnit.MINUTES)
                 .build()
@@ -90,7 +92,13 @@ class WorkManagerDownloadScheduler(
         workManager.cancelUniqueWork("download-$episodeId")
     }
 
-    private companion object {
-        const val BACKOFF_MINUTES = 5L
+    companion object {
+        const val TAG_DOWNLOAD = "download"
+        private const val EPISODE_TAG_PREFIX = "download-episode-"
+        private const val BACKOFF_MINUTES = 5L
+
+        private fun episodeTag(id: Long) = "$EPISODE_TAG_PREFIX$id"
+        fun episodeIdFromTag(tag: String): Long? =
+            if (tag.startsWith(EPISODE_TAG_PREFIX)) tag.removePrefix(EPISODE_TAG_PREFIX).toLongOrNull() else null
     }
 }
