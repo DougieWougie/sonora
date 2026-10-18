@@ -187,7 +187,7 @@ class PlayerViewModelTest {
     }
 
     @Test
-    fun `skip forward is 30 seconds and rewind is 15`() = runTest {
+    fun `skip forward is 30 seconds and rewind is 10`() = runTest {
         val (first) = seed()
         port.stateFlow.value = port.stateFlow.value.copy(episodeId = first, isPlaying = true)
         port.progressFlow.value = PlaybackProgress(100_000, 0, 600_000)
@@ -198,7 +198,7 @@ class PlayerViewModelTest {
             vm.onIntent(PlayerIntent.Rewind)
             testScheduler.advanceUntilIdle()
         }
-        assertEquals(listOf("seek:130000", "seek:85000"), port.calls)
+        assertEquals(listOf("seek:130000", "seek:90000"), port.calls)
     }
 
     @Test

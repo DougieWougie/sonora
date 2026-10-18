@@ -17,6 +17,11 @@ object TestTags {
     const val ELAPSED_TIME = "elapsed_time"
     const val REMAINING_TIME = "remaining_time"
     const val SHOW_NOTES = "show_notes"
+    const val PLAYER_SCROLL_BODY = "player_scroll_body"
+    const val PLAYER_DOCK = "player_dock"
+    const val PLAYER_COLLAPSE_BUTTON = "player_collapse_button"
+    const val PLAYER_SHARE_BUTTON = "player_share_button"
+    const val QUEUE_CHIP = "queue_chip"
     fun speedPreset(speed: Float) = "speed_preset_$speed"
 
     // Downloads

@@ -127,7 +127,7 @@ class PlayerViewModel @Inject constructor(
 
     private companion object {
         const val SKIP_FORWARD_MS = 30_000L
-        const val REWIND_MS = 15_000L
+        const val REWIND_MS = 10_000L
         const val STOP_TIMEOUT_MS = 5_000L
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.ui
 
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SharedTransitionLayout
@@ -39,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
@@ -63,6 +65,7 @@ import org.sonora.feature.player.FullPlayer
 import org.sonora.feature.player.PlayerEvent
 import org.sonora.feature.player.PlayerIntent
 import org.sonora.feature.player.canRetry
+import org.sonora.feature.player.shareIntent
 import org.sonora.feature.player.userMessage
 import org.sonora.feature.player.MiniPlayer
 import org.sonora.feature.player.PlayerViewModel
@@ -161,7 +164,10 @@ private fun SonoraScaffold(
                 }
             }
             AnimatedVisibility(visible = hasEpisode && expanded, enter = fadeIn(), exit = fadeOut()) {
-                FullPlayer(player, this, onPlayerIntent, onCollapse = { expanded = false })
+                val context = LocalContext.current
+                FullPlayer(player, this, onPlayerIntent, onCollapse = { expanded = false }, onShare = {
+                    player.episode?.let { context.startActivity(Intent.createChooser(shareIntent(it), null)) }
+                })
             }
             SnackbarHost(
                 fullPlayerSnackbar,

@@ -2,6 +2,7 @@
 package org.sonora.feature.player
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -13,24 +14,25 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.outlined.Bedtime
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.Replay10
+import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Forward30
@@ -38,14 +40,15 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Button
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.FloatingToolbarDefaults
-import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -54,7 +57,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,7 +66,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.sonora.core.testing.TestTags
@@ -142,57 +146,59 @@ fun SharedTransitionScope.FullPlayer(
     visibilityScope: AnimatedVisibilityScope,
     onIntent: (PlayerIntent) -> Unit,
     onCollapse: () -> Unit,
+    onShare: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val episode = state.episode ?: return
     val transform = boundsTransform()
     var showQueue by remember { mutableStateOf(false) }
 
-    Surface(modifier.fillMaxSize().testTag(TestTags.FULL_PLAYER_SHEET), color = MaterialTheme.colorScheme.surface) {
+    Scaffold(
+        modifier = modifier.fillMaxSize().testTag(TestTags.FULL_PLAYER_SHEET),
+        containerColor = MaterialTheme.colorScheme.surface,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Now playing", style = MaterialTheme.typography.labelLargeEmphasized) },
+                navigationIcon = {
+                    IconButton(onClick = onCollapse, modifier = Modifier.testTag(TestTags.PLAYER_COLLAPSE_BUTTON)) {
+                        Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Minimise player")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onShare, modifier = Modifier.testTag(TestTags.PLAYER_SHARE_BUTTON)) {
+                        Icon(Icons.Outlined.Share, contentDescription = "Share episode")
+                    }
+                },
+            )
+        },
+        bottomBar = { PlayerDock(state, visibilityScope, transform, onIntent) },
+    ) { innerPadding ->
         Column(
-            Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            Modifier.testTag(TestTags.PLAYER_SCROLL_BODY).fillMaxSize().verticalScroll(rememberScrollState()).padding(innerPadding).padding(horizontal = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onCollapse) { Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Minimise player") }
-                Text("Now playing", Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelLargeEmphasized)
-                Box(Modifier.size(48.dp))
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                shadowElevation = 4.dp,
+                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 360.dp).fillMaxWidth().aspectRatio(1f),
+            ) {
+                ArtworkImage(
+                    episode.artworkUrl, episode.title,
+                    Modifier.fillMaxSize().sharedElement(rememberSharedContentState(KEY_ARTWORK), visibilityScope, boundsTransform = transform),
+                    shape = RoundedCornerShape(28.dp),
+                )
             }
-            ArtworkImage(
-                episode.artworkUrl, episode.title,
-                Modifier.widthIn(max = 360.dp).fillMaxWidth().aspectRatio(1f)
-                    .sharedElement(rememberSharedContentState(KEY_ARTWORK), visibilityScope, boundsTransform = transform),
-                shape = RoundedCornerShape(topStart = 56.dp, topEnd = 16.dp, bottomEnd = 56.dp, bottomStart = 16.dp),
-            )
             Column(Modifier.fillMaxWidth()) {
                 Text(
                     episode.title,
-                    style = MaterialTheme.typography.headlineSmallEmphasized,
+                    style = MaterialTheme.typography.headlineMediumEmphasized,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().sharedBounds(rememberSharedContentState(KEY_TITLE), visibilityScope, boundsTransform = transform),
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.sharedBounds(rememberSharedContentState(KEY_TITLE), visibilityScope, boundsTransform = transform),
                 )
-                episode.podcastTitle?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            }
-            ExpressiveScrubber(
-                positionMs = state.positionMs,
-                durationMs = state.durationMs,
-                isPlaying = state.isPlaying,
-                onSeek = { onIntent(PlayerIntent.SeekTo(it)) },
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { onIntent(PlayerIntent.Rewind) }, modifier = Modifier.size(56.dp).testTag(TestTags.SKIP_BACK_BUTTON)) {
-                    Icon(Icons.Rounded.Replay, contentDescription = "Back 15 seconds", Modifier.size(32.dp))
-                }
-                MorphingPlayPauseButton(
-                    isPlaying = state.isPlaying,
-                    onClick = { onIntent(PlayerIntent.TogglePlayPause) },
-                    size = 96.dp,
-                    modifier = Modifier.testTag(TestTags.PLAY_PAUSE_BUTTON).sharedElement(rememberSharedContentState(KEY_PLAY), visibilityScope, boundsTransform = transform),
-                )
-                IconButton(onClick = { onIntent(PlayerIntent.SkipForward) }, modifier = Modifier.size(56.dp).testTag(TestTags.SKIP_FORWARD_BUTTON)) {
-                    Icon(Icons.Rounded.Forward30, contentDescription = "Forward 30 seconds", Modifier.size(32.dp))
+                episode.podcastTitle?.let {
+                    Text(it, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center)
                 }
             }
             SecondaryControls(state, onIntent, onOpenQueue = { showQueue = true })
@@ -202,34 +208,78 @@ fun SharedTransitionScope.FullPlayer(
     if (showQueue) QueueSheet(state, onIntent, onDismiss = { showQueue = false })
 }
 
+/** Scrubber, times and transport controls, pinned under the scrolling body. */
+@Composable
+private fun SharedTransitionScope.PlayerDock(
+    state: PlayerUiState,
+    visibilityScope: AnimatedVisibilityScope,
+    transform: androidx.compose.animation.BoundsTransform,
+    onIntent: (PlayerIntent) -> Unit,
+) {
+    Surface(
+        tonalElevation = 3.dp,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        modifier = Modifier.fillMaxWidth().testTag(TestTags.PLAYER_DOCK),
+    ) {
+        Column(Modifier.navigationBarsPadding().padding(horizontal = 24.dp).padding(top = 8.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ExpressiveScrubber(
+                positionMs = state.positionMs,
+                durationMs = state.durationMs,
+                isPlaying = state.isPlaying,
+                onSeek = { onIntent(PlayerIntent.SeekTo(it)) },
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                FilledTonalIconButton(onClick = { onIntent(PlayerIntent.Rewind) }, modifier = Modifier.size(56.dp).testTag(TestTags.SKIP_BACK_BUTTON)) {
+                    Icon(Icons.Rounded.Replay10, contentDescription = "Back 10 seconds", Modifier.size(32.dp))
+                }
+                val description = if (state.isPlaying) "Pause" else "Play"
+                FilledIconButton(
+                    onClick = { onIntent(PlayerIntent.TogglePlayPause) },
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.size(width = 72.dp, height = 72.dp).testTag(TestTags.PLAY_PAUSE_BUTTON)
+                        .sharedElement(rememberSharedContentState(KEY_PLAY), visibilityScope, boundsTransform = transform)
+                        .semantics { contentDescription = description },
+                ) {
+                    Crossfade(targetState = state.isPlaying, animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(), label = "playPauseIcon") { playing ->
+                        Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = null, Modifier.size(40.dp))
+                    }
+                }
+                FilledTonalIconButton(onClick = { onIntent(PlayerIntent.SkipForward) }, modifier = Modifier.size(56.dp).testTag(TestTags.SKIP_FORWARD_BUTTON)) {
+                    Icon(Icons.Rounded.Forward30, contentDescription = "Forward 30 seconds", Modifier.size(32.dp))
+                }
+            }
+        }
+    }
+}
+
 /** The episode's show notes, with their links and emphasis. Nothing is drawn when the feed has none worth showing. */
 @Composable
 private fun ShowNotes(html: String) {
     val notes = rememberHtml(html)
     if (notes.isEmpty()) return
-    Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Show notes", style = MaterialTheme.typography.titleMediumEmphasized)
-        Text(notes, Modifier.testTag(TestTags.SHOW_NOTES), style = MaterialTheme.typography.bodyMedium)
+        Text(notes, Modifier.testTag(TestTags.SHOW_NOTES), style = MaterialTheme.typography.bodyLarge)
     }
 }
 
-/** Speed, silence trimming, sleep timer and the queue, in one floating toolbar. */
+/** Speed, silence trimming, sleep timer and the queue, each a chip with a visible label. */
 @Composable
 private fun SecondaryControls(state: PlayerUiState, onIntent: (PlayerIntent) -> Unit, onOpenQueue: () -> Unit) {
-    HorizontalFloatingToolbar(
-        expanded = true,
-        modifier = Modifier.testTag(TestTags.PLAYER_TOOLBAR),
-        floatingActionButton = {
-            FloatingToolbarDefaults.StandardFloatingActionButton(onClick = onOpenQueue) {
-                Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = "Up next (${state.upNext.size})")
-            }
-        },
-        colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
+    FlowRow(
+        Modifier.fillMaxWidth().testTag(TestTags.PLAYER_TOOLBAR),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         SpeedPill(state.speed, onIntent)
-        Spacer(Modifier.width(8.dp))
         SkipSilenceChip(state.skipSilence) { onIntent(PlayerIntent.ToggleSkipSilence) }
         SleepTimerButton(state.sleepTimerRemainingMs, onIntent)
+        AssistChip(
+            onClick = onOpenQueue,
+            modifier = Modifier.testTag(TestTags.QUEUE_CHIP),
+            label = { Text("Queue") },
+            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = null, Modifier.size(18.dp)) },
+        )
     }
 }
 
@@ -237,9 +287,12 @@ private fun SecondaryControls(state: PlayerUiState, onIntent: (PlayerIntent) -> 
 private fun SpeedPill(speed: Float, onIntent: (PlayerIntent) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        Button(onClick = { open = true }, shape = RoundedCornerShape(50), modifier = Modifier.testTag(TestTags.SPEED_CONTROL_BUTTON)) {
-            Text("%.1f×".format(speed), style = MaterialTheme.typography.labelLargeEmphasized.tabular())
-        }
+        AssistChip(
+            onClick = { open = true },
+            modifier = Modifier.testTag(TestTags.SPEED_CONTROL_BUTTON),
+            label = { Text("%.1f×".format(speed), style = MaterialTheme.typography.labelLargeEmphasized.tabular()) },
+            leadingIcon = { Icon(Icons.Rounded.Speed, contentDescription = null, Modifier.size(18.dp)) },
+        )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(text = { Text("Faster (+0.1×)") }, onClick = { onIntent(PlayerIntent.StepSpeed(+1)) })
             DropdownMenuItem(text = { Text("Slower (−0.1×)") }, onClick = { onIntent(PlayerIntent.StepSpeed(-1)) })
@@ -261,20 +314,7 @@ private fun SkipSilenceChip(enabled: Boolean, onToggle: () -> Unit) {
         selected = enabled,
         onClick = onToggle,
         modifier = Modifier.testTag(TestTags.SKIP_SILENCE_CHIP),
-        label = { Text("Skip silence") },
-        colors = FilterChipDefaults.filterChipColors(
-            labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            iconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            selectedContainerColor = MaterialTheme.colorScheme.primary,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
-        ),
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = enabled,
-            borderColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            selectedBorderColor = MaterialTheme.colorScheme.primary,
-        ),
+        label = { Text(if (enabled) "No gap" else "Gap") },
         leadingIcon = {
             AnimatedContent(
                 targetState = enabled,
@@ -293,14 +333,13 @@ private fun <T> spring() = androidx.compose.animation.core.spring<T>(stiffness =
 private fun SleepTimerButton(remainingMs: Long?, onIntent: (PlayerIntent) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        if (remainingMs == null) {
-            IconButton(onClick = { open = true }, modifier = Modifier.testTag(TestTags.SLEEP_TIMER_BUTTON)) { Icon(Icons.Rounded.Bedtime, contentDescription = "Sleep timer") }
-        } else {
-            TextButton(onClick = { open = true }, modifier = Modifier.testTag(TestTags.SLEEP_TIMER_BUTTON)) {
-                Icon(Icons.Rounded.Bedtime, null, Modifier.size(18.dp))
-                Text(formatTimestamp(remainingMs, roundUp = true), Modifier.padding(start = 4.dp), style = MaterialTheme.typography.labelLargeEmphasized.tabular())
-            }
-        }
+        FilterChip(
+            selected = remainingMs != null,
+            onClick = { open = true },
+            modifier = Modifier.testTag(TestTags.SLEEP_TIMER_BUTTON),
+            label = { Text(if (remainingMs == null) "Sleep" else formatTimestamp(remainingMs, roundUp = true), style = MaterialTheme.typography.labelLarge.tabular()) },
+            leadingIcon = { Icon(Icons.Outlined.Bedtime, contentDescription = null, Modifier.size(18.dp)) },
+        )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             listOf(5, 15, 30, 45, 60).forEach { minutes ->
                 DropdownMenuItem(text = { Text("$minutes minutes") }, onClick = { open = false; onIntent(PlayerIntent.SetSleepTimer(minutes * 60_000L)) })
@@ -336,3 +375,11 @@ private fun QueueSheet(state: PlayerUiState, onIntent: (PlayerIntent) -> Unit, o
         }
     }
 }
+
+/** A plain-text share of what is playing; feeds carry no stable episode URL here, so the title and show are shared. */
+fun shareIntent(episode: PlayerEpisode): android.content.Intent =
+    android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(android.content.Intent.EXTRA_SUBJECT, episode.title)
+        putExtra(android.content.Intent.EXTRA_TEXT, listOfNotNull(episode.title, episode.podcastTitle).joinToString(" — "))
+    }

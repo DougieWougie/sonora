@@ -12,7 +12,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertAny
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onChildren
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
@@ -23,6 +35,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,6 +47,7 @@ class ExpressivePlayerSheetTest {
 
     private val episode = PlayerEpisode(id = 1, title = "The Episode", podcastTitle = "The Podcast", artworkUrl = null)
     private val intents = mutableListOf<PlayerIntent>()
+    private var shares = 0
     private var state by mutableStateOf(PlayerUiState(episode = episode, durationMs = 1_800_000, positionMs = 330_000))
 
     /** The same shared-transition arrangement as the app shell: mini player and full player swap places. */
@@ -47,7 +61,7 @@ class ExpressivePlayerSheetTest {
                             MiniPlayer(state, this, { intents += it }, onExpand = { isExpanded = true })
                         }
                         AnimatedVisibility(visible = isExpanded) {
-                            FullPlayer(state, this, { intents += it }, onCollapse = { isExpanded = false })
+                            FullPlayer(state, this, { intents += it }, onCollapse = { isExpanded = false }, onShare = { shares++ })
                         }
                     }
                 }
@@ -81,7 +95,7 @@ class ExpressivePlayerSheetTest {
         setContent(expanded = true)
 
         composeTestRule.onNodeWithTag(TestTags.PLAY_PAUSE_BUTTON).assertContentDescriptionEquals("Play")
-        tagged(TestTags.PLAY_PAUSE_BUTTON).performClick()
+        composeTestRule.onNodeWithTag(TestTags.PLAY_PAUSE_BUTTON).performClick()
         assertEquals(listOf<PlayerIntent>(PlayerIntent.TogglePlayPause), intents)
     }
 
@@ -98,7 +112,7 @@ class ExpressivePlayerSheetTest {
         // Step through the morph; the button stays put and tappable on every frame.
         repeat(10) {
             composeTestRule.mainClock.advanceTimeBy(50)
-            tagged(TestTags.PLAY_PAUSE_BUTTON).assertIsDisplayed()
+            composeTestRule.onNodeWithTag(TestTags.PLAY_PAUSE_BUTTON).assertIsDisplayed()
         }
         composeTestRule.mainClock.autoAdvance = true
         composeTestRule.onNodeWithTag(TestTags.PLAY_PAUSE_BUTTON).assertContentDescriptionEquals("Pause")
@@ -108,8 +122,8 @@ class ExpressivePlayerSheetTest {
     fun skipButtonsEmitTheirIntents() {
         setContent(expanded = true)
 
-        tagged(TestTags.SKIP_BACK_BUTTON).performClick()
-        tagged(TestTags.SKIP_FORWARD_BUTTON).performClick()
+        composeTestRule.onNodeWithTag(TestTags.SKIP_BACK_BUTTON).performClick()
+        composeTestRule.onNodeWithTag(TestTags.SKIP_FORWARD_BUTTON).performClick()
 
         assertEquals(listOf(PlayerIntent.Rewind, PlayerIntent.SkipForward), intents)
     }
@@ -123,7 +137,7 @@ class ExpressivePlayerSheetTest {
         assertEquals(listOf<PlayerIntent>(PlayerIntent.ToggleSkipSilence), intents)
 
         state = state.copy(skipSilence = true)
-        composeTestRule.onNodeWithTag(TestTags.SKIP_SILENCE_CHIP).assertIsSelected()
+        composeTestRule.onNodeWithTag(TestTags.SKIP_SILENCE_CHIP).assertIsSelected().assert(hasText("No gap"))
     }
 
     @Test
@@ -145,6 +159,89 @@ class ExpressivePlayerSheetTest {
         setContent(expanded = true)
 
         tagged(TestTags.SLEEP_TIMER_BUTTON).assertIsDisplayed()
+    }
+
+    private val longNotes = "<p>" + "Line of show notes. ".repeat(400) + "</p>"
+
+    @Test
+    fun topBarHasCollapseTitleAndShare() {
+        setContent(expanded = true)
+
+        composeTestRule.onNodeWithTag(TestTags.PLAYER_COLLAPSE_BUTTON).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Now playing").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Share episode").assertIsDisplayed()
+        composeTestRule.onNodeWithTag(TestTags.PLAYER_SHARE_BUTTON).performClick()
+        assertEquals(1, shares)
+        composeTestRule.onNodeWithTag(TestTags.PLAYER_COLLAPSE_BUTTON).performClick()
+        composeTestRule.onNodeWithTag(TestTags.FULL_PLAYER_SHEET).assertDoesNotExist()
+    }
+
+    @Test
+    fun bodyScrollsVerticallyAndHoldsTheEpisodeDetails() {
+        state = state.copy(episode = episode.copy(showNotes = longNotes))
+        setContent(expanded = true)
+
+        composeTestRule.onNodeWithTag(TestTags.PLAYER_SCROLL_BODY).assert(hasScrollAction())
+        composeTestRule.onNodeWithTag(TestTags.PLAYER_SCROLL_BODY).onChildren().assertAny(hasText("The Episode"))
+        composeTestRule.onNodeWithText("The Podcast").assertExists()
+        composeTestRule.onNodeWithText("Show notes").assertExists()
+        composeTestRule.onNodeWithTag(TestTags.PLAYER_TOOLBAR).assertExists()
+        composeTestRule.onNodeWithTag(TestTags.PLAYER_SCROLL_BODY).performScrollToNode(hasTestTag(TestTags.SHOW_NOTES))
+    }
+
+    @Test
+    fun transportDockStaysPinnedWhileShowNotesScroll() {
+        state = state.copy(episode = episode.copy(showNotes = longNotes))
+        setContent(expanded = true)
+        val before = composeTestRule.onNodeWithTag(TestTags.PLAYER_DOCK).fetchSemanticsNode().boundsInRoot
+
+        composeTestRule.onNodeWithTag(TestTags.PLAYER_SCROLL_BODY).performTouchInput { swipeUp() }
+        composeTestRule.onNodeWithTag(TestTags.PLAYER_SCROLL_BODY).performScrollToNode(hasTestTag(TestTags.SHOW_NOTES))
+
+        val dock = composeTestRule.onNodeWithTag(TestTags.PLAYER_DOCK)
+        dock.assertIsDisplayed()
+        assertEquals(before, dock.fetchSemanticsNode().boundsInRoot)
+        for (tag in listOf(TestTags.SEEK_SLIDER, TestTags.ELAPSED_TIME, TestTags.REMAINING_TIME, TestTags.SKIP_BACK_BUTTON, TestTags.PLAY_PAUSE_BUTTON, TestTags.SKIP_FORWARD_BUTTON)) {
+            composeTestRule.onNodeWithTag(tag).assertIsDisplayed()
+        }
+        // The scrolling body never contains the dock controls.
+        composeTestRule.onNode(hasTestTag(TestTags.PLAY_PAUSE_BUTTON) and hasAnyAncestor(hasTestTag(TestTags.PLAYER_SCROLL_BODY))).assertDoesNotExist()
+        assertTrue(dock.fetchSemanticsNode().boundsInRoot.bottom > before.top)
+    }
+
+    @Test
+    fun skipButtonsNameTheirIntervals() {
+        setContent(expanded = true)
+
+        composeTestRule.onNodeWithTag(TestTags.SKIP_BACK_BUTTON).assertContentDescriptionEquals("Back 10 seconds")
+        composeTestRule.onNodeWithTag(TestTags.SKIP_FORWARD_BUTTON).assertContentDescriptionEquals("Forward 30 seconds")
+    }
+
+    @Test
+    fun utilityControlsAreLabelledChips() {
+        setContent(expanded = true)
+
+        tagged(TestTags.SPEED_CONTROL_BUTTON).assert(hasText("1.0×"))
+        tagged(TestTags.SKIP_SILENCE_CHIP).assert(hasText("Gap"))
+        tagged(TestTags.SLEEP_TIMER_BUTTON).assert(hasText("Sleep"))
+        tagged(TestTags.QUEUE_CHIP).assert(hasText("Queue"))
+    }
+
+    @Test
+    fun sleepChipShowsTheCountdownWhenActive() {
+        state = state.copy(sleepTimerRemainingMs = 125_000)
+        setContent(expanded = true)
+
+        tagged(TestTags.SLEEP_TIMER_BUTTON).assert(hasText("2:05")).assertIsSelected()
+    }
+
+    @Test
+    fun queueChipOpensTheUpNextSheet() {
+        setContent(expanded = true)
+
+        tagged(TestTags.QUEUE_CHIP).performClick()
+
+        composeTestRule.onNodeWithText("Up next").assertIsDisplayed()
     }
 
     @Test
