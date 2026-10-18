@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -40,6 +42,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -80,25 +84,41 @@ fun SwipeableEpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: 
         state = state,
         modifier = modifier,
         backgroundContent = {
-            val direction = state.dismissDirection
-            val (icon, alignment) = when (direction) {
-                SwipeToDismissBoxValue.StartToEnd ->
-                    (if (item.queued) Icons.Rounded.PlaylistRemove else Icons.AutoMirrored.Rounded.PlaylistAdd) to Alignment.CenterStart
-                SwipeToDismissBoxValue.EndToStart ->
-                    (if (item.downloadState == DownloadState.DOWNLOADED) Icons.Rounded.Delete else Icons.Rounded.Download) to Alignment.CenterEnd
-                SwipeToDismissBoxValue.Settled -> null to Alignment.Center
-            }
+            val style = swipeActionStyle(state.dismissDirection, item, MaterialTheme.colorScheme)
             Box(
-                Modifier.fillMaxSize().padding(horizontal = 24.dp),
-                contentAlignment = alignment,
+                Modifier.fillMaxSize().background(style.container).padding(horizontal = 24.dp),
+                contentAlignment = style.alignment,
             ) {
-                if (icon != null) Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                if (style.icon != null) Icon(style.icon, contentDescription = null, tint = style.content)
             }
         },
     ) {
         EpisodeRow(item, actions)
     }
 }
+
+internal data class SwipeActionStyle(
+    val icon: ImageVector?,
+    val alignment: Alignment,
+    val container: Color,
+    val content: Color,
+)
+
+/** Queue is primary, download is tertiary and deleting a download is error, so each swipe reads at a glance. */
+internal fun swipeActionStyle(direction: SwipeToDismissBoxValue, item: EpisodeItem, scheme: ColorScheme): SwipeActionStyle =
+    when (direction) {
+        SwipeToDismissBoxValue.StartToEnd -> SwipeActionStyle(
+            if (item.queued) Icons.Rounded.PlaylistRemove else Icons.AutoMirrored.Rounded.PlaylistAdd,
+            Alignment.CenterStart, scheme.primaryContainer, scheme.onPrimaryContainer,
+        )
+        SwipeToDismissBoxValue.EndToStart ->
+            if (item.downloadState == DownloadState.DOWNLOADED) {
+                SwipeActionStyle(Icons.Rounded.Delete, Alignment.CenterEnd, scheme.errorContainer, scheme.onErrorContainer)
+            } else {
+                SwipeActionStyle(Icons.Rounded.Download, Alignment.CenterEnd, scheme.tertiaryContainer, scheme.onTertiaryContainer)
+            }
+        SwipeToDismissBoxValue.Settled -> SwipeActionStyle(null, Alignment.Center, Color.Transparent, Color.Transparent)
+    }
 
 @Composable
 fun EpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: Modifier = Modifier) {
