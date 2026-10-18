@@ -106,12 +106,5 @@ fun PodcastExpressiveTheme(state: ThemeState = ThemeState(), content: @Composabl
     )
 }
 
-/** The expressive spatial spring, for animations that move or reshape things. */
-@Composable
-fun <T> spatialSpec() = MaterialTheme.motionScheme.defaultSpatialSpec<T>()
-
 @Composable
 fun <T> fastSpatialSpec() = MaterialTheme.motionScheme.fastSpatialSpec<T>()
-
-@Composable
-fun <T> effectsSpec() = MaterialTheme.motionScheme.defaultEffectsSpec<T>()

@@ -2,7 +2,6 @@
 package org.sonora.core.database
 
 import java.time.Clock
-import kotlinx.coroutines.flow.Flow
 import org.sonora.core.model.ParsedEpisode
 import org.sonora.core.model.ParsedFeed
 
@@ -12,8 +11,6 @@ class PodcastRepository(
     private val transactions: TransactionRunner,
     private val clock: Clock,
 ) {
-    fun observePodcasts(): Flow<List<PodcastEntity>> = podcastDao.observeAll()
-
     /** Merges a freshly parsed feed into the database, keeping all local episode state. Returns the podcast id. */
     suspend fun refresh(feedUrl: String, feed: ParsedFeed): Long = transactions.run {
         val now = clock.millis()
