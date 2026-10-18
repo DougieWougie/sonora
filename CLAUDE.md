@@ -14,21 +14,12 @@ You MUST follow strict Red-Green-Refactor TDD for every feature, parser, reposit
 Never write production logic before writing and running its failing test.
 
 ## Architecture & Tech Stack
-- **Language & Build:** Kotlin 2.1+, Gradle Kotlin DSL (`build.gradle.kts`), Version Catalog (`gradle/libs.versions.toml`), Java 17 toolchain, Min SDK 26, Target/Compile SDK 35.
 - **UI Framework:** Jetpack Compose with **Material 3 Expressive** (`androidx.compose.material3` 1.4.0-alpha / 1.5.0+ Expressive APIs, `MaterialExpressiveTheme`, spring physics motion tokens, emphasized typography, and dynamic color).
-- **DI:** Dagger Hilt (`com.google.dagger:hilt-android`) using KSP (`com.google.devtools.ksp`).
-- **Database:** AndroidX Room with KSP and Kotlin Coroutines/Flows.
 - **Networking:** OkHttp + Retrofit + `kotlinx-serialization-json`. Enforce HTTPS/TLS by default and disable cleartext traffic except when explicitly configured by the user for local development.
 - **XML/RSS Parsing:** Custom streaming parser using `org.xmlpull.v1.XmlPullParser` (for unit testability, inject `XmlPullParserFactory`). Harden against XXE attacks.
 - **Media & Downloads:** AndroidX Media3 (`media3-exoplayer`, `media3-session`, `media3-datasource-okhttp`) with `SilenceSkippingAudioProcessor` and PlaybackParameters for speed control.
-- **Background Sync:** AndroidX WorkManager (`CoroutineWorker`) with Hilt integration.
 
 ## Security & Performance Guidelines
 - Store Nextcloud app tokens using Android Keystore backed encryption or `DataStore` with Tink encryption.
 - Stream all XML/RSS and OPML payloads via `InputStream`; never load entire RSS feeds into memory strings before parsing.
 - Use database transactions (`@Transaction`) when reconciling Nextcloud subscription and episode action diffs.
-
-## Common Commands
-- Run unit tests: `./gradlew testDebugUnitTest`
-- Assemble debug APK: `./gradlew assembleDebug`
-- Lint check: `./gradlew lintDebug`
