@@ -29,7 +29,7 @@ fun interface RemoteSync {
 
 /** Queues episodes for background download, honouring the unmetered-only preference. */
 fun interface DownloadScheduler {
-    suspend fun schedule(episodeIds: List<Long>, unmeteredOnly: Boolean)
+    suspend fun schedule(episodeIds: List<Long>, unmeteredOnly: Boolean, chargingOnly: Boolean)
 }
 
 enum class FailureKind { TRANSIENT, PERMANENT, AUTH }
@@ -82,9 +82,10 @@ class PodcastSyncPipeline(
     private val feedFetcher: FeedFetcher,
     private val downloads: DownloadScheduler,
     private val unmeteredOnlyForAutoDownload: suspend () -> Boolean,
+    private val chargingOnlyForAutoDownload: suspend () -> Boolean = { false },
     private val enforceRetention: suspend () -> Unit = {},
     private val maxConcurrentRefreshes: Int = 4,
-    private val maxAutoDownloadsPerPodcast: Int = 3,
+    private val maxAutoDownloadsPerPodcast: suspend () -> Int = { 3 },
 ) {
     suspend fun run(): SyncOutcome {
         val remote = syncRemote()
@@ -94,7 +95,7 @@ class PodcastSyncPipeline(
         val failed = results.mapNotNull { r -> r.failure?.let { r.feedUrl to it } }.toMap()
         val toDownload = results.flatMap { it.newEpisodeIds }
 
-        if (toDownload.isNotEmpty()) downloads.schedule(toDownload, unmeteredOnlyForAutoDownload())
+        if (toDownload.isNotEmpty()) downloads.schedule(toDownload, unmeteredOnlyForAutoDownload(), chargingOnly = chargingOnlyForAutoDownload())
         retain()
         return SyncOutcome(
             remote = remote,
@@ -139,7 +140,7 @@ class PodcastSyncPipeline(
             episodeDao.getForPodcast(podcast.id)
                 .filter { it.guid !in knownGuids && it.downloadState == DownloadState.NONE && !it.played }
                 .sortedByDescending { it.publishedAtMillis ?: Long.MIN_VALUE }
-                .take(maxAutoDownloadsPerPodcast)
+                .take(maxAutoDownloadsPerPodcast())
                 .map { it.id }
         } else {
             emptyList()

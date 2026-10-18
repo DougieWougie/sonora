@@ -341,6 +341,75 @@ class SettingsAndSyncViewModelTest {
     }
 
     @Test
+    fun `shows the stored schedule, auto-download and retention preferences`() = runTest {
+        settings.syncIntervalHours = 12
+        settings.autoDownloadChargingOnly = true
+        settings.autoDownloadPerPodcast = 5
+        settings.keepPerPodcast = 10
+        settings.maxStorageBytes = 2_000_000_000
+        val vm = vm(); runCurrent()
+
+        val state = vm.uiState.value
+        assertEquals(12L, state.syncIntervalHours)
+        assertEquals(DownloadPrefs(true, true, chargingOnly = true, autoDownloadPerPodcast = 5, keepPerPodcast = 10, maxStorageBytes = 2_000_000_000), state.downloads)
+    }
+
+    @Test
+    fun `download preferences are saved and reflected`() = runTest {
+        val vm = vm(); runCurrent()
+
+        vm.onIntent(SettingsIntent.SetChargingOnly(true))
+        vm.onIntent(SettingsIntent.SetAutoDownloadCount(2))
+        vm.onIntent(SettingsIntent.SetKeepPerPodcast(5))
+        vm.onIntent(SettingsIntent.SetMaxStorage(5_000_000_000))
+        runCurrent()
+
+        assertTrue(settings.autoDownloadChargingOnly)
+        assertEquals(2, settings.autoDownloadPerPodcast)
+        assertEquals(5, settings.keepPerPodcast)
+        assertEquals(5_000_000_000, settings.maxStorageBytes)
+        assertEquals(
+            DownloadPrefs(true, true, chargingOnly = true, autoDownloadPerPodcast = 2, keepPerPodcast = 5, maxStorageBytes = 5_000_000_000),
+            vm.uiState.value.downloads,
+        )
+    }
+
+    @Test
+    fun `nonsense download limits are clamped`() = runTest {
+        val vm = vm(); runCurrent()
+
+        vm.onIntent(SettingsIntent.SetAutoDownloadCount(0))
+        vm.onIntent(SettingsIntent.SetKeepPerPodcast(-3))
+        vm.onIntent(SettingsIntent.SetMaxStorage(-1))
+        runCurrent()
+
+        assertEquals(1, vm.uiState.value.downloads.autoDownloadPerPodcast)
+        assertEquals(0, vm.uiState.value.downloads.keepPerPodcast)
+        assertEquals(0L, vm.uiState.value.downloads.maxStorageBytes)
+    }
+
+    @Test
+    fun `changing the sync interval is saved and reschedules immediately`() = runTest {
+        val vm = vm(); runCurrent()
+
+        vm.onIntent(SettingsIntent.SetSyncInterval(3)); runCurrent()
+        vm.onIntent(SettingsIntent.SetSyncInterval(0)); runCurrent()
+
+        assertEquals(0L, settings.syncIntervalHours)
+        assertEquals(0L, vm.uiState.value.syncIntervalHours)
+        assertEquals(listOf(3L, 0L), sync.intervals)
+    }
+
+    @Test
+    fun `a negative sync interval turns the schedule off`() = runTest {
+        val vm = vm(); runCurrent()
+
+        vm.onIntent(SettingsIntent.SetSyncInterval(-4)); runCurrent()
+
+        assertEquals(listOf(0L), sync.intervals)
+    }
+
+    @Test
     fun `allowing cleartext is saved and flagged as needing a restart`() = runTest {
         val vm = vm(); runCurrent()
         assertFalse(vm.uiState.value.restartRequired)

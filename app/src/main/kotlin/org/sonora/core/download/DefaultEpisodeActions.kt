@@ -10,7 +10,7 @@ class DefaultEpisodeActions(
     private val scheduler: DownloadScheduler,
 ) : EpisodeActions {
     /** The user asked for this one, so it must not wait for an unmetered network. */
-    override suspend fun download(episodeId: Long) = scheduler.schedule(listOf(episodeId), unmeteredOnly = false)
+    override suspend fun download(episodeId: Long) = scheduler.schedule(listOf(episodeId), unmeteredOnly = false, chargingOnly = false)
     override suspend fun deleteDownload(episodeId: Long) = manager.deleteDownload(episodeId)
     override suspend fun markPlayed(episodeId: Long) = manager.markPlayed(episodeId)
     override suspend fun markUnplayed(episodeId: Long) = repository.markNew(episodeId)

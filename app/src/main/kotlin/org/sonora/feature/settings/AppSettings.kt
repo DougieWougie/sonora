@@ -32,19 +32,26 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
         get() = prefs.getBoolean(DELETE_PLAYED, true)
         set(value) = prefs.edit().putBoolean(DELETE_PLAYED, value).apply()
 
+    override var autoDownloadChargingOnly: Boolean
+        get() = prefs.getBoolean(CHARGING_ONLY, false)
+        set(value) = prefs.edit().putBoolean(CHARGING_ONLY, value).apply()
+
+    override var autoDownloadPerPodcast: Int
+        get() = prefs.getInt(AUTO_PER_PODCAST, 3)
+        set(value) = prefs.edit().putInt(AUTO_PER_PODCAST, value.coerceAtLeast(1)).apply()
+
     /** 0 means unlimited. */
-    var maxStorageBytes: Long
+    override var maxStorageBytes: Long
         get() = prefs.getLong(MAX_STORAGE, 0)
         set(value) = prefs.edit().putLong(MAX_STORAGE, value).apply()
 
-    /** Newest downloads kept per podcast; 0 means unlimited. */
-    var keepPerPodcast: Int
+    override var keepPerPodcast: Int
         get() = prefs.getInt(KEEP_PER_PODCAST, 0)
         set(value) = prefs.edit().putInt(KEEP_PER_PODCAST, value.coerceAtLeast(0)).apply()
 
-    var syncIntervalHours: Long
+    override var syncIntervalHours: Long
         get() = prefs.getLong(SYNC_INTERVAL, 6)
-        set(value) = prefs.edit().putLong(SYNC_INTERVAL, value.coerceAtLeast(1)).apply()
+        set(value) = prefs.edit().putLong(SYNC_INTERVAL, value.coerceAtLeast(0)).apply()
 
     private val _lastSyncMillis = MutableStateFlow(prefs.getLong(LAST_SYNC, 0))
     override val lastSyncMillis: StateFlow<Long> = _lastSyncMillis
@@ -111,6 +118,8 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
         const val UNMETERED_ONLY = "auto_download_unmetered_only"
         const val DELETE_PLAYED = "delete_downloads_when_played"
         const val MAX_STORAGE = "max_storage_bytes"
+        const val CHARGING_ONLY = "auto_download_charging_only"
+        const val AUTO_PER_PODCAST = "auto_download_per_podcast"
         const val KEEP_PER_PODCAST = "keep_per_podcast"
         const val THEME_MODE = "theme_mode"
         const val ARTWORK_COLORS = "artwork_colors"

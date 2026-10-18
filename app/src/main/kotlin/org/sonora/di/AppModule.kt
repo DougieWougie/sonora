@@ -179,6 +179,8 @@ object AppModule {
         feedFetcher = fetcher,
         downloads = downloads,
         unmeteredOnlyForAutoDownload = { settings.autoDownloadUnmeteredOnly },
+        chargingOnlyForAutoDownload = { settings.autoDownloadChargingOnly },
+        maxAutoDownloadsPerPodcast = { settings.autoDownloadPerPodcast },
         enforceRetention = {
             val playing = playback.state.first().episodeId
             downloadManager.enforceRetention(inUse = setOfNotNull(playing))

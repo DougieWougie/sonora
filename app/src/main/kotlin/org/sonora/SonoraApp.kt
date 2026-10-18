@@ -40,6 +40,6 @@ class SonoraApp : Application(), Configuration.Provider, SingletonImageLoader.Fa
 
     override fun onCreate() {
         super.onCreate()
-        syncScheduler.schedulePeriodic(settings.syncIntervalHours)
+        syncScheduler.setPeriodicInterval(settings.syncIntervalHours)
     }
 }

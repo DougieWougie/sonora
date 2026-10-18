@@ -28,6 +28,9 @@ class PodcastSyncPipelineTest {
 
     private val scheduled = mutableListOf<Pair<List<Long>, Boolean>>()
     private var unmeteredOnly = true
+    private val chargingRequests = mutableListOf<Boolean>()
+    private var chargingOnly = false
+    private var autoCount = 3
 
     private var remote: suspend () -> SyncReport? = { SyncReport() }
     private val feeds = mutableMapOf<String, () -> ParsedFeed>()
@@ -56,14 +59,16 @@ class PodcastSyncPipelineTest {
                 inFlight--
             }
         },
-        downloads = DownloadScheduler { ids, unmetered ->
+        downloads = DownloadScheduler { ids, unmetered, charging ->
+            chargingRequests += charging
             events += "schedule"
             scheduled += ids to unmetered
         },
         unmeteredOnlyForAutoDownload = { unmeteredOnly },
+        chargingOnlyForAutoDownload = { chargingOnly },
         enforceRetention = { retention() },
         maxConcurrentRefreshes = concurrency,
-        maxAutoDownloadsPerPodcast = maxAuto,
+        maxAutoDownloadsPerPodcast = { if (maxAuto != 3) maxAuto else autoCount },
     )
 
     private fun episode(guid: String, published: Long) = ParsedEpisode(
@@ -247,6 +252,28 @@ class PodcastSyncPipelineTest {
 
         val ids = scheduled.single().first
         assertEquals(setOf("n5", "n4"), ids.map { episodeDao.findById(it)!!.guid }.toSet())
+    }
+
+    @Test
+    fun `passes the charging-only preference through to the scheduler`() = runTest {
+        chargingOnly = true
+        subscribe("https://a", autoDownload = true, existing = listOf("old"))
+        feeds["https://a"] = { feed(episode("old", 1), episode("new", 2)) }
+
+        pipeline().run()
+
+        assertEquals(listOf(true), chargingRequests)
+    }
+
+    @Test
+    fun `reads the per-podcast download count on every run`() = runTest {
+        autoCount = 1
+        subscribe("https://a", autoDownload = true, existing = listOf("old"))
+        feeds["https://a"] = { feed(episode("old", 1), episode("n1", 2), episode("n2", 3)) }
+
+        pipeline().run()
+
+        assertEquals(1, scheduled.single().first.size)
     }
 
     @Test

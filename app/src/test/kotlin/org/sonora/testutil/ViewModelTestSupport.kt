@@ -58,6 +58,8 @@ class FakeSyncController : SyncController {
     var requests = 0
     override val syncing: Flow<Boolean> = running
     override fun syncNow() { requests++ }
+    val intervals = mutableListOf<Long>()
+    override fun setPeriodicInterval(hours: Long) { intervals += hours }
 }
 
 class FakeEpisodeActions : EpisodeActions {
@@ -81,6 +83,11 @@ class FakeSettingsStore : SettingsStore {
     override var autoDownloadUnmeteredOnly = true
     override var deleteDownloadsWhenPlayed = true
     override var allowCleartext = false
+    override var autoDownloadChargingOnly = false
+    override var autoDownloadPerPodcast = 3
+    override var keepPerPodcast = 0
+    override var maxStorageBytes = 0L
+    override var syncIntervalHours = 6L
 }
 
 class FakeLoginFlow : LoginFlowApi {

@@ -13,7 +13,7 @@ class DefaultEpisodeActionsTest {
     private val manager = mockk<EpisodeDownloadManager>(relaxed = true)
     private val repository = mockk<EpisodeRepository>(relaxed = true)
     private val scheduled = mutableListOf<Pair<List<Long>, Boolean>>()
-    private val scheduler = DownloadScheduler { ids, unmetered -> scheduled += ids to unmetered }
+    private val scheduler = DownloadScheduler { ids, unmetered, _ -> scheduled += ids to unmetered }
     private val actions = DefaultEpisodeActions(manager, repository, scheduler)
 
     @Test
