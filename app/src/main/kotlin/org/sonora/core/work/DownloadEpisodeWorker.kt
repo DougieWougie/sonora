@@ -28,11 +28,11 @@ class DownloadEpisodeWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         val episodeId = inputData.getLong(KEY_EPISODE_ID, -1)
         val episode = episodeDao.findById(episodeId) ?: return Result.failure()
-        showForeground(episode.title, 0, episode.sizeBytes)
+        showForeground(episodeId, episode.title, 0, episode.sizeBytes)
         return try {
             manager.download(episodeId).collect { progress ->
                 setProgress(Data.Builder().putLong(KEY_BYTES, progress.bytesDownloaded).build())
-                showForeground(episode.title, progress.bytesDownloaded, progress.totalBytes)
+                showForeground(episodeId, episode.title, progress.bytesDownloaded, progress.totalBytes)
             }
             try {
                 manager.enforceRetention(inUse = setOf(episodeId))
@@ -49,12 +49,12 @@ class DownloadEpisodeWorker @AssistedInject constructor(
         }
     }
 
-    private suspend fun showForeground(title: String, bytes: Long, total: Long?) {
+    private suspend fun showForeground(episodeId: Long, title: String, bytes: Long, total: Long?) {
         val notification = DownloadNotifications.build(applicationContext, title, bytes, total)
         try {
             setForeground(
                 ForegroundInfo(
-                    DownloadNotifications.NOTIFICATION_ID,
+                    DownloadNotifications.idFor(episodeId),
                     notification,
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
                 ),
