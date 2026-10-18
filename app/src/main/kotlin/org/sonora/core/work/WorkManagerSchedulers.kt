@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.sonora.core.download.EpisodeDownloadManager
+import org.sonora.core.sync.DownloadCanceller
 import org.sonora.core.sync.DownloadScheduler
 
 /** Schedules the periodic background sync (requires a network connection). */
@@ -34,9 +35,17 @@ class WorkManagerSyncScheduler(context: Context) : SyncController {
         workManager.enqueueUniqueWork(SYNC_NOW_WORK_NAME, ExistingWorkPolicy.KEEP, request)
     }
 
+    override fun setPeriodicInterval(hours: Long) {
+        if (hours <= 0) cancelPeriodic() else schedulePeriodic(hours)
+    }
+
     fun schedulePeriodic(intervalHours: Long) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .setRequiresBatteryNotLow(true)
+            .build()
         val request = PeriodicWorkRequestBuilder<PodcastSyncWorker>(intervalHours.coerceAtLeast(1), TimeUnit.HOURS)
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, BACKOFF_MINUTES, TimeUnit.MINUTES)
             .build()
         workManager.enqueueUniquePeriodicWork(SYNC_WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
@@ -53,20 +62,25 @@ class WorkManagerSyncScheduler(context: Context) : SyncController {
     }
 }
 
-/** Marks episodes QUEUED and hands them to WorkManager; UNMETERED is required when the user asked for it. */
+/** Marks episodes QUEUED and hands them to WorkManager; UNMETERED and charging are required when the user asked for them. */
 class WorkManagerDownloadScheduler(
     context: Context,
     private val manager: EpisodeDownloadManager,
-) : DownloadScheduler {
+) : DownloadScheduler, DownloadCanceller {
     private val workManager = WorkManager.getInstance(context)
 
-    override suspend fun schedule(episodeIds: List<Long>, unmeteredOnly: Boolean) {
+    override suspend fun schedule(episodeIds: List<Long>, unmeteredOnly: Boolean, chargingOnly: Boolean) {
         val network = if (unmeteredOnly) NetworkType.UNMETERED else NetworkType.CONNECTED
-        val constraints = Constraints.Builder().setRequiredNetworkType(network).build()
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(network)
+            .setRequiresCharging(chargingOnly)
+            .build()
         for (id in episodeIds) {
             if (!manager.enqueue(id)) continue
             val request = OneTimeWorkRequestBuilder<DownloadEpisodeWorker>()
                 .setConstraints(constraints)
+                .addTag(TAG_DOWNLOAD)
+                .addTag(episodeTag(id))
                 .setInputData(workDataOf(DownloadEpisodeWorker.KEY_EPISODE_ID to id))
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, BACKOFF_MINUTES, TimeUnit.MINUTES)
                 .build()
@@ -74,7 +88,17 @@ class WorkManagerDownloadScheduler(
         }
     }
 
-    private companion object {
-        const val BACKOFF_MINUTES = 5L
+    override fun cancel(episodeId: Long) {
+        workManager.cancelUniqueWork("download-$episodeId")
+    }
+
+    companion object {
+        const val TAG_DOWNLOAD = "download"
+        private const val EPISODE_TAG_PREFIX = "download-episode-"
+        private const val BACKOFF_MINUTES = 5L
+
+        private fun episodeTag(id: Long) = "$EPISODE_TAG_PREFIX$id"
+        fun episodeIdFromTag(tag: String): Long? =
+            if (tag.startsWith(EPISODE_TAG_PREFIX)) tag.removePrefix(EPISODE_TAG_PREFIX).toLongOrNull() else null
     }
 }

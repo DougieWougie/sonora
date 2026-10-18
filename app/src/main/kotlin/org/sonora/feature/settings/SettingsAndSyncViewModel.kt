@@ -35,13 +35,21 @@ sealed interface NextcloudState {
 
 data class PodcastIndexForm(val apiKey: String = "", val apiSecret: String = "", val saved: Boolean = false)
 
-data class DownloadPrefs(val unmeteredOnly: Boolean, val deleteWhenPlayed: Boolean)
+data class DownloadPrefs(
+    val unmeteredOnly: Boolean,
+    val deleteWhenPlayed: Boolean,
+    val chargingOnly: Boolean = false,
+    val autoDownloadPerPodcast: Int = 3,
+    val keepPerPodcast: Int = 0,
+    val maxStorageBytes: Long = 0,
+)
 
 data class SettingsUiState(
     val nextcloud: NextcloudState,
     val isSyncing: Boolean = false,
     val podcastIndex: PodcastIndexForm = PodcastIndexForm(),
     val downloads: DownloadPrefs,
+    val syncIntervalHours: Long = 6,
     val allowCleartext: Boolean,
     /** Cleartext is read once at startup, so a change only takes effect after a restart. */
     val restartRequired: Boolean = false,
@@ -63,6 +71,11 @@ sealed interface SettingsIntent {
     data class SetUnmeteredOnly(val enabled: Boolean) : SettingsIntent
     data class SetDeleteWhenPlayed(val enabled: Boolean) : SettingsIntent
     data class SetAllowCleartext(val enabled: Boolean) : SettingsIntent
+    data class SetChargingOnly(val enabled: Boolean) : SettingsIntent
+    data class SetAutoDownloadCount(val count: Int) : SettingsIntent
+    data class SetKeepPerPodcast(val count: Int) : SettingsIntent
+    data class SetMaxStorage(val bytes: Long) : SettingsIntent
+    data class SetSyncInterval(val hours: Long) : SettingsIntent
 }
 
 sealed interface SettingsEvent {
@@ -81,7 +94,15 @@ class SettingsAndSyncViewModel @Inject constructor(
         SettingsUiState(
             nextcloud = settings.nextcloudAccount()?.let { NextcloudState.Connected(it.loginName, it.serverUrl, settings.lastSyncMillis.value.orNull()) }
                 ?: NextcloudState.Idle,
-            downloads = DownloadPrefs(settings.autoDownloadUnmeteredOnly, settings.deleteDownloadsWhenPlayed),
+            downloads = DownloadPrefs(
+                unmeteredOnly = settings.autoDownloadUnmeteredOnly,
+                deleteWhenPlayed = settings.deleteDownloadsWhenPlayed,
+                chargingOnly = settings.autoDownloadChargingOnly,
+                autoDownloadPerPodcast = settings.autoDownloadPerPodcast,
+                keepPerPodcast = settings.keepPerPodcast,
+                maxStorageBytes = settings.maxStorageBytes,
+            ),
+            syncIntervalHours = settings.syncIntervalHours,
             allowCleartext = cleartextAtStart,
         ),
     )
@@ -139,6 +160,27 @@ class SettingsAndSyncViewModel @Inject constructor(
             is SettingsIntent.SetDeleteWhenPlayed -> {
                 settings.deleteDownloadsWhenPlayed = intent.enabled
                 _state.update { it.copy(downloads = it.downloads.copy(deleteWhenPlayed = intent.enabled)) }
+            }
+            is SettingsIntent.SetChargingOnly -> {
+                settings.autoDownloadChargingOnly = intent.enabled
+                _state.update { it.copy(downloads = it.downloads.copy(chargingOnly = intent.enabled)) }
+            }
+            is SettingsIntent.SetAutoDownloadCount -> {
+                settings.autoDownloadPerPodcast = intent.count.coerceAtLeast(1)
+                _state.update { it.copy(downloads = it.downloads.copy(autoDownloadPerPodcast = settings.autoDownloadPerPodcast)) }
+            }
+            is SettingsIntent.SetKeepPerPodcast -> {
+                settings.keepPerPodcast = intent.count.coerceAtLeast(0)
+                _state.update { it.copy(downloads = it.downloads.copy(keepPerPodcast = settings.keepPerPodcast)) }
+            }
+            is SettingsIntent.SetMaxStorage -> {
+                settings.maxStorageBytes = intent.bytes.coerceAtLeast(0)
+                _state.update { it.copy(downloads = it.downloads.copy(maxStorageBytes = settings.maxStorageBytes)) }
+            }
+            is SettingsIntent.SetSyncInterval -> {
+                settings.syncIntervalHours = intent.hours.coerceAtLeast(0)
+                sync.setPeriodicInterval(settings.syncIntervalHours)
+                _state.update { it.copy(syncIntervalHours = settings.syncIntervalHours) }
             }
             is SettingsIntent.SetAllowCleartext -> {
                 settings.allowCleartext = intent.enabled

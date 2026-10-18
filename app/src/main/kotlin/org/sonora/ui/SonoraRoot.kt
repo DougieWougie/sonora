@@ -55,6 +55,7 @@ import androidx.navigation.compose.rememberNavController
 import kotlin.reflect.KClass
 import kotlinx.serialization.Serializable
 import org.sonora.feature.discover.DiscoverScreen
+import org.sonora.feature.downloads.DownloadsScreen
 import org.sonora.feature.episodes.EpisodesScreen
 import org.sonora.feature.library.LibraryScreen
 import kotlinx.coroutines.flow.Flow
@@ -75,6 +76,7 @@ import org.sonora.ui.theme.ThemeViewModel
 @Serializable data object EpisodesRoute
 @Serializable data object DiscoverRoute
 @Serializable data object SettingsRoute
+@Serializable data object DownloadsRoute
 
 /** Argument name must match [org.sonora.feature.podcast.PodcastDetailViewModel.ARG_PODCAST_ID]. */
 @Serializable data class PodcastRoute(val podcastId: Long)
@@ -175,9 +177,10 @@ private fun AppNavHost(navController: NavHostController, snackbar: SnackbarHostS
         composable<LibraryRoute> {
             LibraryScreen(onOpenPodcast = { navController.navigate(PodcastRoute(it)) }, snackbar = snackbar)
         }
-        composable<EpisodesRoute> { EpisodesScreen(snackbar) }
+        composable<EpisodesRoute> { EpisodesScreen(snackbar, onOpenDownloads = { navController.navigate(DownloadsRoute) }) }
         composable<DiscoverRoute> { DiscoverScreen(snackbar) }
-        composable<SettingsRoute> { SettingsScreen() }
+        composable<SettingsRoute> { SettingsScreen(onOpenDownloads = { navController.navigate(DownloadsRoute) }) }
+        composable<DownloadsRoute> { DownloadsScreen(onBack = { navController.popBackStack() }, snackbar = snackbar) }
         composable<PodcastRoute> { PodcastDetailScreen(onBack = { navController.popBackStack() }, snackbar = snackbar) }
     }
 }

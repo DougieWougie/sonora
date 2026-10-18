@@ -4,6 +4,8 @@ package org.sonora.core.download
 import app.cash.turbine.test
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -370,25 +372,119 @@ class EpisodeDownloadManagerTest {
     }
 
     @Test
-    fun `trimToLimit evicts the oldest played downloads first and never touches unplayed ones`() = runTest {
-        val oldPlayed = downloaded("old", published = 1, played = true, size = 1000)
-        val newPlayed = downloaded("new", published = 3, played = true, size = 1000)
-        val unplayed = downloaded("unplayed", published = 0, played = false, size = 1000)
+    fun `enforceRetention evicts played downloads first and then the oldest unplayed ones`() = runTest {
+        policy = DownloadPolicy(maxStorageBytes = 1500)
+        val oldPlayed = downloaded("old", published = 1, played = true)
+        val newPlayed = downloaded("new", published = 3, played = true)
+        val unplayed = downloaded("unplayed", published = 0, played = false)
 
-        val freed = manager.trimToLimit(maxBytes = 2000)
+        val evicted = manager.enforceRetention()
 
-        assertEquals(1, freed)
+        assertEquals(listOf(oldPlayed, newPlayed), evicted)
         assertFalse(finalFile(oldPlayed).exists())
-        assertTrue(finalFile(newPlayed).exists())
+        assertFalse(finalFile(newPlayed).exists())
         assertTrue(finalFile(unplayed).exists())
-        assertEquals(listOf(SyncActionType.DELETE), queue.getAll().map { it.type })
+        assertEquals(listOf(SyncActionType.DELETE, SyncActionType.DELETE), queue.getAll().map { it.type })
     }
 
     @Test
-    fun `trimToLimit does nothing when under the limit`() = runTest {
-        downloaded("a", published = 1, played = true, size = 1000)
+    fun `enforceRetention keeps only the newest downloads per podcast`() = runTest {
+        policy = DownloadPolicy(keepPerPodcast = 1)
+        val older = downloaded("older", published = 1)
+        val newer = downloaded("newer", published = 2)
 
-        assertEquals(0, manager.trimToLimit(maxBytes = 5000))
+        assertEquals(listOf(older), manager.enforceRetention())
+        assertEquals(DownloadState.NONE, episodeDao.findById(older)!!.downloadState)
+        assertEquals(DownloadState.DOWNLOADED, episodeDao.findById(newer)!!.downloadState)
+    }
+
+    @Test
+    fun `enforceRetention never evicts episodes in use`() = runTest {
+        policy = DownloadPolicy(maxStorageBytes = 1)
+        val playing = downloaded("playing", published = 1, played = true)
+        val other = downloaded("other", published = 2)
+
+        assertEquals(listOf(other), manager.enforceRetention(inUse = setOf(playing)))
+        assertTrue(finalFile(playing).exists())
+    }
+
+    @Test
+    fun `enforceRetention does nothing under an unlimited policy`() = runTest {
+        downloaded("a", published = 1, played = true)
+
+        assertEquals(emptyList<Long>(), manager.enforceRetention())
+    }
+
+    @Test
+    fun `enforceRetention ignores downloads that are not complete`() = runTest {
+        policy = DownloadPolicy(maxStorageBytes = 1)
+        val queued = seed(guid = "queued", state = DownloadState.QUEUED, published = 1)
+
+        assertEquals(emptyList<Long>(), manager.enforceRetention())
+        assertEquals(DownloadState.QUEUED, episodeDao.findById(queued)!!.downloadState)
+    }
+
+    // --- cancelling & bulk delete ------------------------------------------------------------
+
+    @Test
+    fun `cancelling a queued download resets it and removes the partial file`() = runTest {
+        val id = seed(state = DownloadState.QUEUED)
+        partFile(id).writeBytes(ByteArray(10))
+
+        manager.cancelDownload(id)
+
+        assertEquals(DownloadState.NONE, episodeDao.findById(id)!!.downloadState)
+        assertEquals(0L, episodeDao.findById(id)!!.downloadedBytes)
+        assertFalse(partFile(id).exists())
+    }
+
+    @Test
+    fun `cancelling a running download leaves it not downloaded rather than re-queued`() = runTest {
+        val id = seed()
+        server.enqueue(
+            MockResponse.Builder().body(Buffer().write(payload))
+                .throttleBody(64 * 1024, 100, java.util.concurrent.TimeUnit.MILLISECONDS).build(),
+        )
+        val progressed = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val job = kotlinx.coroutines.CoroutineScope(Dispatchers.Default).launch {
+            manager.download(id).collect { progressed.complete(Unit) }
+        }
+        progressed.await()
+
+        manager.cancelDownload(id)
+        job.cancelAndJoin()
+
+        assertEquals(DownloadState.NONE, episodeDao.findById(id)!!.downloadState)
+        assertEquals(0L, episodeDao.findById(id)!!.downloadedBytes)
+        assertFalse(partFile(id).exists())
+    }
+
+    @Test
+    fun `an old cancel does not stop a download requested later`() = runTest {
+        val id = seed(state = DownloadState.QUEUED)
+        manager.cancelDownload(id)
+        server.enqueue(ok())
+
+        manager.enqueue(id)
+        manager.downloadToCompletion(id)
+
+        assertEquals(DownloadState.DOWNLOADED, episodeDao.findById(id)!!.downloadState)
+    }
+
+    @Test
+    fun `deleteAllPlayedDownloads removes played downloads only`() = runTest {
+        val playedA = downloaded("a", published = 1, played = true)
+        val playedB = downloaded("b", published = 2, played = true)
+        val unplayed = downloaded("c", published = 3)
+        val inFlight = seed(guid = "d", state = DownloadState.DOWNLOADING, played = true)
+
+        val removed = manager.deleteAllPlayedDownloads()
+
+        assertEquals(setOf(playedA, playedB), removed.toSet())
+        assertFalse(finalFile(playedA).exists())
+        assertTrue(finalFile(unplayed).exists())
+        assertEquals(DownloadState.DOWNLOADING, episodeDao.findById(inFlight)!!.downloadState)
+        assertEquals(2, queue.getAll().count { it.type == SyncActionType.DELETE })
     }
 
     @Test

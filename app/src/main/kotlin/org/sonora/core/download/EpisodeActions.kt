@@ -5,6 +5,10 @@ package org.sonora.core.download
 interface EpisodeActions {
     suspend fun download(episodeId: Long)
     suspend fun deleteDownload(episodeId: Long)
+    /** Stops a queued or running download and discards what was fetched so far. */
+    suspend fun cancelDownload(episodeId: Long)
+    /** Returns how many downloads were removed. */
+    suspend fun deleteAllPlayedDownloads(): Int
     suspend fun markPlayed(episodeId: Long)
     suspend fun markUnplayed(episodeId: Long)
     suspend fun countOlderUnplayed(episodeId: Long): Int

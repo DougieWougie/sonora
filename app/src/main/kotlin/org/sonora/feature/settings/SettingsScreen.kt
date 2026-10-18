@@ -52,6 +52,7 @@ import java.util.Date
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import kotlinx.coroutines.flow.Flow
 import org.sonora.core.testing.TestTags
+import org.sonora.feature.downloads.DownloadsLink
 import org.sonora.ui.components.SonoraLogo
 import org.sonora.ui.theme.ThemeIntent
 import org.sonora.ui.theme.ThemeMode
@@ -59,6 +60,7 @@ import org.sonora.ui.theme.ThemeViewModel
 
 @Composable
 fun SettingsScreen(
+    onOpenDownloads: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsAndSyncViewModel = hiltViewModel(),
     themeViewModel: ThemeViewModel = hiltViewModel(),
@@ -96,9 +98,38 @@ fun SettingsScreen(
             }
         }
 
+        SettingsCard("Background sync") {
+            ChoiceRow(
+                title = "Check for new episodes",
+                subtitle = "Also needs the battery not to be low",
+                options = SYNC_INTERVALS,
+                selected = state.syncIntervalHours,
+            ) { viewModel.onIntent(SettingsIntent.SetSyncInterval(it)) }
+        }
+
         SettingsCard("Downloads") {
+            DownloadsLink(onClick = onOpenDownloads)
             SwitchRow("Auto-download on Wi-Fi only", null, state.downloads.unmeteredOnly) { viewModel.onIntent(SettingsIntent.SetUnmeteredOnly(it)) }
+            SwitchRow("Auto-download only while charging", null, state.downloads.chargingOnly) { viewModel.onIntent(SettingsIntent.SetChargingOnly(it)) }
+            ChoiceRow(
+                title = "Auto-download per podcast",
+                subtitle = "Newest episodes fetched in one check",
+                options = AUTO_DOWNLOAD_COUNTS,
+                selected = state.downloads.autoDownloadPerPodcast,
+            ) { viewModel.onIntent(SettingsIntent.SetAutoDownloadCount(it)) }
             SwitchRow("Delete downloads once played", null, state.downloads.deleteWhenPlayed) { viewModel.onIntent(SettingsIntent.SetDeleteWhenPlayed(it)) }
+            ChoiceRow(
+                title = "Keep per podcast",
+                subtitle = "Older downloads are removed after the next check",
+                options = KEEP_COUNTS,
+                selected = state.downloads.keepPerPodcast,
+            ) { viewModel.onIntent(SettingsIntent.SetKeepPerPodcast(it)) }
+            ChoiceRow(
+                title = "Storage limit",
+                subtitle = "Played episodes go first, then the oldest unplayed ones",
+                options = STORAGE_LIMITS,
+                selected = state.downloads.maxStorageBytes,
+            ) { viewModel.onIntent(SettingsIntent.SetMaxStorage(it)) }
         }
 
         SettingsCard("PodcastIndex") {
@@ -243,6 +274,25 @@ private fun SettingsCard(title: String, content: @Composable () -> Unit) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, style = MaterialTheme.typography.titleMediumEmphasized)
             content()
+        }
+    }
+}
+
+private const val GB = 1_000_000_000L
+private val SYNC_INTERVALS = listOf("Off" to 0L, "1 h" to 1L, "3 h" to 3L, "6 h" to 6L, "12 h" to 12L, "24 h" to 24L)
+private val AUTO_DOWNLOAD_COUNTS = listOf("1" to 1, "2" to 2, "3" to 3, "5" to 5, "10" to 10)
+private val KEEP_COUNTS = listOf("All" to 0, "1" to 1, "3" to 3, "5" to 5, "10" to 10)
+private val STORAGE_LIMITS = listOf("None" to 0L, "1 GB" to GB, "2 GB" to 2 * GB, "5 GB" to 5 * GB, "10 GB" to 10 * GB, "20 GB" to 20 * GB)
+
+@Composable
+private fun <T> ChoiceRow(title: String, subtitle: String?, options: List<Pair<String, T>>, selected: T, onSelect: (T) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, style = MaterialTheme.typography.bodyLarge)
+        subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.forEach { (label, value) ->
+                FilterChip(selected = value == selected, onClick = { onSelect(value) }, label = { Text(label) })
+            }
         }
     }
 }

@@ -10,7 +10,11 @@ import org.sonora.R
 
 object DownloadNotifications {
     const val CHANNEL_ID = "downloads"
-    const val NOTIFICATION_ID = 0x5D01
+    private const val BASE_ID = 0x5D00
+    private const val ID_SPACE = 4096
+
+    /** One notification per episode, so parallel downloads don't overwrite each other's progress. */
+    fun idFor(episodeId: Long): Int = BASE_ID + Math.floorMod(episodeId, ID_SPACE.toLong()).toInt()
 
     fun build(context: Context, title: String, bytes: Long, total: Long?): Notification {
         val manager = context.getSystemService(NotificationManager::class.java)

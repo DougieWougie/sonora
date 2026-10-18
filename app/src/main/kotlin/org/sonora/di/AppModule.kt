@@ -24,6 +24,8 @@ import org.sonora.core.database.SubscriptionRepository
 import org.sonora.core.database.SyncQueueDao
 import org.sonora.core.database.SyncStateDao
 import org.sonora.core.database.TransactionRunner
+import kotlinx.coroutines.flow.first
+import org.sonora.core.download.DownloadWaits
 import org.sonora.core.download.EpisodeDownloadManager
 import org.sonora.core.network.OkHttpFeedFetcher
 import org.sonora.core.network.discovery.ApplePodcastSearchProvider
@@ -32,12 +34,15 @@ import org.sonora.core.network.discovery.PodcastIndexSearchProvider
 import org.sonora.core.parser.RssFeedParser
 import org.sonora.core.security.KeystoreSecretStore
 import org.sonora.core.security.SecretStore
+import org.sonora.core.sync.DownloadCanceller
 import org.sonora.core.sync.DownloadScheduler
 import org.sonora.core.sync.FeedFetcher
 import org.sonora.core.sync.NextcloudRemoteSync
 import org.sonora.core.sync.PodcastSyncPipeline
 import org.sonora.core.sync.RemoteSync
+import org.sonora.core.work.DeviceConditionsMonitor
 import org.sonora.core.work.WorkManagerDownloadScheduler
+import org.sonora.core.work.WorkManagerDownloadWaits
 import org.sonora.core.work.WorkManagerSyncScheduler
 import org.sonora.feature.discover.DiscoveryRepository
 import org.sonora.feature.settings.AppSettings
@@ -153,8 +158,18 @@ object AppModule {
     ): RemoteSync = NextcloudRemoteSync(settings, client, podcasts, episodes, queue, changes, state, tx, clock)
 
     @Provides @Singleton
-    fun downloadScheduler(@ApplicationContext context: Context, manager: EpisodeDownloadManager): DownloadScheduler =
+    fun workManagerDownloads(@ApplicationContext context: Context, manager: EpisodeDownloadManager) =
         WorkManagerDownloadScheduler(context, manager)
+
+    @Provides @Singleton
+    fun downloadScheduler(downloads: WorkManagerDownloadScheduler): DownloadScheduler = downloads
+
+    @Provides @Singleton
+    fun downloadWaits(@ApplicationContext context: Context): DownloadWaits =
+        WorkManagerDownloadWaits(context, DeviceConditionsMonitor(context))
+
+    @Provides @Singleton
+    fun downloadCanceller(downloads: WorkManagerDownloadScheduler): DownloadCanceller = downloads
 
     @Provides @Singleton
     fun syncScheduler(@ApplicationContext context: Context) = WorkManagerSyncScheduler(context)
@@ -167,6 +182,8 @@ object AppModule {
         repository: PodcastRepository,
         fetcher: FeedFetcher,
         downloads: DownloadScheduler,
+        downloadManager: EpisodeDownloadManager,
+        playback: PlaybackPort,
         settings: AppSettings,
     ) = PodcastSyncPipeline(
         remoteSync = remote,
@@ -176,6 +193,12 @@ object AppModule {
         feedFetcher = fetcher,
         downloads = downloads,
         unmeteredOnlyForAutoDownload = { settings.autoDownloadUnmeteredOnly },
+        chargingOnlyForAutoDownload = { settings.autoDownloadChargingOnly },
+        maxAutoDownloadsPerPodcast = { settings.autoDownloadPerPodcast },
+        enforceRetention = {
+            val playing = playback.state.first().episodeId
+            downloadManager.enforceRetention(inUse = setOfNotNull(playing))
+        },
     )
 
     @Provides @Singleton
@@ -221,7 +244,8 @@ object AppModule {
         manager: EpisodeDownloadManager,
         repository: EpisodeRepository,
         scheduler: DownloadScheduler,
-    ): EpisodeActions = DefaultEpisodeActions(manager, repository, scheduler)
+        canceller: DownloadCanceller,
+    ): EpisodeActions = DefaultEpisodeActions(manager, repository, scheduler, canceller)
 
     @Provides @Singleton
     fun directorySearch(repository: DiscoveryRepository): DirectorySearch = repository

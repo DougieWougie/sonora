@@ -29,7 +29,12 @@ fun interface RemoteSync {
 
 /** Queues episodes for background download, honouring the unmetered-only preference. */
 fun interface DownloadScheduler {
-    suspend fun schedule(episodeIds: List<Long>, unmeteredOnly: Boolean)
+    suspend fun schedule(episodeIds: List<Long>, unmeteredOnly: Boolean, chargingOnly: Boolean)
+}
+
+/** Stops the background job for an episode's download, if there is one. */
+fun interface DownloadCanceller {
+    fun cancel(episodeId: Long)
 }
 
 enum class FailureKind { TRANSIENT, PERMANENT, AUTH }
@@ -69,7 +74,7 @@ data class SyncOutcome(
 
 /**
  * The background sync run: server sync, then feed refreshes (bounded parallelism), then
- * auto-download scheduling. Each step is isolated, so a failure in one never prevents the rest.
+ * auto-download scheduling, then retention. Each step is isolated, so a failure in one never prevents the rest.
  *
  * [RemoteSync] is the existing pull -> resolve -> push reconciliation: pushing before pulling would
  * let local state always win and defeat latest-timestamp-wins conflict resolution.
@@ -82,8 +87,10 @@ class PodcastSyncPipeline(
     private val feedFetcher: FeedFetcher,
     private val downloads: DownloadScheduler,
     private val unmeteredOnlyForAutoDownload: suspend () -> Boolean,
+    private val chargingOnlyForAutoDownload: suspend () -> Boolean = { false },
+    private val enforceRetention: suspend () -> Unit = {},
     private val maxConcurrentRefreshes: Int = 4,
-    private val maxAutoDownloadsPerPodcast: Int = 3,
+    private val maxAutoDownloadsPerPodcast: suspend () -> Int = { 3 },
 ) {
     suspend fun run(): SyncOutcome {
         val remote = syncRemote()
@@ -93,13 +100,24 @@ class PodcastSyncPipeline(
         val failed = results.mapNotNull { r -> r.failure?.let { r.feedUrl to it } }.toMap()
         val toDownload = results.flatMap { it.newEpisodeIds }
 
-        if (toDownload.isNotEmpty()) downloads.schedule(toDownload, unmeteredOnlyForAutoDownload())
+        if (toDownload.isNotEmpty()) downloads.schedule(toDownload, unmeteredOnlyForAutoDownload(), chargingOnly = chargingOnlyForAutoDownload())
+        retain()
         return SyncOutcome(
             remote = remote,
             refreshedFeeds = results.count { it.failure == null },
             failedFeeds = failed,
             queuedDownloads = toDownload.size,
         )
+    }
+
+    /** Housekeeping: a failure here must not turn an otherwise good sync into a failed one. */
+    private suspend fun retain() {
+        try {
+            enforceRetention()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
     }
 
     private suspend fun syncRemote(): RemoteStatus = try {
@@ -127,7 +145,7 @@ class PodcastSyncPipeline(
             episodeDao.getForPodcast(podcast.id)
                 .filter { it.guid !in knownGuids && it.downloadState == DownloadState.NONE && !it.played }
                 .sortedByDescending { it.publishedAtMillis ?: Long.MIN_VALUE }
-                .take(maxAutoDownloadsPerPodcast)
+                .take(maxAutoDownloadsPerPodcast())
                 .map { it.id }
         } else {
             emptyList()

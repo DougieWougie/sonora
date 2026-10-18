@@ -3,6 +3,7 @@ package org.sonora.core.download
 
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.NonCancellable
@@ -23,7 +24,12 @@ import org.sonora.core.network.isTransportAllowed
 import org.sonora.core.network.upgradedToHttps
 import org.sonora.core.network.withTransportPolicy
 
-data class DownloadPolicy(val deleteWhenPlayed: Boolean = true)
+/** [keepPerPodcast] and [maxStorageBytes] are both "0 means unlimited". */
+data class DownloadPolicy(
+    val deleteWhenPlayed: Boolean = true,
+    val keepPerPodcast: Int = 0,
+    val maxStorageBytes: Long = 0,
+)
 
 data class DownloadProgress(val bytesDownloaded: Long, val totalBytes: Long?)
 
@@ -48,6 +54,9 @@ class EpisodeDownloadManager(
 ) {
     private val client = client.withTransportPolicy(allowCleartext)
 
+    /** Episodes whose running download was cancelled on purpose, so its unwinding must not re-queue them. */
+    private val cancelRequested = ConcurrentHashMap.newKeySet<Long>()
+
     /** Marks the episode [DownloadState.QUEUED]. Returns false if there is nothing left to download. */
     suspend fun enqueue(episodeId: Long): Boolean {
         val episode = requireEpisode(episodeId)
@@ -66,6 +75,7 @@ class EpisodeDownloadManager(
      * the episode is stored as [DownloadState.DOWNLOADED]; throws [DownloadException] on failure.
      */
     fun download(episodeId: Long): Flow<DownloadProgress> = flow {
+        cancelRequested.remove(episodeId) // a cancel is older than this request
         val episode = requireEpisode(episodeId)
         val existing = episode.downloadPath?.let(::File)
         if (episode.downloadState == DownloadState.DOWNLOADED && existing?.isFile == true) {
@@ -80,7 +90,11 @@ class EpisodeDownloadManager(
             transfer(episode) { emit(it) }
         } catch (e: CancellationException) {
             withContext(NonCancellable) {
-                episodeRepository.updateDownload(episodeId, DownloadState.QUEUED, partFile(episode).sizeOrZero())
+                if (cancelRequested.remove(episodeId)) {
+                    deleteDownload(episodeId)
+                } else {
+                    episodeRepository.updateDownload(episodeId, DownloadState.QUEUED, partFile(episode).sizeOrZero())
+                }
             }
             throw e
         } catch (e: DownloadException) {
@@ -114,6 +128,24 @@ class EpisodeDownloadManager(
         if (episode.downloadState == DownloadState.DOWNLOADED) deleteDownload(episodeId)
     }
 
+    /**
+     * Abandons a queued or in-flight download and forgets any partial file. An in-flight transfer
+     * learns of it through its cancellation, which must not re-queue the episode.
+     */
+    suspend fun cancelDownload(episodeId: Long) {
+        val episode = episodeDao.findById(episodeId) ?: return
+        if (episode.downloadState == DownloadState.DOWNLOADED) return
+        cancelRequested += episodeId
+        deleteDownload(episodeId)
+    }
+
+    /** Deletes every completed download of a played episode. Returns the ids removed. */
+    suspend fun deleteAllPlayedDownloads(): List<Long> {
+        val played = episodeDao.getByDownloadState(DownloadState.DOWNLOADED).filter { it.played }.map { it.id }
+        played.forEach { deleteDownload(it) }
+        return played
+    }
+
     suspend fun deleteDownload(episodeId: Long) {
         val episode = requireEpisode(episodeId)
         withContext(ioDispatcher) {
@@ -129,21 +161,17 @@ class EpisodeDownloadManager(
     }
 
     /**
-     * Deletes the oldest *played* downloads until the total size is within [maxBytes]. Unplayed
-     * episodes are never evicted. Returns the number of episodes removed.
+     * Deletes downloads until the policy's per-podcast and storage limits hold (see [RetentionPlanner]),
+     * sparing the [inUse] episodes. Returns the ids removed, in eviction order.
      */
-    suspend fun trimToLimit(maxBytes: Long): Int {
-        val downloaded = episodeDao.getByDownloadState(DownloadState.DOWNLOADED)
-        var total = downloaded.sumOf { sizeOnDisk(it) }
-        var removed = 0
-        val evictable = downloaded.filter { it.played }.sortedBy { it.publishedAtMillis ?: Long.MIN_VALUE }
-        for (episode in evictable) {
-            if (total <= maxBytes) break
-            total -= sizeOnDisk(episode)
-            deleteDownload(episode.id)
-            removed++
+    suspend fun enforceRetention(inUse: Set<Long> = emptySet()): List<Long> {
+        val current = policy()
+        val downloads = episodeDao.getByDownloadState(DownloadState.DOWNLOADED).map {
+            DownloadedEpisode(it.id, it.podcastId, it.publishedAtMillis, it.played, sizeOnDisk(it), it.id in inUse)
         }
-        return removed
+        val evicted = RetentionPlanner.plan(downloads, RetentionPolicy(current.keepPerPodcast, current.maxStorageBytes))
+        evicted.forEach { deleteDownload(it) }
+        return evicted
     }
 
     /** Feeds often list http:// enclosures; fetch the https:// form unless the user opted in to cleartext. */

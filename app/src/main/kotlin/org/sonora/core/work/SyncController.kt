@@ -7,4 +7,7 @@ import kotlinx.coroutines.flow.Flow
 interface SyncController {
     val syncing: Flow<Boolean>
     fun syncNow()
+
+    /** (Re)schedules the periodic background sync; 0 hours cancels it. */
+    fun setPeriodicInterval(hours: Long)
 }
