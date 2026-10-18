@@ -51,6 +51,7 @@ class EpisodeDownloadManager(
     private val ioDispatcher: CoroutineDispatcher,
     private val allowCleartext: Boolean = false,
     private val progressStepBytes: Long = 256 * 1024,
+    private val notices: EvictionNotices = NoEvictionNotices,
 ) {
     private val client = client.withTransportPolicy(allowCleartext)
 
@@ -171,6 +172,8 @@ class EpisodeDownloadManager(
         }
         val evicted = RetentionPlanner.plan(downloads, RetentionPolicy(current.keepPerPodcast, current.maxStorageBytes))
         evicted.forEach { deleteDownload(it) }
+        val unplayed = downloads.count { it.id in evicted && !it.played }
+        if (unplayed > 0) notices.record(unplayed)
         return evicted
     }
 

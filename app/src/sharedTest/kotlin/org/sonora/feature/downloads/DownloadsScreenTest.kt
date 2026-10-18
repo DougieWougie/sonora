@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -212,6 +213,56 @@ class DownloadsScreenTest {
         assertEquals(emptyList<DownloadsIntent>(), intents)
     }
 
+    // --- eviction notice ---------------------------------------------------------------------
+
+    @Test
+    fun theBannerSaysHowManyUnplayedEpisodesWereRemoved() {
+        state = DownloadsUiState(
+            isLoading = false,
+            evictedUnplayed = 3,
+            downloaded = listOf(item(1, DownloadState.DOWNLOADED, bytes = 1_000)),
+        )
+        setContent()
+
+        composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_EVICTION_BANNER).assertIsDisplayed()
+        composeTestRule.onNodeWithText("3 unplayed episodes were removed to stay within your limits.").assertIsDisplayed()
+    }
+
+    @Test
+    fun theBannerIsWordedInTheSingular() {
+        state = DownloadsUiState(isLoading = false, evictedUnplayed = 1)
+        setContent()
+
+        composeTestRule.onNodeWithText("1 unplayed episode was removed to stay within your limits.").assertIsDisplayed()
+    }
+
+    @Test
+    fun noBannerWhenNothingUnplayedWasRemoved() {
+        state = DownloadsUiState(isLoading = false, downloaded = listOf(item(1, DownloadState.DOWNLOADED, bytes = 1_000)))
+        setContent()
+
+        composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_EVICTION_BANNER).assertDoesNotExist()
+    }
+
+    @Test
+    fun theBannerStillShowsWhenEverythingWasRemoved() {
+        state = DownloadsUiState(isLoading = false, evictedUnplayed = 2)
+        setContent()
+
+        composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_EVICTION_BANNER).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_EMPTY).assertIsDisplayed()
+    }
+
+    @Test
+    fun theBannerCanBeDismissed() {
+        state = DownloadsUiState(isLoading = false, evictedUnplayed = 2)
+        setContent()
+
+        composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_EVICTION_DISMISS).performClick()
+
+        assertEquals(listOf<DownloadsIntent>(DownloadsIntent.DismissEvictionNotice), intents)
+    }
+
     // --- entry point -------------------------------------------------------------------------
 
     @Test
@@ -219,7 +270,7 @@ class DownloadsScreenTest {
         var opened = 0
         composeTestRule.setContent {
             MaterialExpressiveTheme {
-                DownloadsLinkContent(StorageUsage(totalBytes = 1_400_000_000, limitBytes = 5_000_000_000, downloadedCount = 12), onClick = { opened++ })
+                DownloadsLinkContent(StorageUsage(totalBytes = 1_400_000_000, limitBytes = 5_000_000_000, downloadedCount = 12), evictedUnplayed = 0, onClick = { opened++ })
             }
         }
 
@@ -228,5 +279,30 @@ class DownloadsScreenTest {
         composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_LINK).performClick()
 
         assertEquals(1, opened)
+    }
+
+    @Test
+    fun theLinkFlagsUnplayedEpisodesThatWereRemoved() {
+        composeTestRule.setContent {
+            MaterialExpressiveTheme {
+                DownloadsLinkContent(StorageUsage(downloadedCount = 1, totalBytes = 5), evictedUnplayed = 3, onClick = {})
+            }
+        }
+
+        // The row merges its children for accessibility, so the badge is only a separate node unmerged.
+        val badge = composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_LINK_BADGE, useUnmergedTree = true)
+        badge.assertIsDisplayed().assertContentDescriptionEquals("3 unplayed episodes removed")
+        composeTestRule.onNodeWithText("3", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun theLinkHasNoFlagWhenNothingWasRemoved() {
+        composeTestRule.setContent {
+            MaterialExpressiveTheme {
+                DownloadsLinkContent(StorageUsage(downloadedCount = 1, totalBytes = 5), evictedUnplayed = 0, onClick = {})
+            }
+        }
+
+        composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_LINK_BADGE, useUnmergedTree = true).assertDoesNotExist()
     }
 }

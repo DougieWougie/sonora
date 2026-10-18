@@ -19,6 +19,7 @@ class DownloadsSummaryViewModelTest {
 
     private val episodes = FakeEpisodeDao()
     private val settings = FakeSettingsStore()
+    private val notices = org.sonora.testutil.FakeEvictionNotices()
 
     private suspend fun add(guid: String, state: DownloadState, bytes: Long, played: Boolean = false) {
         episodes.insertAll(
@@ -38,7 +39,7 @@ class DownloadsSummaryViewModelTest {
         add("b", DownloadState.DOWNLOADED, 600)
         add("c", DownloadState.DOWNLOADING, 50)
 
-        DownloadsSummaryViewModel(episodes, settings).usage.test {
+        DownloadsSummaryViewModel(episodes, settings, notices).usage.test {
             val usage = awaitUntil { it.downloadedCount == 2 }
             assertEquals(StorageUsage(totalBytes = 1_000, playedBytes = 400, playedCount = 1, limitBytes = 9_000, downloadedCount = 2), usage)
         }
@@ -46,10 +47,21 @@ class DownloadsSummaryViewModelTest {
 
     @Test
     fun `follows new downloads`() = runTest {
-        DownloadsSummaryViewModel(episodes, settings).usage.test {
+        DownloadsSummaryViewModel(episodes, settings, notices).usage.test {
             assertEquals(0, awaitItem().downloadedCount)
             add("a", DownloadState.DOWNLOADED, 250)
             assertEquals(250L, awaitUntil { it.downloadedCount == 1 }.totalBytes)
+        }
+    }
+
+    @Test
+    fun `reports unplayed episodes retention removed, until dismissed`() = runTest {
+        DownloadsSummaryViewModel(episodes, settings, notices).evictedUnplayed.test {
+            assertEquals(0, awaitItem())
+            notices.record(3)
+            assertEquals(3, awaitUntil { it == 3 })
+            notices.dismiss()
+            assertEquals(0, awaitUntil { it == 0 })
         }
     }
 }

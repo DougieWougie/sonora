@@ -32,8 +32,9 @@ class DownloadsViewModelTest {
     private val playback = FakePlaybackPort()
     private val waits = FakeDownloadWaits()
     private val settings = FakeSettingsStore()
+    private val notices = org.sonora.testutil.FakeEvictionNotices()
 
-    private fun vm() = DownloadsViewModel(episodes, podcasts, actions, playback, waits, settings)
+    private fun vm() = DownloadsViewModel(episodes, podcasts, actions, playback, waits, settings, notices)
 
     private suspend fun show(title: String) = podcasts.insert(PodcastEntity(feedUrl = "https://$title", title = title))
 
@@ -241,6 +242,43 @@ class DownloadsViewModelTest {
         vm.events.test {
             vm.onIntent(DownloadsIntent.DeleteAllPlayed)
             assertEquals(DownloadsEvent.Message("disk full"), awaitItem())
+        }
+    }
+
+    // --- eviction notice ---------------------------------------------------------------------
+
+    @Test
+    fun `carries the count of unplayed episodes retention removed`() = runTest {
+        notices.record(3)
+
+        vm().uiState.test {
+            assertEquals(3, awaitUntil { it.evictedUnplayed == 3 }.evictedUnplayed)
+        }
+    }
+
+    @Test
+    fun `has no notice when nothing unplayed was removed`() = runTest {
+        vm().uiState.test {
+            assertEquals(0, awaitUntil { !it.isLoading }.evictedUnplayed)
+        }
+    }
+
+    @Test
+    fun `dismissing the notice clears it`() = runTest {
+        notices.record(2)
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.evictedUnplayed == 2 }
+            vm.onIntent(DownloadsIntent.DismissEvictionNotice)
+            assertEquals(0, awaitUntil { it.evictedUnplayed == 0 }.evictedUnplayed)
+        }
+    }
+
+    @Test
+    fun `a notice does not make the library look non-empty`() = runTest {
+        notices.record(2)
+        vm().uiState.test {
+            assertTrue(awaitUntil { it.evictedUnplayed == 2 }.isEmpty)
         }
     }
 }
