@@ -7,13 +7,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import org.sonora.core.database.EpisodeDao
 import org.sonora.core.database.PodcastDao
 import org.sonora.core.database.PodcastEntity
@@ -63,30 +61,24 @@ class SubscriptionsViewModel @Inject constructor(
     private val sync: SyncController,
     private val preferences: LibraryPreferences,
 ) : ViewModel() {
-    private data class Controls(
-        val sort: LibrarySort = LibrarySort.TITLE,
-        val unplayedOnly: Boolean = false,
-    )
-
-    private val controls = MutableStateFlow(Controls())
     private val _events = Channel<SubscriptionsEvent>(Channel.BUFFERED)
     val events: Flow<SubscriptionsEvent> = _events.receiveAsFlow()
 
     val uiState: StateFlow<SubscriptionsUiState> = combine(
         podcastDao.observeAll(),
         episodeDao.observeStats(),
-        controls.combine(preferences.layout, ::Pair),
+        combine(preferences.layout, preferences.sort, preferences.unplayedOnly, ::Triple),
         queue.items,
         sync.syncing,
-    ) { podcasts, stats, (controls, layout), queued, syncing ->
+    ) { podcasts, stats, (layout, sort, unplayedOnly), queued, syncing ->
         val unplayed = stats.associateBy(PodcastEpisodeStats::podcastId)
         val items = podcasts.map { it.toItem(unplayed[it.id]?.unplayed ?: 0) to unplayed[it.id]?.latestPublishedAtMillis }
-            .filter { (item, _) -> !controls.unplayedOnly || item.unplayedCount > 0 }
+            .filter { (item, _) -> !unplayedOnly || item.unplayedCount > 0 }
         SubscriptionsUiState(
-            podcasts = items.sortedWith(comparatorFor(controls.sort)).map { it.first },
+            podcasts = items.sortedWith(comparatorFor(sort)).map { it.first },
             layout = layout,
-            sort = controls.sort,
-            unplayedOnly = controls.unplayedOnly,
+            sort = sort,
+            unplayedOnly = unplayedOnly,
             isRefreshing = syncing,
             queueSize = queued.size,
             isLoading = false,
@@ -96,8 +88,8 @@ class SubscriptionsViewModel @Inject constructor(
     fun onIntent(intent: SubscriptionsIntent) {
         when (intent) {
             is SubscriptionsIntent.SetLayout -> preferences.setLayout(intent.layout)
-            is SubscriptionsIntent.SetSort -> controls.update { it.copy(sort = intent.sort) }
-            is SubscriptionsIntent.SetUnplayedOnly -> controls.update { it.copy(unplayedOnly = intent.enabled) }
+            is SubscriptionsIntent.SetSort -> preferences.setSort(intent.sort)
+            is SubscriptionsIntent.SetUnplayedOnly -> preferences.setUnplayedOnly(intent.enabled)
             SubscriptionsIntent.Refresh -> {
                 sync.syncNow()
                 _events.trySend(SubscriptionsEvent.SyncStarted)

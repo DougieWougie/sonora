@@ -175,4 +175,30 @@ class SubscriptionsViewModelTest {
         }
         assertEquals(LibraryLayout.LIST, preferences.layout.value)
     }
+
+    @Test
+    fun `starts with the sort and filter the user last chose`() = runTest {
+        preferences.setSort(LibrarySort.RECENT)
+        preferences.setUnplayedOnly(true)
+
+        vm().uiState.test {
+            val state = awaitUntil { !it.isLoading }
+            assertEquals(LibrarySort.RECENT, state.sort)
+            assertTrue(state.unplayedOnly)
+        }
+    }
+
+    @Test
+    fun `choosing a sort order or the unplayed filter remembers it`() = runTest {
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { !it.isLoading }
+            vm.onIntent(SubscriptionsIntent.SetSort(LibrarySort.UNPLAYED))
+            awaitUntil { it.sort == LibrarySort.UNPLAYED }
+            vm.onIntent(SubscriptionsIntent.SetUnplayedOnly(true))
+            awaitUntil { it.unplayedOnly }
+        }
+        assertEquals(LibrarySort.UNPLAYED, preferences.sort.value)
+        assertTrue(preferences.unplayedOnly.value)
+    }
 }
