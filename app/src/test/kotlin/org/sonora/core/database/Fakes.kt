@@ -66,6 +66,8 @@ class FakeEpisodeDao : EpisodeDao {
     override suspend fun getForPodcast(podcastId: Long) = rows.value.filter { it.podcastId == podcastId }
     override suspend fun getByDownloadState(state: org.sonora.core.model.DownloadState) =
         rows.value.filter { it.downloadState == state }
+    override suspend fun getOlderUnplayed(podcastId: Long, publishedBefore: Long) =
+        rows.value.filter { it.podcastId == podcastId && !it.played && (it.publishedAtMillis ?: Long.MAX_VALUE) < publishedBefore }
     override fun observeForPodcast(podcastId: Long): Flow<List<EpisodeEntity>> =
         rows.map { all -> all.filter { it.podcastId == podcastId }.sortedByDescending { it.publishedAtMillis } }
 

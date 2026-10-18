@@ -390,4 +390,35 @@ class EpisodeDownloadManagerTest {
 
         assertEquals(0, manager.trimToLimit(maxBytes = 5000))
     }
+
+    @Test
+    fun `marking older episodes played removes their downloads and leaves newer ones alone`() = runTest {
+        val oldest = downloaded("a", published = 1)
+        val older = downloaded("b", published = 2)
+        val tapped = downloaded("c", published = 3)
+        val newer = downloaded("d", published = 4)
+
+        val count = manager.markOlderPlayed(tapped)
+
+        assertEquals(2, count)
+        assertFalse(finalFile(oldest).exists())
+        assertFalse(finalFile(older).exists())
+        assertTrue(finalFile(tapped).exists())
+        assertTrue(finalFile(newer).exists())
+        assertTrue(episodeDao.findById(oldest)!!.played)
+        assertFalse(episodeDao.findById(tapped)!!.played)
+        assertEquals(2, queue.getAll().count { it.type == SyncActionType.DELETE })
+    }
+
+    @Test
+    fun `marking older episodes played keeps files when auto-delete is disabled`() = runTest {
+        policy = DownloadPolicy(deleteWhenPlayed = false)
+        val older = downloaded("a", published = 1)
+        val tapped = downloaded("b", published = 2)
+
+        assertEquals(1, manager.markOlderPlayed(tapped))
+
+        assertTrue(finalFile(older).exists())
+        assertTrue(episodeDao.findById(older)!!.played)
+    }
 }

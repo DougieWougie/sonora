@@ -47,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.sonora.core.testing.TestTags
 import org.sonora.ui.components.ArtworkImage
 import org.sonora.ui.components.EpisodeActionsUi
+import org.sonora.ui.components.MarkOlderPlayedDialog
 import org.sonora.ui.components.SwipeableEpisodeRow
 import org.sonora.ui.htmlToPlainText
 
@@ -68,6 +69,15 @@ fun PodcastDetailScreen(
             onDownload = { viewModel.onIntent(PodcastDetailIntent.Download(it.id)) },
             onDeleteDownload = { viewModel.onIntent(PodcastDetailIntent.DeleteDownload(it.id)) },
             onSetPlayed = { item, played -> viewModel.onIntent(PodcastDetailIntent.SetPlayed(item.id, played)) },
+            onMarkOlderPlayed = { viewModel.onIntent(PodcastDetailIntent.RequestMarkOlderPlayed(it.id)) },
+        )
+    }
+
+    state.pendingMarkOlder?.let {
+        MarkOlderPlayedDialog(
+            it,
+            onConfirm = { viewModel.onIntent(PodcastDetailIntent.ConfirmMarkOlderPlayed) },
+            onDismiss = { viewModel.onIntent(PodcastDetailIntent.DismissMarkOlderPlayed) },
         )
     }
 

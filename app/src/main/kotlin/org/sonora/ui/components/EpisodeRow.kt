@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.PlaylistRemove
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -28,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,6 +47,7 @@ import java.text.DateFormat
 import java.util.Date
 import org.sonora.core.model.DownloadState
 import org.sonora.feature.common.EpisodeItem
+import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.ui.formatTimestamp
 
 data class EpisodeActionsUi(
@@ -52,6 +56,7 @@ data class EpisodeActionsUi(
     val onDownload: (EpisodeItem) -> Unit,
     val onDeleteDownload: (EpisodeItem) -> Unit,
     val onSetPlayed: (EpisodeItem, Boolean) -> Unit,
+    val onMarkOlderPlayed: (EpisodeItem) -> Unit,
 )
 
 /**
@@ -141,6 +146,11 @@ fun EpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: Modifier 
                         leadingIcon = { Icon(Icons.Rounded.CheckCircle, null) },
                         onClick = { menuOpen = false; actions.onSetPlayed(item, !item.played) },
                     )
+                    DropdownMenuItem(
+                        text = { Text("Mark older episodes as played") },
+                        leadingIcon = { Icon(Icons.Rounded.DoneAll, null) },
+                        onClick = { menuOpen = false; actions.onMarkOlderPlayed(item) },
+                    )
                 }
             }
         },
@@ -164,4 +174,22 @@ private fun EpisodeSubtitle(item: EpisodeItem) {
         }
         if (item.queued) Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, "In queue", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.tertiary)
     }
+}
+
+/** Bulk and hard to undo, so the user sees how many episodes it covers before anything changes. */
+@Composable
+fun MarkOlderPlayedDialog(pending: PendingMarkOlder, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val none = pending.count == 0
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                if (none) "No older unplayed episodes"
+                else "Mark ${pending.count} older ${if (pending.count == 1) "episode" else "episodes"} as played?",
+            )
+        },
+        text = if (none) null else ({ Text("Episodes published before this one will be marked as played and synced.") }),
+        confirmButton = if (none) ({ TextButton(onClick = onDismiss) { Text("OK") } }) else ({ TextButton(onClick = onConfirm) { Text("Mark as played") } }),
+        dismissButton = if (none) null else ({ TextButton(onClick = onDismiss) { Text("Cancel") } }),
+    )
 }

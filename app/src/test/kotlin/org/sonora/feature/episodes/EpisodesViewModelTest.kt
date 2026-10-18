@@ -5,6 +5,7 @@ import app.cash.turbine.test
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
@@ -14,6 +15,7 @@ import org.sonora.core.database.FakePodcastDao
 import org.sonora.core.database.PodcastEntity
 import org.sonora.core.media.FakeQueueStorage
 import org.sonora.core.media.PersistentPlayQueue
+import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.testutil.FakeEpisodeActions
 import org.sonora.testutil.FakePlaybackPort
 import org.sonora.testutil.MainDispatcherExtension
@@ -104,5 +106,74 @@ class EpisodesViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(listOf("delete:${ids[1]}"), actions.calls)
+    }
+
+    @Test
+    fun `asking to mark older episodes played waits for confirmation and shows the count`() = runTest {
+        val ids = seed()
+        actions.olderCounts[ids[2]] = 2
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.inbox.isNotEmpty() }
+            vm.onIntent(EpisodesIntent.RequestMarkOlderPlayed(ids[2]))
+            assertEquals(
+                PendingMarkOlder(ids[2], 2),
+                awaitUntil { it.pendingMarkOlder != null }.pendingMarkOlder,
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(emptyList<String>(), actions.calls)
+    }
+
+    @Test
+    fun `confirming marks the older episodes played and closes the dialog`() = runTest {
+        val ids = seed()
+        val id = ids[2]
+        actions.olderCounts[id] = 2
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.inbox.isNotEmpty() }
+            vm.onIntent(EpisodesIntent.RequestMarkOlderPlayed(id))
+            awaitUntil { it.pendingMarkOlder != null }
+            vm.onIntent(EpisodesIntent.ConfirmMarkOlderPlayed)
+            assertNull(awaitUntil { it.pendingMarkOlder == null }.pendingMarkOlder)
+            testScheduler.advanceUntilIdle()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(listOf("older:$id"), actions.calls)
+    }
+
+    @Test
+    fun `dismissing the dialog marks nothing`() = runTest {
+        val ids = seed()
+        val id = ids[2]
+        actions.olderCounts[id] = 2
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.inbox.isNotEmpty() }
+            vm.onIntent(EpisodesIntent.RequestMarkOlderPlayed(id))
+            awaitUntil { it.pendingMarkOlder != null }
+            vm.onIntent(EpisodesIntent.DismissMarkOlderPlayed)
+            assertNull(awaitUntil { it.pendingMarkOlder == null }.pendingMarkOlder)
+            testScheduler.advanceUntilIdle()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(emptyList<String>(), actions.calls)
+    }
+
+    @Test
+    fun `confirming when there is nothing older marks nothing`() = runTest {
+        val ids = seed()
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.inbox.isNotEmpty() }
+            vm.onIntent(EpisodesIntent.RequestMarkOlderPlayed(ids[0]))
+            assertEquals(0, awaitUntil { it.pendingMarkOlder != null }.pendingMarkOlder!!.count)
+            vm.onIntent(EpisodesIntent.ConfirmMarkOlderPlayed)
+            awaitUntil { it.pendingMarkOlder == null }
+            testScheduler.advanceUntilIdle()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(emptyList<String>(), actions.calls)
     }
 }

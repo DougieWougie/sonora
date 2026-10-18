@@ -30,6 +30,7 @@ import org.sonora.core.media.PlaybackPort
 import org.sonora.core.model.DownloadState
 import org.sonora.core.work.SyncController
 import org.sonora.feature.common.EpisodeItem
+import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.feature.common.toItem
 import org.sonora.ui.htmlToSearchText
 
@@ -51,6 +52,7 @@ data class PodcastDetailUiState(
     val episodes: List<EpisodeItem> = emptyList(),
     val filter: EpisodeFilter = EpisodeFilter.ALL,
     val query: String = "",
+    val pendingMarkOlder: PendingMarkOlder? = null,
     val isRefreshing: Boolean = false,
     val isLoading: Boolean = true,
 )
@@ -64,6 +66,9 @@ sealed interface PodcastDetailIntent {
     data class Download(val episodeId: Long) : PodcastDetailIntent
     data class DeleteDownload(val episodeId: Long) : PodcastDetailIntent
     data class SetPlayed(val episodeId: Long, val played: Boolean) : PodcastDetailIntent
+    data class RequestMarkOlderPlayed(val episodeId: Long) : PodcastDetailIntent
+    data object ConfirmMarkOlderPlayed : PodcastDetailIntent
+    data object DismissMarkOlderPlayed : PodcastDetailIntent
     data object ToggleSubscription : PodcastDetailIntent
     data object ToggleAutoDownload : PodcastDetailIntent
     data object Refresh : PodcastDetailIntent
@@ -85,7 +90,11 @@ class PodcastDetailViewModel @Inject constructor(
     private val sync: SyncController,
     private val playback: PlaybackPort,
 ) : ViewModel() {
-    private data class Controls(val filter: EpisodeFilter = EpisodeFilter.ALL, val query: String = "")
+    private data class Controls(
+        val filter: EpisodeFilter = EpisodeFilter.ALL,
+        val query: String = "",
+        val pendingMarkOlder: PendingMarkOlder? = null,
+    )
 
     /** Changes when the user resubscribes: the new row gets a new id. */
     private val podcastId = MutableStateFlow(
@@ -114,6 +123,7 @@ class PodcastDetailViewModel @Inject constructor(
             episodes = visible.map { it.toItem(podcast, it.id in queued) },
             filter = controls.filter,
             query = controls.query,
+            pendingMarkOlder = controls.pendingMarkOlder,
             isRefreshing = syncing,
             isLoading = false,
         )
@@ -131,6 +141,16 @@ class PodcastDetailViewModel @Inject constructor(
             is PodcastDetailIntent.SetPlayed -> attempt {
                 if (intent.played) actions.markPlayed(intent.episodeId) else actions.markUnplayed(intent.episodeId)
             }
+            is PodcastDetailIntent.RequestMarkOlderPlayed -> attempt {
+                val pending = PendingMarkOlder(intent.episodeId, actions.countOlderUnplayed(intent.episodeId))
+                controls.update { it.copy(pendingMarkOlder = pending) }
+            }
+            PodcastDetailIntent.ConfirmMarkOlderPlayed -> {
+                val pending = controls.value.pendingMarkOlder
+                controls.update { it.copy(pendingMarkOlder = null) }
+                if (pending != null && pending.count > 0) attempt { actions.markOlderPlayed(pending.episodeId) }
+            }
+            PodcastDetailIntent.DismissMarkOlderPlayed -> controls.update { it.copy(pendingMarkOlder = null) }
             PodcastDetailIntent.ToggleSubscription -> attempt { toggleSubscription() }
             PodcastDetailIntent.ToggleAutoDownload -> attempt {
                 podcastDao.findById(podcastId.value)?.let { podcastDao.update(it.copy(autoDownload = !it.autoDownload)) }
