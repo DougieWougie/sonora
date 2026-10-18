@@ -95,6 +95,9 @@ fun DownloadsContent(
         }
 
         LazyColumn(Modifier.fillMaxSize()) {
+            if (state.evictedUnplayed > 0) {
+                item { EvictionBanner(state.evictedUnplayed) { onIntent(DownloadsIntent.DismissEvictionNotice) } }
+            }
             if (state.isEmpty) {
                 item {
                     Text(
@@ -144,6 +147,26 @@ fun DownloadsContent(
                 ) { Text("Cancel") }
             },
         )
+    }
+}
+
+/** Retention removed episodes the user hadn't played; say so rather than let them vanish. */
+@Composable
+private fun EvictionBanner(count: Int, onDismiss: () -> Unit) {
+    Card(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag(TestTags.DOWNLOADS_EVICTION_BANNER),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+    ) {
+        Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (count == 1) "1 unplayed episode was removed to stay within your limits."
+                else "$count unplayed episodes were removed to stay within your limits.",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag(TestTags.DOWNLOADS_EVICTION_DISMISS)) { Text("Dismiss") }
+        }
     }
 }
 

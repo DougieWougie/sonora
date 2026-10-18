@@ -41,6 +41,7 @@ class EpisodeDownloadManagerTest {
     private val repo = EpisodeRepository(podcastDao, episodeDao, queue, FakeTransactionRunner(), MutableClock())
     private val payload = ByteArray(300_000) { (it % 251).toByte() }
     private var policy = DownloadPolicy()
+    private val notices = org.sonora.testutil.FakeEvictionNotices()
 
     @TempDir lateinit var dir: File
 
@@ -58,6 +59,7 @@ class EpisodeDownloadManagerTest {
             ioDispatcher = Dispatchers.IO,
             allowCleartext = true,
             progressStepBytes = 64 * 1024,
+            notices = notices,
         )
     }
 
@@ -516,5 +518,45 @@ class EpisodeDownloadManagerTest {
 
         assertTrue(finalFile(older).exists())
         assertTrue(episodeDao.findById(older)!!.played)
+    }
+
+    // --- eviction notices --------------------------------------------------------------------
+
+    @Test
+    fun `evicting unplayed downloads is recorded for the user to see`() = runTest {
+        policy = DownloadPolicy(maxStorageBytes = 1000)
+        downloaded("played", published = 1, played = true)
+        downloaded("unplayed-old", published = 2)
+        downloaded("unplayed-new", published = 3)
+
+        manager.enforceRetention()
+
+        // The played one goes first, then one unplayed to fit the cap.
+        assertEquals(1, notices.unplayedRemoved.value)
+    }
+
+    @Test
+    fun `evicting only played downloads is not worth a notice`() = runTest {
+        policy = DownloadPolicy(maxStorageBytes = 1000)
+        downloaded("a", published = 1, played = true)
+        downloaded("b", published = 2)
+
+        manager.enforceRetention()
+
+        assertEquals(0, notices.unplayedRemoved.value)
+    }
+
+    @Test
+    fun `notices accumulate across passes until dismissed`() = runTest {
+        policy = DownloadPolicy(keepPerPodcast = 1)
+        downloaded("a", published = 1)
+        downloaded("b", published = 2)
+        manager.enforceRetention()
+        downloaded("c", published = 3)
+        manager.enforceRetention()
+
+        assertEquals(2, notices.unplayedRemoved.value)
+        notices.dismiss()
+        assertEquals(0, notices.unplayedRemoved.value)
     }
 }

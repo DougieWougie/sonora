@@ -21,6 +21,8 @@ object TestTags {
 
     // Downloads
     const val DOWNLOADS_USAGE_SUMMARY = "downloads_usage_summary"
+    const val DOWNLOADS_EVICTION_BANNER = "downloads_eviction_banner"
+    const val DOWNLOADS_EVICTION_DISMISS = "downloads_eviction_dismiss"
     const val DOWNLOADS_LINK = "downloads_link"
     const val DOWNLOADS_BACK = "downloads_back"
     const val DOWNLOADS_EMPTY = "downloads_empty"

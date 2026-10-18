@@ -21,6 +21,7 @@ import org.sonora.core.database.EpisodeEntity
 import org.sonora.core.database.PodcastDao
 import org.sonora.core.download.DownloadWaits
 import org.sonora.core.download.EpisodeActions
+import org.sonora.core.download.EvictionNotices
 import org.sonora.core.download.WaitReason
 import org.sonora.core.media.PlaybackPort
 import org.sonora.core.model.DownloadState
@@ -51,6 +52,8 @@ data class DownloadsUiState(
     val failed: List<EpisodeItem> = emptyList(),
     val downloaded: List<EpisodeItem> = emptyList(),
     val sort: DownloadSort = DownloadSort.NEWEST,
+    /** Unplayed episodes retention removed since the user last dismissed the notice. */
+    val evictedUnplayed: Int = 0,
 ) {
     val isEmpty: Boolean get() = active.isEmpty() && failed.isEmpty() && downloaded.isEmpty()
 }
@@ -62,6 +65,7 @@ sealed interface DownloadsIntent {
     data class Cancel(val episodeId: Long) : DownloadsIntent
     data class Retry(val episodeId: Long) : DownloadsIntent
     data object DeleteAllPlayed : DownloadsIntent
+    data object DismissEvictionNotice : DownloadsIntent
 }
 
 sealed interface DownloadsEvent {
@@ -88,6 +92,7 @@ class DownloadsViewModel @Inject constructor(
     private val playback: PlaybackPort,
     waits: DownloadWaits,
     private val settings: SettingsStore,
+    private val notices: EvictionNotices,
 ) : ViewModel() {
     private val sort = MutableStateFlow(DownloadSort.NEWEST)
 
@@ -99,7 +104,8 @@ class DownloadsViewModel @Inject constructor(
         podcastDao.observeAll(),
         waits.observe(),
         sort,
-    ) { episodes, podcasts, reasons, sort ->
+        notices.unplayedRemoved,
+    ) { episodes, podcasts, reasons, sort, evicted ->
         val byId = podcasts.associateBy { it.id }
         val items = episodes.map { it.toItem(byId[it.podcastId], queued = false) }
         val downloaded = items.filter { it.downloadState == DownloadState.DOWNLOADED }
@@ -113,6 +119,7 @@ class DownloadsViewModel @Inject constructor(
             failed = items.filter { it.downloadState == DownloadState.FAILED }.sortedWith(NEWEST_FIRST),
             downloaded = downloaded.sortedWith(sort.comparator),
             sort = sort,
+            evictedUnplayed = evicted,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), DownloadsUiState())
 
@@ -123,6 +130,7 @@ class DownloadsViewModel @Inject constructor(
             is DownloadsIntent.Delete -> attempt { actions.deleteDownload(intent.episodeId) }
             is DownloadsIntent.Cancel -> attempt { actions.cancelDownload(intent.episodeId) }
             is DownloadsIntent.Retry -> attempt { actions.download(intent.episodeId) }
+            DownloadsIntent.DismissEvictionNotice -> notices.dismiss()
             DownloadsIntent.DeleteAllPlayed -> attempt {
                 val count = actions.deleteAllPlayedDownloads()
                 _events.trySend(DownloadsEvent.Message("Deleted $count played download${if (count == 1) "" else "s"}"))

@@ -212,6 +212,56 @@ class DownloadsScreenTest {
         assertEquals(emptyList<DownloadsIntent>(), intents)
     }
 
+    // --- eviction notice ---------------------------------------------------------------------
+
+    @Test
+    fun theBannerSaysHowManyUnplayedEpisodesWereRemoved() {
+        state = DownloadsUiState(
+            isLoading = false,
+            evictedUnplayed = 3,
+            downloaded = listOf(item(1, DownloadState.DOWNLOADED, bytes = 1_000)),
+        )
+        setContent()
+
+        composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_EVICTION_BANNER).assertIsDisplayed()
+        composeTestRule.onNodeWithText("3 unplayed episodes were removed to stay within your limits.").assertIsDisplayed()
+    }
+
+    @Test
+    fun theBannerIsWordedInTheSingular() {
+        state = DownloadsUiState(isLoading = false, evictedUnplayed = 1)
+        setContent()
+
+        composeTestRule.onNodeWithText("1 unplayed episode was removed to stay within your limits.").assertIsDisplayed()
+    }
+
+    @Test
+    fun noBannerWhenNothingUnplayedWasRemoved() {
+        state = DownloadsUiState(isLoading = false, downloaded = listOf(item(1, DownloadState.DOWNLOADED, bytes = 1_000)))
+        setContent()
+
+        composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_EVICTION_BANNER).assertDoesNotExist()
+    }
+
+    @Test
+    fun theBannerStillShowsWhenEverythingWasRemoved() {
+        state = DownloadsUiState(isLoading = false, evictedUnplayed = 2)
+        setContent()
+
+        composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_EVICTION_BANNER).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_EMPTY).assertIsDisplayed()
+    }
+
+    @Test
+    fun theBannerCanBeDismissed() {
+        state = DownloadsUiState(isLoading = false, evictedUnplayed = 2)
+        setContent()
+
+        composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_EVICTION_DISMISS).performClick()
+
+        assertEquals(listOf<DownloadsIntent>(DownloadsIntent.DismissEvictionNotice), intents)
+    }
+
     // --- entry point -------------------------------------------------------------------------
 
     @Test

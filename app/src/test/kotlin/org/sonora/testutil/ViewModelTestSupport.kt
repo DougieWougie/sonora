@@ -20,6 +20,7 @@ import org.junit.jupiter.api.extension.BeforeEachCallback
 import org.junit.jupiter.api.extension.ExtensionContext
 import org.sonora.core.download.DownloadWaits
 import org.sonora.core.download.EpisodeActions
+import org.sonora.core.download.EvictionNotices
 import org.sonora.core.download.WaitReason
 import org.sonora.core.media.PlaybackFailure
 import org.sonora.core.media.PlaybackPort
@@ -186,4 +187,11 @@ class FakePlaybackPort : PlaybackPort {
 class FakeDownloadWaits : DownloadWaits {
     val reasons = MutableStateFlow<Map<Long, WaitReason>>(emptyMap())
     override fun observe(): Flow<Map<Long, WaitReason>> = reasons
+}
+
+class FakeEvictionNotices : EvictionNotices {
+    private val count = MutableStateFlow(0)
+    override val unplayedRemoved: StateFlow<Int> = count
+    override fun record(unplayedRemoved: Int) { count.value += unplayedRemoved }
+    override fun dismiss() { count.value = 0 }
 }

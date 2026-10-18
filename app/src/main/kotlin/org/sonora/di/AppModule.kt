@@ -27,6 +27,8 @@ import org.sonora.core.database.TransactionRunner
 import kotlinx.coroutines.flow.first
 import org.sonora.core.download.DownloadWaits
 import org.sonora.core.download.EpisodeDownloadManager
+import org.sonora.core.download.EvictionNotices
+import org.sonora.core.download.PrefsEvictionNotices
 import org.sonora.core.network.OkHttpFeedFetcher
 import org.sonora.core.network.discovery.ApplePodcastSearchProvider
 import org.sonora.core.network.discovery.DirectoryApiFactory
@@ -119,12 +121,16 @@ object AppModule {
         SubscriptionRepository(podcasts, changes, tx, clock)
 
     @Provides @Singleton
+    fun evictionNotices(@ApplicationContext context: Context): EvictionNotices = PrefsEvictionNotices(context)
+
+    @Provides @Singleton
     fun downloadManager(
         @ApplicationContext context: Context,
         episodes: EpisodeDao,
         repository: EpisodeRepository,
         client: OkHttpClient,
         settings: AppSettings,
+        notices: EvictionNotices,
     ) = EpisodeDownloadManager(
         episodeDao = episodes,
         episodeRepository = repository,
@@ -133,6 +139,7 @@ object AppModule {
         policy = { settings.downloadPolicy() },
         ioDispatcher = Dispatchers.IO,
         allowCleartext = settings.allowCleartext,
+        notices = notices,
     )
 
     @Provides @Singleton
