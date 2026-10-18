@@ -21,7 +21,10 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationItemIconPosition
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -43,6 +46,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -92,6 +96,19 @@ private enum class TopLevel(val route: Any, val routeClass: KClass<*>, val label
 }
 
 private val COMPACT_WIDTH = 600.dp
+private val TALL_HEIGHT = 480.dp
+
+internal enum class NavigationLayout { BottomBar, SlimBottomBar, Rail }
+
+/**
+ * A rail needs room both ways, so only tablets and foldables get one. A phone turned sideways is wide but
+ * short: it keeps the bottom bar, slimmed down, so rotating does not move the navigation around.
+ */
+internal fun navigationLayoutFor(width: Dp, height: Dp): NavigationLayout = when {
+    width < COMPACT_WIDTH -> NavigationLayout.BottomBar
+    height < TALL_HEIGHT -> NavigationLayout.SlimBottomBar
+    else -> NavigationLayout.Rail
+}
 
 @Composable
 fun SonoraRoot(
@@ -137,8 +154,10 @@ private fun SonoraScaffold(
             if (result == SnackbarResult.ActionPerformed) currentOnPlayerIntent(PlayerIntent.TogglePlayPause)
         }
     }
-    val widthDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
-    val compact = widthDp < COMPACT_WIDTH
+    val layout = with(LocalDensity.current) {
+        val size = LocalWindowInfo.current.containerSize
+        navigationLayoutFor(size.width.toDp(), size.height.toDp())
+    }
     val hasEpisode = player.episode != null
 
     LaunchedEffect(hasEpisode) { if (!hasEpisode) expanded = false }
@@ -147,7 +166,7 @@ private fun SonoraScaffold(
     SharedTransitionLayout {
         Box(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxSize()) {
-                if (!compact) TopLevelRail(navController)
+                if (layout == NavigationLayout.Rail) TopLevelRail(navController)
                 Scaffold(
                     modifier = Modifier.weight(1f),
                     snackbarHost = { SnackbarHost(snackbar) },
@@ -156,7 +175,11 @@ private fun SonoraScaffold(
                             AnimatedVisibility(visible = hasEpisode && !expanded, enter = fadeIn(), exit = fadeOut()) {
                                 MiniPlayer(player, this, onPlayerIntent, onExpand = { expanded = true })
                             }
-                            if (compact) TopLevelBar(navController)
+                            when (layout) {
+                                NavigationLayout.BottomBar -> TopLevelBar(navController)
+                                NavigationLayout.SlimBottomBar -> SlimTopLevelBar(navController)
+                                NavigationLayout.Rail -> Unit
+                            }
                         }
                     },
                 ) { padding ->
@@ -201,6 +224,23 @@ private fun TopLevelBar(navController: NavHostController) {
                 onClick = { navController.navigateTop(top.route) },
                 icon = { androidx.compose.material3.Icon(top.icon, contentDescription = null) },
                 label = { Text(top.label) },
+            )
+        }
+    }
+}
+
+/** The landscape phone bar: icon beside label on a shorter bar, to leave the content room. */
+@Composable
+private fun SlimTopLevelBar(navController: NavHostController) {
+    val destination = navController.currentBackStackEntryAsState().value?.destination
+    ShortNavigationBar {
+        TopLevel.entries.forEach { top ->
+            ShortNavigationBarItem(
+                selected = destination?.hierarchy?.any { it.hasRoute(top.routeClass) } == true,
+                onClick = { navController.navigateTop(top.route) },
+                icon = { androidx.compose.material3.Icon(top.icon, contentDescription = null) },
+                label = { Text(top.label) },
+                iconPosition = NavigationItemIconPosition.Start,
             )
         }
     }
