@@ -159,3 +159,7 @@ MockWebServer for the JVM tests, and Robolectric for Compose UI tests.
 
 UI tests live in `src/sharedTest` and are compiled into both the JVM unit-test source set (run by
 `./gradlew testDebugUnitTest` under Robolectric) and `androidTest` (`connectedDebugAndroidTest`).
+
+Coverage comes from AGP's JaCoCo support (`createDebugUnitTestCoverageReport`). Robolectric loads classes
+through its own classloader, so `app/build.gradle.kts` sets `isIncludeNoLocationClasses`; without it the
+Room, Compose and preferences tests count for nothing. `verifyCoverage` enforces a line-coverage floor.

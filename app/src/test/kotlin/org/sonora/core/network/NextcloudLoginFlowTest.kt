@@ -3,29 +3,27 @@ package org.sonora.core.network
 
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
-import mockwebserver3.MockWebServer
 import okhttp3.OkHttpClient
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.sonora.testutil.MockWebServerExtension
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.api.assertThrows
 
 class NextcloudLoginFlowTest {
-    private val server = MockWebServer()
+    @JvmField @RegisterExtension val web = MockWebServerExtension()
+    private val server get() = web.server
     private lateinit var flow: NextcloudLoginFlow
     private lateinit var base: String
 
     @BeforeEach
     fun setUp() {
-        server.start()
         base = server.url("/").toString().trimEnd('/')
         flow = NextcloudLoginFlow(OkHttpClient(), userAgent = "Sonora-Test", allowCleartext = true)
     }
 
-    @AfterEach
-    fun tearDown() = server.close()
 
     private fun startResponse() = MockResponse.Builder().body(
         """{"poll":{"token":"tok123","endpoint":"$base/index.php/login/v2/poll"},

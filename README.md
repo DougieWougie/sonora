@@ -31,6 +31,8 @@ You need JDK 17 and the Android SDK.
 ./gradlew testDebugUnitTest         # unit tests and Compose UI tests on the JVM (Robolectric)
 ./gradlew connectedDebugAndroidTest # the Compose UI tests on a connected device
 ./gradlew lintDebug                 # lint
+./gradlew createDebugUnitTestCoverageReport # coverage report: app/build/reports/coverage/test/debug/index.html
+./gradlew verifyCoverage            # fails if line coverage is below the minimum (also part of `check`)
 ```
 
 ## Contributing

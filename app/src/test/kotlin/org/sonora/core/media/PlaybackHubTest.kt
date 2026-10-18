@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.core.media
 
+import org.sonora.testutil.showId
+import org.sonora.testutil.episodeEntity
 import app.cash.turbine.test
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.TimeoutCancellationException
@@ -12,14 +14,12 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.sonora.core.database.EpisodeEntity
 import org.sonora.core.database.EpisodeRepository
 import org.sonora.core.database.FakeEpisodeDao
 import org.sonora.core.database.FakePodcastDao
 import org.sonora.core.database.FakeSyncQueueDao
 import org.sonora.core.database.FakeTransactionRunner
 import org.sonora.core.database.MutableClock
-import org.sonora.core.database.PodcastEntity
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackHubTest {
@@ -34,8 +34,8 @@ class PlaybackHubTest {
     )
 
     private suspend fun seedEpisode(): Long {
-        val podcastId = podcastDao.insert(PodcastEntity(feedUrl = "https://f/feed", title = "Show"))
-        episodeDao.insertAll(listOf(EpisodeEntity(podcastId = podcastId, guid = "g", title = "Ep", enclosureUrl = "https://cdn/g.mp3", durationSeconds = 600)))
+        val podcastId = podcastDao.showId()
+        episodeDao.insertAll(listOf(episodeEntity(podcastId, "g", title = "Ep", durationSeconds = 600)))
         return episodeDao.getForPodcast(podcastId).single().id
     }
 

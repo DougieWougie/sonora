@@ -4,31 +4,29 @@ package org.sonora.core.network
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
-import mockwebserver3.MockWebServer
 import okhttp3.OkHttpClient
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.api.assertThrows
+import org.sonora.testutil.MockWebServerExtension
 import org.sonora.core.parser.RssFeedParser
 import org.xmlpull.v1.XmlPullParserException
 import org.xmlpull.v1.XmlPullParserFactory
 
 class OkHttpFeedFetcherTest {
-    private val server = MockWebServer()
+    @JvmField @RegisterExtension val web = MockWebServerExtension()
+    private val server get() = web.server
     private lateinit var fetcher: OkHttpFeedFetcher
 
     @BeforeEach
     fun setUp() {
-        server.start()
         fetcher = fetcher(allowCleartext = true)
     }
 
-    @AfterEach
-    fun tearDown() = server.close()
 
     private fun fetcher(allowCleartext: Boolean) = OkHttpFeedFetcher(
         client = OkHttpClient(),

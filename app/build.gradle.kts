@@ -21,6 +21,7 @@ android {
     }
 
     buildTypes {
+        debug { enableUnitTestCoverage = true }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -130,3 +131,40 @@ dependencies {
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
+
+// Robolectric loads classes through its own classloader; without this JaCoCo reports them as uncovered.
+afterEvaluate {
+    tasks.withType<Test>().configureEach {
+        extensions.findByType(org.gradle.testing.jacoco.plugins.JacocoTaskExtension::class.java)?.apply {
+            isIncludeNoLocationClasses = true
+            excludes = listOf("jdk.internal.*")
+        }
+    }
+}
+
+// Fails when line coverage of the debug unit tests drops below the floor; raise it as coverage improves.
+val minimumLineCoverage = 65.0
+
+val verifyCoverage by tasks.registering {
+    group = "verification"
+    description = "Fails if debug unit-test line coverage is below $minimumLineCoverage%."
+    dependsOn("createDebugUnitTestCoverageReport")
+    val report = layout.buildDirectory.file("reports/coverage/test/debug/report.xml")
+    doLast {
+        val factory = javax.xml.parsers.DocumentBuilderFactory.newInstance().apply {
+            setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+        }
+        val root = factory.newDocumentBuilder().parse(report.get().asFile).documentElement
+        val line = (0 until root.childNodes.length).map { root.childNodes.item(it) }
+            .filterIsInstance<org.w3c.dom.Element>()
+            .first { it.tagName == "counter" && it.getAttribute("type") == "LINE" }
+        val covered = line.getAttribute("covered").toDouble()
+        val percent = 100 * covered / (covered + line.getAttribute("missed").toDouble())
+        logger.lifecycle("Line coverage: %.1f%% (minimum %.1f%%)".format(percent, minimumLineCoverage))
+        check(percent >= minimumLineCoverage) {
+            "Line coverage %.1f%% is below the %.1f%% minimum".format(percent, minimumLineCoverage)
+        }
+    }
+}
+
+tasks.named("check") { dependsOn(verifyCoverage) }

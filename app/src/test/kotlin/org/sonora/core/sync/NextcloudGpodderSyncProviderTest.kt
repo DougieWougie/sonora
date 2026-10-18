@@ -10,31 +10,29 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
-import mockwebserver3.MockWebServer
 import okhttp3.Credentials
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.api.assertThrows
+import org.sonora.testutil.MockWebServerExtension
 import org.sonora.core.model.SyncActionType
 import org.sonora.core.network.NextcloudApiFactory
 
 class NextcloudGpodderSyncProviderTest {
-    private val server = MockWebServer()
+    @JvmField @RegisterExtension val web = MockWebServerExtension()
+    private val server get() = web.server
     private lateinit var provider: NextcloudGpodderSyncProvider
 
     @BeforeEach
     fun setUp() {
-        server.start()
         val api = NextcloudApiFactory.create(server.url("/").toString(), "alice", "app-pass", allowCleartext = true)
         provider = NextcloudGpodderSyncProvider(api)
     }
 
-    @AfterEach
-    fun tearDown() = server.close()
 
     private fun json(body: String) = MockResponse.Builder()
         .addHeader("Content-Type", "application/json").body(body).build()

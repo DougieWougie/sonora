@@ -13,6 +13,8 @@ You MUST follow strict Red-Green-Refactor TDD for every feature, parser, reposit
 4. **REFACTOR:** Clean up the code while keeping all tests green.
 Never write production logic before writing and running its failing test.
 
+**Coverage:** `./gradlew createDebugUnitTestCoverageReport` writes a JaCoCo report to `app/build/reports/coverage/test/debug/`. `./gradlew verifyCoverage` (part of `check`) fails if line coverage drops below the floor set in `app/build.gradle.kts`; raise the floor when coverage improves, never lower it to make a change pass.
+
 ## Architecture & Tech Stack
 - **UI Framework:** Jetpack Compose with **Material 3 Expressive** (`androidx.compose.material3` 1.4.0-alpha / 1.5.0+ Expressive APIs, `MaterialExpressiveTheme`, spring physics motion tokens, emphasized typography, and dynamic color).
 - **Networking:** OkHttp + Retrofit + `kotlinx-serialization-json`. Enforce HTTPS/TLS by default and disable cleartext traffic except when explicitly configured by the user for local development.

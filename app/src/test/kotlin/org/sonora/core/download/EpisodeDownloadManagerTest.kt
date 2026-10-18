@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.core.download
 
+import org.sonora.testutil.showId
+import org.sonora.testutil.episodeEntity
 import app.cash.turbine.test
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -8,11 +10,9 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
-import mockwebserver3.MockWebServer
 import mockwebserver3.SocketEffect
 import okhttp3.OkHttpClient
 import okio.Buffer
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -20,21 +20,22 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
-import org.sonora.core.database.EpisodeEntity
+import org.sonora.testutil.MockWebServerExtension
 import org.sonora.core.database.EpisodeRepository
 import org.sonora.core.database.FakeEpisodeDao
 import org.sonora.core.database.FakePodcastDao
 import org.sonora.core.database.FakeSyncQueueDao
 import org.sonora.core.database.FakeTransactionRunner
 import org.sonora.core.database.MutableClock
-import org.sonora.core.database.PodcastEntity
 import org.sonora.core.model.DownloadState
 import org.sonora.core.model.SyncActionType
 
 class EpisodeDownloadManagerTest {
-    private val server = MockWebServer()
+    @JvmField @RegisterExtension val web = MockWebServerExtension()
+    private val server get() = web.server
     private val podcastDao = FakePodcastDao()
     private val episodeDao = FakeEpisodeDao()
     private val queue = FakeSyncQueueDao()
@@ -49,7 +50,6 @@ class EpisodeDownloadManagerTest {
 
     @BeforeEach
     fun setUp() {
-        server.start()
         manager = EpisodeDownloadManager(
             episodeDao = episodeDao,
             episodeRepository = repo,
@@ -63,8 +63,6 @@ class EpisodeDownloadManagerTest {
         )
     }
 
-    @AfterEach
-    fun tearDown() = server.close()
 
     private suspend fun seed(
         guid: String = "g1",
@@ -74,13 +72,11 @@ class EpisodeDownloadManagerTest {
         published: Long? = null,
         localPath: String? = null,
     ): Long {
-        val podcastId = podcastDao.findByFeedUrl("https://f/feed")?.id
-            ?: podcastDao.insert(PodcastEntity(feedUrl = "https://f/feed", title = "Show"))
+        val podcastId = podcastDao.showId()
         episodeDao.insertAll(
             listOf(
-                EpisodeEntity(
-                    podcastId = podcastId, guid = guid, title = guid,
-                    enclosureUrl = server.url(path).toString(), sizeBytes = payload.size.toLong(),
+                episodeEntity(
+                    podcastId, guid, enclosureUrl = server.url(path).toString(), sizeBytes = payload.size.toLong(),
                     durationSeconds = 600, downloadState = state, downloadPath = localPath,
                     played = played, publishedAtMillis = published,
                 ),
