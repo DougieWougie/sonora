@@ -3,6 +3,7 @@ package org.sonora.core.download
 
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.NonCancellable
@@ -53,6 +54,9 @@ class EpisodeDownloadManager(
 ) {
     private val client = client.withTransportPolicy(allowCleartext)
 
+    /** Episodes whose running download was cancelled on purpose, so its unwinding must not re-queue them. */
+    private val cancelRequested = ConcurrentHashMap.newKeySet<Long>()
+
     /** Marks the episode [DownloadState.QUEUED]. Returns false if there is nothing left to download. */
     suspend fun enqueue(episodeId: Long): Boolean {
         val episode = requireEpisode(episodeId)
@@ -71,6 +75,7 @@ class EpisodeDownloadManager(
      * the episode is stored as [DownloadState.DOWNLOADED]; throws [DownloadException] on failure.
      */
     fun download(episodeId: Long): Flow<DownloadProgress> = flow {
+        cancelRequested.remove(episodeId) // a cancel is older than this request
         val episode = requireEpisode(episodeId)
         val existing = episode.downloadPath?.let(::File)
         if (episode.downloadState == DownloadState.DOWNLOADED && existing?.isFile == true) {
@@ -85,7 +90,11 @@ class EpisodeDownloadManager(
             transfer(episode) { emit(it) }
         } catch (e: CancellationException) {
             withContext(NonCancellable) {
-                episodeRepository.updateDownload(episodeId, DownloadState.QUEUED, partFile(episode).sizeOrZero())
+                if (cancelRequested.remove(episodeId)) {
+                    deleteDownload(episodeId)
+                } else {
+                    episodeRepository.updateDownload(episodeId, DownloadState.QUEUED, partFile(episode).sizeOrZero())
+                }
             }
             throw e
         } catch (e: DownloadException) {
@@ -110,6 +119,24 @@ class EpisodeDownloadManager(
         if (!policy().deleteWhenPlayed) return
         val episode = episodeDao.findById(episodeId) ?: return
         if (episode.downloadState == DownloadState.DOWNLOADED) deleteDownload(episodeId)
+    }
+
+    /**
+     * Abandons a queued or in-flight download and forgets any partial file. An in-flight transfer
+     * learns of it through its cancellation, which must not re-queue the episode.
+     */
+    suspend fun cancelDownload(episodeId: Long) {
+        val episode = episodeDao.findById(episodeId) ?: return
+        if (episode.downloadState == DownloadState.DOWNLOADED) return
+        cancelRequested += episodeId
+        deleteDownload(episodeId)
+    }
+
+    /** Deletes every completed download of a played episode. Returns the ids removed. */
+    suspend fun deleteAllPlayedDownloads(): List<Long> {
+        val played = episodeDao.getByDownloadState(DownloadState.DOWNLOADED).filter { it.played }.map { it.id }
+        played.forEach { deleteDownload(it) }
+        return played
     }
 
     suspend fun deleteDownload(episodeId: Long) {

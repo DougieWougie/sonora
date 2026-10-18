@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.sonora.core.download.EpisodeDownloadManager
+import org.sonora.core.sync.DownloadCanceller
 import org.sonora.core.sync.DownloadScheduler
 
 /** Schedules the periodic background sync (requires a network connection). */
@@ -65,7 +66,7 @@ class WorkManagerSyncScheduler(context: Context) : SyncController {
 class WorkManagerDownloadScheduler(
     context: Context,
     private val manager: EpisodeDownloadManager,
-) : DownloadScheduler {
+) : DownloadScheduler, DownloadCanceller {
     private val workManager = WorkManager.getInstance(context)
 
     override suspend fun schedule(episodeIds: List<Long>, unmeteredOnly: Boolean, chargingOnly: Boolean) {
@@ -83,6 +84,10 @@ class WorkManagerDownloadScheduler(
                 .build()
             workManager.enqueueUniqueWork("download-$id", ExistingWorkPolicy.KEEP, request)
         }
+    }
+
+    override fun cancel(episodeId: Long) {
+        workManager.cancelUniqueWork("download-$episodeId")
     }
 
     private companion object {

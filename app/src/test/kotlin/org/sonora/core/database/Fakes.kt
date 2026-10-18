@@ -75,6 +75,9 @@ class FakeEpisodeDao : EpisodeDao {
         }
     }
 
+    override fun observeByDownloadStates(states: List<org.sonora.core.model.DownloadState>): Flow<List<EpisodeEntity>> =
+        rows.map { all -> all.filter { it.downloadState in states } }
+
     override fun observeUnplayed(limit: Int): Flow<List<EpisodeEntity>> =
         rows.map { all -> all.filter { !it.played }.sortedByDescending { it.publishedAtMillis }.take(limit) }
 }

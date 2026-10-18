@@ -66,6 +66,8 @@ class FakeEpisodeActions : EpisodeActions {
     val calls = mutableListOf<String>()
     override suspend fun download(episodeId: Long) { calls += "download:$episodeId" }
     override suspend fun deleteDownload(episodeId: Long) { calls += "delete:$episodeId" }
+    override suspend fun cancelDownload(episodeId: Long) { calls += "cancel:$episodeId" }
+    override suspend fun deleteAllPlayedDownloads(): Int { calls += "deleteAllPlayed"; return 0 }
     override suspend fun markPlayed(episodeId: Long) { calls += "played:$episodeId" }
     override suspend fun markUnplayed(episodeId: Long) { calls += "unplayed:$episodeId" }
 }

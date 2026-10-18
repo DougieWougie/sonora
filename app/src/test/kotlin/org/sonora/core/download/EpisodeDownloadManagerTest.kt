@@ -4,6 +4,8 @@ package org.sonora.core.download
 import app.cash.turbine.test
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -420,5 +422,68 @@ class EpisodeDownloadManagerTest {
 
         assertEquals(emptyList<Long>(), manager.enforceRetention())
         assertEquals(DownloadState.QUEUED, episodeDao.findById(queued)!!.downloadState)
+    }
+
+    // --- cancelling & bulk delete ------------------------------------------------------------
+
+    @Test
+    fun `cancelling a queued download resets it and removes the partial file`() = runTest {
+        val id = seed(state = DownloadState.QUEUED)
+        partFile(id).writeBytes(ByteArray(10))
+
+        manager.cancelDownload(id)
+
+        assertEquals(DownloadState.NONE, episodeDao.findById(id)!!.downloadState)
+        assertEquals(0L, episodeDao.findById(id)!!.downloadedBytes)
+        assertFalse(partFile(id).exists())
+    }
+
+    @Test
+    fun `cancelling a running download leaves it not downloaded rather than re-queued`() = runTest {
+        val id = seed()
+        server.enqueue(
+            MockResponse.Builder().body(Buffer().write(payload))
+                .throttleBody(64 * 1024, 100, java.util.concurrent.TimeUnit.MILLISECONDS).build(),
+        )
+        val progressed = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val job = kotlinx.coroutines.CoroutineScope(Dispatchers.Default).launch {
+            manager.download(id).collect { progressed.complete(Unit) }
+        }
+        progressed.await()
+
+        manager.cancelDownload(id)
+        job.cancelAndJoin()
+
+        assertEquals(DownloadState.NONE, episodeDao.findById(id)!!.downloadState)
+        assertEquals(0L, episodeDao.findById(id)!!.downloadedBytes)
+        assertFalse(partFile(id).exists())
+    }
+
+    @Test
+    fun `an old cancel does not stop a download requested later`() = runTest {
+        val id = seed(state = DownloadState.QUEUED)
+        manager.cancelDownload(id)
+        server.enqueue(ok())
+
+        manager.enqueue(id)
+        manager.downloadToCompletion(id)
+
+        assertEquals(DownloadState.DOWNLOADED, episodeDao.findById(id)!!.downloadState)
+    }
+
+    @Test
+    fun `deleteAllPlayedDownloads removes played downloads only`() = runTest {
+        val playedA = downloaded("a", published = 1, played = true)
+        val playedB = downloaded("b", published = 2, played = true)
+        val unplayed = downloaded("c", published = 3)
+        val inFlight = seed(guid = "d", state = DownloadState.DOWNLOADING, played = true)
+
+        val removed = manager.deleteAllPlayedDownloads()
+
+        assertEquals(setOf(playedA, playedB), removed.toSet())
+        assertFalse(finalFile(playedA).exists())
+        assertTrue(finalFile(unplayed).exists())
+        assertEquals(DownloadState.DOWNLOADING, episodeDao.findById(inFlight)!!.downloadState)
+        assertEquals(2, queue.getAll().count { it.type == SyncActionType.DELETE })
     }
 }

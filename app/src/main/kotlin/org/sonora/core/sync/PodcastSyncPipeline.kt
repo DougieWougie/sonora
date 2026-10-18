@@ -32,6 +32,11 @@ fun interface DownloadScheduler {
     suspend fun schedule(episodeIds: List<Long>, unmeteredOnly: Boolean, chargingOnly: Boolean)
 }
 
+/** Stops the background job for an episode's download, if there is one. */
+fun interface DownloadCanceller {
+    fun cancel(episodeId: Long)
+}
+
 enum class FailureKind { TRANSIENT, PERMANENT, AUTH }
 
 sealed interface RemoteStatus {
