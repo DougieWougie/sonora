@@ -142,25 +142,40 @@ afterEvaluate {
     }
 }
 
-// Fails when line coverage of the debug unit tests drops below the floor; raise it as coverage improves.
-val minimumLineCoverage = 65.0
+// Fails when line coverage of the hand-written code drops below the floor; raise it as coverage improves.
+val minimumLineCoverage = 63.0
+
+// Room, Hilt and Dagger output would otherwise count towards (and flatter) the figure.
+val generatedClass = Regex(
+    "_Impl|/Hilt_|_HiltModules|_GeneratedInjector|_Factory|_MembersInjector|^dagger/|hilt_aggregated_deps|/BuildConfig|ComposableSingletons",
+)
 
 val verifyCoverage by tasks.registering {
     group = "verification"
-    description = "Fails if debug unit-test line coverage is below $minimumLineCoverage%."
+    description = "Fails if debug unit-test line coverage of hand-written code is below $minimumLineCoverage%."
     dependsOn("createDebugUnitTestCoverageReport")
     val report = layout.buildDirectory.file("reports/coverage/test/debug/report.xml")
     doLast {
         val factory = javax.xml.parsers.DocumentBuilderFactory.newInstance().apply {
             setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
         }
-        val root = factory.newDocumentBuilder().parse(report.get().asFile).documentElement
-        val line = (0 until root.childNodes.length).map { root.childNodes.item(it) }
-            .filterIsInstance<org.w3c.dom.Element>()
-            .first { it.tagName == "counter" && it.getAttribute("type") == "LINE" }
-        val covered = line.getAttribute("covered").toDouble()
-        val percent = 100 * covered / (covered + line.getAttribute("missed").toDouble())
-        logger.lifecycle("Line coverage: %.1f%% (minimum %.1f%%)".format(percent, minimumLineCoverage))
+        val classes = factory.newDocumentBuilder().parse(report.get().asFile).getElementsByTagName("class")
+        var covered = 0.0
+        var missed = 0.0
+        for (i in 0 until classes.length) {
+            val cls = classes.item(i) as org.w3c.dom.Element
+            if (generatedClass.containsMatchIn(cls.getAttribute("name"))) continue
+            val children = cls.childNodes
+            for (c in 0 until children.length) {
+                val counter = children.item(c) as? org.w3c.dom.Element ?: continue
+                if (counter.tagName == "counter" && counter.getAttribute("type") == "LINE") {
+                    covered += counter.getAttribute("covered").toDouble()
+                    missed += counter.getAttribute("missed").toDouble()
+                }
+            }
+        }
+        val percent = 100 * covered / (covered + missed)
+        logger.lifecycle("Line coverage (hand-written): %.1f%% (minimum %.1f%%)".format(percent, minimumLineCoverage))
         check(percent >= minimumLineCoverage) {
             "Line coverage %.1f%% is below the %.1f%% minimum".format(percent, minimumLineCoverage)
         }
