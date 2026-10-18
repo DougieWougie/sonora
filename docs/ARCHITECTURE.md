@@ -162,4 +162,5 @@ UI tests live in `src/sharedTest` and are compiled into both the JVM unit-test s
 
 Coverage comes from AGP's JaCoCo support (`createDebugUnitTestCoverageReport`). Robolectric loads classes
 through its own classloader, so `app/build.gradle.kts` sets `isIncludeNoLocationClasses`; without it the
-Room, Compose and preferences tests count for nothing. `verifyCoverage` enforces a line-coverage floor.
+Room, Compose and preferences tests count for nothing. `verifyCoverage` enforces a line-coverage floor on hand-written code; Room, Hilt and Dagger output is excluded
+(`generatedClass` in `app/build.gradle.kts`) so it cannot flatter the figure. The HTML report still lists it.
