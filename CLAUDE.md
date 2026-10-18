@@ -23,3 +23,6 @@ Never write production logic before writing and running its failing test.
 - Store Nextcloud app tokens using Android Keystore backed encryption or `DataStore` with Tink encryption.
 - Stream all XML/RSS and OPML payloads via `InputStream`; never load entire RSS feeds into memory strings before parsing.
 - Use database transactions (`@Transaction`) when reconciling Nextcloud subscription and episode action diffs.
+
+## Architecture
+See `docs/ARCHITECTURE.md` for the layers, data flow and subsystems; read it before changing cross-cutting code.

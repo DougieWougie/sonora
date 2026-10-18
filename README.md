@@ -35,7 +35,7 @@ You need JDK 17 and the Android SDK.
 
 ## Contributing
 
-The project is developed test-first: write a failing test, make it pass, then tidy up. Kotlin files carry an `SPDX-License-Identifier: GPL-3.0-or-later` header. See [CLAUDE.md](CLAUDE.md) for the full conventions.
+The project is developed test-first: write a failing test, make it pass, then tidy up. Kotlin files carry an `SPDX-License-Identifier: GPL-3.0-or-later` header. See [CLAUDE.md](CLAUDE.md) for the full conventions and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the app is put together.
 
 ## Licence
 
