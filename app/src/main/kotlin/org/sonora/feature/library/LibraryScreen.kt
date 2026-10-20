@@ -57,11 +57,21 @@ fun LibraryScreen(
         viewModel.events.collect { if (it == SubscriptionsEvent.SyncStarted) snackbar.showSnackbar("Syncing your subscriptions…") }
     }
 
+    LibraryContent(state, viewModel::onIntent, onOpenPodcast, modifier)
+}
+
+@Composable
+internal fun LibraryContent(
+    state: SubscriptionsUiState,
+    onIntent: (SubscriptionsIntent) -> Unit,
+    onOpenPodcast: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier.fillMaxSize()) {
-        LibraryHeader(state, viewModel::onIntent)
+        LibraryHeader(state, onIntent)
         PullToRefreshBox(
             isRefreshing = state.isRefreshing,
-            onRefresh = { viewModel.onIntent(SubscriptionsIntent.Refresh) },
+            onRefresh = { onIntent(SubscriptionsIntent.Refresh) },
             modifier = Modifier.weight(1f),
         ) {
             when {

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -41,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -56,6 +58,7 @@ import org.sonora.feature.downloads.DownloadsLink
 import org.sonora.ui.components.SonoraLogo
 import org.sonora.ui.theme.ThemeIntent
 import org.sonora.ui.theme.ThemeMode
+import org.sonora.ui.theme.ThemeState
 import org.sonora.ui.theme.ThemeViewModel
 
 /** The order the sections appear on the Settings screen. */
@@ -79,6 +82,22 @@ fun SettingsScreen(
 
     OpenLoginUrlEffect(viewModel.events, open = { openInBrowser(context, it) }, onLaunched = { viewModel.onIntent(SettingsIntent.BrowserLaunched) })
 
+    SettingsContent(
+        state, theme, viewModel::onIntent, themeViewModel::onIntent, modifier,
+        downloadsLink = { DownloadsLink(onClick = onOpenDownloads) },
+    )
+}
+
+@Composable
+internal fun SettingsContent(
+    state: SettingsUiState,
+    theme: ThemeState,
+    onIntent: (SettingsIntent) -> Unit,
+    onThemeIntent: (ThemeIntent) -> Unit,
+    modifier: Modifier = Modifier,
+    downloadsLink: @Composable () -> Unit,
+) {
+    val context = LocalContext.current
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -86,20 +105,20 @@ fun SettingsScreen(
         Text("Settings & Sync", style = MaterialTheme.typography.headlineLargeEmphasized)
         SettingsSection.entries.forEach { section ->
             when (section) {
-                SettingsSection.Nextcloud -> NextcloudCard(state, viewModel::onIntent)
+                SettingsSection.Nextcloud -> NextcloudCard(state, onIntent)
                 SettingsSection.Appearance -> {
                     SettingsCard("Appearance") {
                         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ThemeMode.entries.forEach { mode ->
                                 FilterChip(
                                     selected = theme.preferences.mode == mode,
-                                    onClick = { themeViewModel.onIntent(ThemeIntent.SelectMode(mode)) },
+                                    onClick = { onThemeIntent(ThemeIntent.SelectMode(mode)) },
                                     label = { Text(when (mode) { ThemeMode.SYSTEM -> "System"; ThemeMode.LIGHT -> "Light"; ThemeMode.DARK -> "Dark"; ThemeMode.AMOLED -> "AMOLED" }) },
                                 )
                             }
                         }
                         SwitchRow("Colors from artwork", "Tint the app with the playing episode's cover", theme.preferences.artworkColors) {
-                            themeViewModel.onIntent(ThemeIntent.ToggleArtworkColors)
+                            onThemeIntent(ThemeIntent.ToggleArtworkColors)
                         }
                 }
                 }
@@ -110,33 +129,33 @@ fun SettingsScreen(
                             subtitle = "Also needs the battery not to be low",
                             options = SYNC_INTERVALS,
                             selected = state.syncIntervalHours,
-                        ) { viewModel.onIntent(SettingsIntent.SetSyncInterval(it)) }
+                        ) { onIntent(SettingsIntent.SetSyncInterval(it)) }
                 }
                 }
                 SettingsSection.Downloads -> {
                     SettingsCard("Downloads") {
-                        DownloadsLink(onClick = onOpenDownloads)
-                        SwitchRow("Auto-download on Wi-Fi only", null, state.downloads.unmeteredOnly) { viewModel.onIntent(SettingsIntent.SetUnmeteredOnly(it)) }
-                        SwitchRow("Auto-download only while charging", null, state.downloads.chargingOnly) { viewModel.onIntent(SettingsIntent.SetChargingOnly(it)) }
+                        downloadsLink()
+                        SwitchRow("Auto-download on Wi-Fi only", null, state.downloads.unmeteredOnly) { onIntent(SettingsIntent.SetUnmeteredOnly(it)) }
+                        SwitchRow("Auto-download only while charging", null, state.downloads.chargingOnly) { onIntent(SettingsIntent.SetChargingOnly(it)) }
                         ChoiceRow(
                             title = "Auto-download per podcast",
                             subtitle = "Newest episodes fetched in one check",
                             options = AUTO_DOWNLOAD_COUNTS,
                             selected = state.downloads.autoDownloadPerPodcast,
-                        ) { viewModel.onIntent(SettingsIntent.SetAutoDownloadCount(it)) }
-                        SwitchRow("Delete downloads once played", null, state.downloads.deleteWhenPlayed) { viewModel.onIntent(SettingsIntent.SetDeleteWhenPlayed(it)) }
+                        ) { onIntent(SettingsIntent.SetAutoDownloadCount(it)) }
+                        SwitchRow("Delete downloads once played", null, state.downloads.deleteWhenPlayed) { onIntent(SettingsIntent.SetDeleteWhenPlayed(it)) }
                         ChoiceRow(
                             title = "Keep per podcast",
                             subtitle = "Older downloads are removed after the next check",
                             options = KEEP_COUNTS,
                             selected = state.downloads.keepPerPodcast,
-                        ) { viewModel.onIntent(SettingsIntent.SetKeepPerPodcast(it)) }
+                        ) { onIntent(SettingsIntent.SetKeepPerPodcast(it)) }
                         ChoiceRow(
                             title = "Storage limit",
                             subtitle = "Played episodes go first, then the oldest unplayed ones",
                             options = STORAGE_LIMITS,
                             selected = state.downloads.maxStorageBytes,
-                        ) { viewModel.onIntent(SettingsIntent.SetMaxStorage(it)) }
+                        ) { onIntent(SettingsIntent.SetMaxStorage(it)) }
                 }
                 }
                 SettingsSection.PodcastIndex -> {
@@ -144,14 +163,14 @@ fun SettingsScreen(
                         Text("Optional. Add your free PodcastIndex API key to search it in Discover.", style = MaterialTheme.typography.bodyMedium)
                         OutlinedTextField(
                             value = state.podcastIndex.apiKey,
-                            onValueChange = { viewModel.onIntent(SettingsIntent.EditPodcastIndexKey(it)) },
+                            onValueChange = { onIntent(SettingsIntent.EditPodcastIndexKey(it)) },
                             label = { Text("API key") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         OutlinedTextField(
                             value = state.podcastIndex.apiSecret,
-                            onValueChange = { viewModel.onIntent(SettingsIntent.EditPodcastIndexSecret(it)) },
+                            onValueChange = { onIntent(SettingsIntent.EditPodcastIndexSecret(it)) },
                             label = { Text("API secret") },
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation(),
@@ -159,10 +178,10 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Button(onClick = { viewModel.onIntent(SettingsIntent.SavePodcastIndex) }, enabled = !state.podcastIndex.saved) {
+                            Button(onClick = { onIntent(SettingsIntent.SavePodcastIndex) }, enabled = !state.podcastIndex.saved) {
                                 Text(if (state.podcastIndex.saved) "Saved" else "Save")
                             }
-                            TextButton(onClick = { viewModel.onIntent(SettingsIntent.ClearPodcastIndex) }) { Text("Remove") }
+                            TextButton(onClick = { onIntent(SettingsIntent.ClearPodcastIndex) }) { Text("Remove") }
                         }
                 }
                 }
@@ -172,7 +191,7 @@ fun SettingsScreen(
                             "Allow cleartext (HTTP)",
                             "For testing against servers on your own network. Streams, feeds and sync stay HTTPS-only otherwise.",
                             state.allowCleartext,
-                        ) { viewModel.onIntent(SettingsIntent.SetAllowCleartext(it)) }
+                        ) { onIntent(SettingsIntent.SetAllowCleartext(it)) }
                         if (state.restartRequired) {
                             Text("Restart Sonora for this change to take effect.", color = MaterialTheme.colorScheme.tertiary)
                         }
@@ -312,12 +331,16 @@ private fun <T> ChoiceRow(title: String, subtitle: String?, options: List<Pair<S
 
 @Composable
 private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    Row(
+        Modifier.fillMaxWidth().toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
-        Switch(checked = checked, onCheckedChange = onChange)
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 

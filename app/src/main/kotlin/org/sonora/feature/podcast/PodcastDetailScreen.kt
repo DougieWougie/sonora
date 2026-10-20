@@ -73,11 +73,22 @@ fun PodcastDetailScreen(
         )
     }
 
+    PodcastDetailContent(state, actions, onBack, viewModel::onIntent, modifier)
+}
+
+@Composable
+internal fun PodcastDetailContent(
+    state: PodcastDetailUiState,
+    actions: EpisodeActionsUi,
+    onBack: () -> Unit,
+    onIntent: (PodcastDetailIntent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     state.pendingMarkOlder?.let {
         MarkOlderPlayedDialog(
             it,
-            onConfirm = { viewModel.onIntent(PodcastDetailIntent.ConfirmMarkOlderPlayed) },
-            onDismiss = { viewModel.onIntent(PodcastDetailIntent.DismissMarkOlderPlayed) },
+            onConfirm = { onIntent(PodcastDetailIntent.ConfirmMarkOlderPlayed) },
+            onDismiss = { onIntent(PodcastDetailIntent.DismissMarkOlderPlayed) },
         )
     }
 
@@ -86,12 +97,12 @@ fun PodcastDetailScreen(
         IconButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") }
         PullToRefreshBox(
             isRefreshing = state.isRefreshing,
-            onRefresh = { viewModel.onIntent(PodcastDetailIntent.Refresh) },
+            onRefresh = { onIntent(PodcastDetailIntent.Refresh) },
             modifier = Modifier.weight(1f),
         ) {
             LazyColumn(Modifier.fillMaxSize()) {
-                item { Header(state, viewModel::onIntent) }
-                item { Controls(state, viewModel::onIntent) }
+                item { Header(state, onIntent) }
+                item { Controls(state, onIntent) }
                 if (state.isLoading) {
                     item { Box(Modifier.fillMaxWidth().padding(32.dp), Alignment.Center) { LoadingIndicator() } }
                 } else if (state.episodes.isEmpty()) {
