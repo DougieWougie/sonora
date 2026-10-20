@@ -50,11 +50,22 @@ fun EpisodesScreen(
         )
     }
 
+    EpisodesContent(state, actions, viewModel::onIntent, modifier, downloadsLink = { DownloadsLink(onClick = onOpenDownloads) })
+}
+
+@Composable
+internal fun EpisodesContent(
+    state: EpisodesUiState,
+    actions: EpisodeActionsUi,
+    onIntent: (EpisodesIntent) -> Unit,
+    modifier: Modifier = Modifier,
+    downloadsLink: @Composable () -> Unit,
+) {
     state.pendingMarkOlder?.let {
         MarkOlderPlayedDialog(
             it,
-            onConfirm = { viewModel.onIntent(EpisodesIntent.ConfirmMarkOlderPlayed) },
-            onDismiss = { viewModel.onIntent(EpisodesIntent.DismissMarkOlderPlayed) },
+            onConfirm = { onIntent(EpisodesIntent.ConfirmMarkOlderPlayed) },
+            onDismiss = { onIntent(EpisodesIntent.DismissMarkOlderPlayed) },
         )
     }
 
@@ -64,11 +75,11 @@ fun EpisodesScreen(
     }
     LazyColumn(modifier.fillMaxSize()) {
         item { Text("Episodes", style = MaterialTheme.typography.headlineLargeEmphasized, modifier = Modifier.padding(16.dp)) }
-        item { DownloadsLink(onClick = onOpenDownloads) }
+        item { downloadsLink() }
         item {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Up next", style = MaterialTheme.typography.titleMediumEmphasized)
-                if (state.queue.isNotEmpty()) TextButton(onClick = { viewModel.onIntent(EpisodesIntent.ClearQueue) }) { Text("Clear") }
+                if (state.queue.isNotEmpty()) TextButton(onClick = { onIntent(EpisodesIntent.ClearQueue) }) { Text("Clear") }
             }
         }
         if (state.queue.isEmpty()) {

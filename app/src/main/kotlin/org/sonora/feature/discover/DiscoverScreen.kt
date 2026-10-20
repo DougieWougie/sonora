@@ -90,12 +90,27 @@ fun DiscoverScreen(
         }
     }
 
+    DiscoverContent(
+        state, viewModel::onIntent, modifier,
+        onImportOpml = { importer.launch(arrayOf("text/x-opml", "text/xml", "application/xml", "*/*")) },
+        onExportOpml = { exporter.launch("sonora-subscriptions.opml") },
+    )
+}
+
+@Composable
+internal fun DiscoverContent(
+    state: DiscoverUiState,
+    onIntent: (DiscoverIntent) -> Unit,
+    modifier: Modifier = Modifier,
+    onImportOpml: () -> Unit,
+    onExportOpml: () -> Unit,
+) {
     LazyColumn(modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         item { Text("Discover", style = MaterialTheme.typography.headlineLargeEmphasized, modifier = Modifier.padding(16.dp)) }
         item {
             OutlinedTextField(
                 value = state.query,
-                onValueChange = { viewModel.onIntent(DiscoverIntent.QueryChanged(it)) },
+                onValueChange = { onIntent(DiscoverIntent.QueryChanged(it)) },
                 placeholder = { Text("Search podcasts") },
                 leadingIcon = { Icon(Icons.Rounded.Search, null) },
                 singleLine = true,
@@ -112,7 +127,7 @@ fun DiscoverScreen(
                     val selected = state.directory == source
                     FilterChip(
                         selected = selected,
-                        onClick = { viewModel.onIntent(DiscoverIntent.SelectDirectory(source)) },
+                        onClick = { onIntent(DiscoverIntent.SelectDirectory(source)) },
                         label = { Text(if (source == DirectorySource.APPLE) "Apple Podcasts" else "PodcastIndex") },
                         leadingIcon = {
                             AnimatedVisibility(selected, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
@@ -121,9 +136,9 @@ fun DiscoverScreen(
                         },
                     )
                 }
-                AssistChip(onClick = { viewModel.onIntent(DiscoverIntent.ShowAddUrl) }, label = { Text("Add by URL") }, leadingIcon = { Icon(Icons.Rounded.Link, null, Modifier.size(18.dp)) })
-                AssistChip(onClick = { importer.launch(arrayOf("text/x-opml", "text/xml", "application/xml", "*/*")) }, label = { Text("Import OPML") }, leadingIcon = { Icon(Icons.Rounded.FileDownload, null, Modifier.size(18.dp)) })
-                AssistChip(onClick = { exporter.launch("sonora-subscriptions.opml") }, label = { Text("Export OPML") }, leadingIcon = { Icon(Icons.Rounded.FileUpload, null, Modifier.size(18.dp)) })
+                AssistChip(onClick = { onIntent(DiscoverIntent.ShowAddUrl) }, label = { Text("Add by URL") }, leadingIcon = { Icon(Icons.Rounded.Link, null, Modifier.size(18.dp)) })
+                AssistChip(onClick = onImportOpml, label = { Text("Import OPML") }, leadingIcon = { Icon(Icons.Rounded.FileDownload, null, Modifier.size(18.dp)) })
+                AssistChip(onClick = onExportOpml, label = { Text("Export OPML") }, leadingIcon = { Icon(Icons.Rounded.FileUpload, null, Modifier.size(18.dp)) })
             }
         }
         if (state.isSearching || state.opml == OpmlStatus.Working) {
@@ -139,7 +154,7 @@ fun DiscoverScreen(
                 supportingContent = result.podcast.author?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
                 trailingContent = {
                     FilledTonalButton(
-                        onClick = { viewModel.onIntent(DiscoverIntent.Subscribe(result.podcast)) },
+                        onClick = { onIntent(DiscoverIntent.Subscribe(result.podcast)) },
                         enabled = !result.subscribed,
                     ) {
                         Icon(if (result.subscribed) Icons.Rounded.Check else Icons.Rounded.Add, null, Modifier.size(18.dp))
@@ -155,25 +170,38 @@ fun DiscoverScreen(
 
     state.addUrl?.let { dialog ->
         AlertDialog(
-            onDismissRequest = { viewModel.onIntent(DiscoverIntent.DismissAddUrl) },
+            onDismissRequest = { onIntent(DiscoverIntent.DismissAddUrl) },
             title = { Text("Add by feed URL") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = dialog.url,
-                        onValueChange = { viewModel.onIntent(DiscoverIntent.AddUrlChanged(it)) },
-                        label = { Text("https://example.com/feed.xml") },
-                        singleLine = true,
-                        isError = dialog.error != null,
-                        supportingText = dialog.error?.let { { Text(it) } },
-                    )
-                    if (dialog.isSubmitting) LoadingIndicator(Modifier.size(40.dp))
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { viewModel.onIntent(DiscoverIntent.SubmitUrl) }, enabled = !dialog.isSubmitting) { Text("Subscribe") }
-            },
-            dismissButton = { TextButton(onClick = { viewModel.onIntent(DiscoverIntent.DismissAddUrl) }) { Text("Cancel") } },
+            text = { AddUrlFields(dialog, onIntent) },
+            confirmButton = { AddUrlSubscribeButton(dialog, onIntent) },
+            dismissButton = { AddUrlCancelButton(onIntent) },
         )
     }
+}
+
+// The dialog's parts are separate so tests can render them in the main window: a text field inside a
+// dialog window never goes idle under Robolectric.
+@Composable
+internal fun AddUrlFields(dialog: AddUrlState, onIntent: (DiscoverIntent) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = dialog.url,
+            onValueChange = { onIntent(DiscoverIntent.AddUrlChanged(it)) },
+            label = { Text("https://example.com/feed.xml") },
+            singleLine = true,
+            isError = dialog.error != null,
+            supportingText = dialog.error?.let { { Text(it) } },
+        )
+        if (dialog.isSubmitting) LoadingIndicator(Modifier.size(40.dp))
+    }
+}
+
+@Composable
+internal fun AddUrlSubscribeButton(dialog: AddUrlState, onIntent: (DiscoverIntent) -> Unit) {
+    TextButton(onClick = { onIntent(DiscoverIntent.SubmitUrl) }, enabled = !dialog.isSubmitting) { Text("Subscribe") }
+}
+
+@Composable
+internal fun AddUrlCancelButton(onIntent: (DiscoverIntent) -> Unit) {
+    TextButton(onClick = { onIntent(DiscoverIntent.DismissAddUrl) }) { Text("Cancel") }
 }
