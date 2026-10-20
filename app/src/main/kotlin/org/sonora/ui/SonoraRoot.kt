@@ -125,15 +125,26 @@ fun SonoraRoot(
     }
 
     PodcastExpressiveTheme(theme) {
-        SonoraScaffold(player, playerViewModel.events, playerViewModel::onIntent)
+        SonoraScaffold(player, playerViewModel.events, playerViewModel::onIntent) { navController, snackbar, modifier ->
+            AppNavHost(navController, snackbar, modifier)
+        }
     }
 }
 
 @Composable
-private fun SonoraScaffold(
+private fun currentNavigationLayout(): NavigationLayout = with(LocalDensity.current) {
+    val size = LocalWindowInfo.current.containerSize
+    navigationLayoutFor(size.width.toDp(), size.height.toDp())
+}
+
+/** The app shell. [navHost] is a slot so tests can put plain screens behind the real navigation and players. */
+@Composable
+internal fun SonoraScaffold(
     player: org.sonora.feature.player.PlayerUiState,
     playerEvents: Flow<PlayerEvent>,
     onPlayerIntent: (org.sonora.feature.player.PlayerIntent) -> Unit,
+    layout: NavigationLayout = currentNavigationLayout(),
+    navHost: @Composable (NavHostController, SnackbarHostState, Modifier) -> Unit,
 ) {
     val navController = rememberNavController()
     val snackbar = remember { SnackbarHostState() }
@@ -153,10 +164,6 @@ private fun SonoraScaffold(
             )
             if (result == SnackbarResult.ActionPerformed) currentOnPlayerIntent(PlayerIntent.TogglePlayPause)
         }
-    }
-    val layout = with(LocalDensity.current) {
-        val size = LocalWindowInfo.current.containerSize
-        navigationLayoutFor(size.width.toDp(), size.height.toDp())
     }
     val hasEpisode = player.episode != null
 
@@ -183,7 +190,7 @@ private fun SonoraScaffold(
                         }
                     },
                 ) { padding ->
-                    AppNavHost(navController, snackbar, Modifier.padding(padding))
+                    navHost(navController, snackbar, Modifier.padding(padding))
                 }
             }
             AnimatedVisibility(visible = hasEpisode && expanded, enter = fadeIn(), exit = fadeOut()) {
