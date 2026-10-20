@@ -77,6 +77,7 @@ import org.sonora.feature.podcast.PodcastDetailScreen
 import org.sonora.feature.settings.SettingsScreen
 import org.sonora.ui.theme.ArtworkColorExtractor
 import org.sonora.ui.theme.PodcastExpressiveTheme
+import org.sonora.ui.theme.ThemeState
 import org.sonora.ui.theme.ThemeViewModel
 
 @Serializable data object LibraryRoute
@@ -117,16 +118,30 @@ fun SonoraRoot(
 ) {
     val theme by themeViewModel.state.collectAsStateWithLifecycle()
     val player by playerViewModel.uiState.collectAsStateWithLifecycle()
+    SonoraRootContent(
+        theme, player, playerViewModel.events, playerViewModel::onIntent, themeViewModel::onArtworkSeed, HiltAppScreens,
+    )
+}
 
+/** [SonoraRoot] without the view models, so tests can drive the theme and player state directly. */
+@Composable
+internal fun SonoraRootContent(
+    theme: ThemeState,
+    player: org.sonora.feature.player.PlayerUiState,
+    playerEvents: Flow<PlayerEvent>,
+    onPlayerIntent: (PlayerIntent) -> Unit,
+    onArtworkSeed: (Int?) -> Unit,
+    screens: AppScreens,
+) {
     // Re-tint from the playing episode's artwork. Keep the last palette while the next cover loads.
     val seed = ArtworkColorExtractor.rememberSeed(player.episode?.artworkUrl)
     LaunchedEffect(seed, player.episode == null) {
-        if (seed != null) themeViewModel.onArtworkSeed(seed) else if (player.episode == null) themeViewModel.onArtworkSeed(null)
+        if (seed != null) onArtworkSeed(seed) else if (player.episode == null) onArtworkSeed(null)
     }
 
     PodcastExpressiveTheme(theme) {
-        SonoraScaffold(player, playerViewModel.events, playerViewModel::onIntent) { navController, snackbar, modifier ->
-            AppNavHost(navController, snackbar, modifier)
+        SonoraScaffold(player, playerEvents, onPlayerIntent) { navController, snackbar, modifier ->
+            AppNavHost(navController, snackbar, modifier, screens)
         }
     }
 }
@@ -207,17 +222,41 @@ internal fun SonoraScaffold(
     }
 }
 
+/** The screens behind each route: slots so tests can put plain content behind the real navigation graph. */
+internal class AppScreens(
+    val library: @Composable (onOpenPodcast: (Long) -> Unit, snackbar: SnackbarHostState) -> Unit,
+    val episodes: @Composable (snackbar: SnackbarHostState, onOpenDownloads: () -> Unit) -> Unit,
+    val discover: @Composable (snackbar: SnackbarHostState) -> Unit,
+    val settings: @Composable (onOpenDownloads: () -> Unit) -> Unit,
+    val downloads: @Composable (onBack: () -> Unit, snackbar: SnackbarHostState) -> Unit,
+    val podcast: @Composable (onBack: () -> Unit, snackbar: SnackbarHostState) -> Unit,
+)
+
+internal val HiltAppScreens = AppScreens(
+    library = { onOpenPodcast, snackbar -> LibraryScreen(onOpenPodcast = onOpenPodcast, snackbar = snackbar) },
+    episodes = { snackbar, onOpenDownloads -> EpisodesScreen(snackbar, onOpenDownloads = onOpenDownloads) },
+    discover = { snackbar -> DiscoverScreen(snackbar) },
+    settings = { onOpenDownloads -> SettingsScreen(onOpenDownloads = onOpenDownloads) },
+    downloads = { onBack, snackbar -> DownloadsScreen(onBack = onBack, snackbar = snackbar) },
+    podcast = { onBack, snackbar -> PodcastDetailScreen(onBack = onBack, snackbar = snackbar) },
+)
+
 @Composable
-private fun AppNavHost(navController: NavHostController, snackbar: SnackbarHostState, modifier: Modifier) {
+internal fun AppNavHost(
+    navController: NavHostController,
+    snackbar: SnackbarHostState,
+    modifier: Modifier,
+    screens: AppScreens,
+) {
     NavHost(navController, startDestination = LibraryRoute, modifier = modifier) {
         composable<LibraryRoute> {
-            LibraryScreen(onOpenPodcast = { navController.navigate(PodcastRoute(it)) }, snackbar = snackbar)
+            screens.library({ navController.navigate(PodcastRoute(it)) }, snackbar)
         }
-        composable<EpisodesRoute> { EpisodesScreen(snackbar, onOpenDownloads = { navController.navigate(DownloadsRoute) }) }
-        composable<DiscoverRoute> { DiscoverScreen(snackbar) }
-        composable<SettingsRoute> { SettingsScreen(onOpenDownloads = { navController.navigate(DownloadsRoute) }) }
-        composable<DownloadsRoute> { DownloadsScreen(onBack = { navController.popBackStack() }, snackbar = snackbar) }
-        composable<PodcastRoute> { PodcastDetailScreen(onBack = { navController.popBackStack() }, snackbar = snackbar) }
+        composable<EpisodesRoute> { screens.episodes(snackbar) { navController.navigate(DownloadsRoute) } }
+        composable<DiscoverRoute> { screens.discover(snackbar) }
+        composable<SettingsRoute> { screens.settings { navController.navigate(DownloadsRoute) } }
+        composable<DownloadsRoute> { screens.downloads({ navController.popBackStack() }, snackbar) }
+        composable<PodcastRoute> { screens.podcast({ navController.popBackStack() }, snackbar) }
     }
 }
 
