@@ -144,7 +144,7 @@ afterEvaluate {
 }
 
 // Fails when line coverage of the hand-written code drops below the floor; raise it as coverage improves.
-val minimumLineCoverage = 70.0
+val minimumLineCoverage = 80.0
 
 // Room, Hilt and Dagger output would otherwise count towards (and flatter) the figure.
 val generatedClass = Regex(
