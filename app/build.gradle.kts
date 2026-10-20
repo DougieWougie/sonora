@@ -116,6 +116,8 @@ dependencies {
     testRuntimeOnly(libs.junit.vintage.engine)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.work.testing)
+    testImplementation(libs.hilt.android.testing)
+    kspTest(libs.hilt.compiler)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.test.ext.junit)
@@ -144,7 +146,7 @@ afterEvaluate {
 }
 
 // Fails when line coverage of the hand-written code drops below the floor; raise it as coverage improves.
-val minimumLineCoverage = 80.0
+val minimumLineCoverage = 86.0
 
 // Room, Hilt and Dagger output would otherwise count towards (and flatter) the figure.
 val generatedClass = Regex(
