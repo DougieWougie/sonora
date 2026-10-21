@@ -27,6 +27,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
+import java.util.concurrent.CopyOnWriteArraySet
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -62,6 +63,7 @@ class PodcastMediaSessionService : MediaSessionService() {
     )
     private lateinit var player: ExoPlayer
     private lateinit var manager: PlaybackStateManager
+    private lateinit var managedPlayer: ManagedPlayer
     private var session: MediaSession? = null
 
     override fun onCreate() {
@@ -128,7 +130,10 @@ class PodcastMediaSessionService : MediaSessionService() {
                 .build()
                 .apply { setSmallIcon(R.drawable.ic_notification) },
         )
-        session = MediaSession.Builder(this, ManagedPlayer(player))
+        managedPlayer = ManagedPlayer(player)
+        // Next is only offered while something is queued, so tell controllers (and the notification) when that changes.
+        scope.launch { playQueue.items.collect { managedPlayer.onQueueChanged() } }
+        session = MediaSession.Builder(this, managedPlayer)
             .setCallback(SessionCallback())
             .setSessionActivity(openAppIntent())
             .build()
@@ -179,6 +184,41 @@ class PodcastMediaSessionService : MediaSessionService() {
         }
 
         override fun seekTo(mediaItemIndex: Int, positionMs: Long) = seekTo(positionMs)
+        // Previous/next follow the app's queue and history, not the player's single media item.
+        private val listeners = CopyOnWriteArraySet<Player.Listener>()
+
+        override fun addListener(listener: Player.Listener) {
+            listeners += listener
+            super.addListener(listener)
+        }
+
+        override fun removeListener(listener: Player.Listener) {
+            listeners -= listener
+            super.removeListener(listener)
+        }
+
+        override fun getAvailableCommands(): Player.Commands {
+            val hasNext = playQueue.items.value.isNotEmpty()
+            return super.getAvailableCommands().buildUpon()
+                .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                .apply {
+                    if (hasNext) add(Player.COMMAND_SEEK_TO_NEXT) else remove(Player.COMMAND_SEEK_TO_NEXT)
+                    if (hasNext) add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM) else remove(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                }
+                .build()
+        }
+
+        override fun isCommandAvailable(command: Int) = availableCommands.contains(command)
+        override fun hasNextMediaItem() = playQueue.items.value.isNotEmpty()
+        override fun hasPreviousMediaItem() = true
+        override fun seekToNext() { scope.launch { manager.next() } }
+        override fun seekToNextMediaItem() = seekToNext()
+        override fun seekToPrevious() { scope.launch { manager.previous() } }
+        override fun seekToPreviousMediaItem() = seekToPrevious()
+
+        fun onQueueChanged() = listeners.forEach { it.onAvailableCommandsChanged(availableCommands) }
+
         override fun seekForward() = seekTo(currentPosition + seekForwardIncrement)
         override fun seekBack() = seekTo((currentPosition - seekBackIncrement).coerceAtLeast(0))
     }
