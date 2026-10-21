@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Bundle
 import android.os.Looper
 import androidx.core.os.bundleOf
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionError
@@ -24,6 +25,7 @@ import dagger.hilt.android.testing.HiltTestApplication
 import javax.inject.Inject
 import org.junit.After
 import io.mockk.mockk
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -42,6 +44,7 @@ class PodcastMediaSessionServiceTest {
     @get:Rule val hilt = HiltAndroidRule(this)
 
     @Inject lateinit var hub: PlaybackHub
+    @Inject lateinit var playQueue: PlayQueue
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var controller: org.robolectric.android.controller.ServiceController<PodcastMediaSessionService>
@@ -159,6 +162,41 @@ class PodcastMediaSessionServiceTest {
         c.seekBack()
         c.play()
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(200))
+    }
+
+    private fun idle() = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(200))
+
+    @Test
+    fun `controllers can always go to the previous episode`() {
+        val c = connect()
+        idle()
+
+        assertTrue(c.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS))
+        assertTrue(c.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
+    }
+
+    @Test
+    fun `next is offered only while the queue has an episode, and follows the queue`() {
+        val c = connect()
+        idle()
+        assertFalse(c.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT))
+
+        playQueue.enqueue(7)
+        idle()
+        assertTrue(c.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT))
+        assertTrue(c.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
+
+        playQueue.clear()
+        idle()
+        assertFalse(c.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT))
+    }
+
+    @Test
+    fun `next and previous from a controller are accepted`() {
+        val c = connect()
+        c.seekToNext()
+        c.seekToPrevious()
+        idle()
     }
 
     @Test
