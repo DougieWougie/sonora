@@ -25,6 +25,7 @@ import javax.inject.Inject
 import org.junit.After
 import io.mockk.mockk
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -70,6 +71,15 @@ class PodcastMediaSessionServiceTest {
     @Test
     fun `creating the service opens a media session and attaches playback`() {
         assertNotNull(session())
+    }
+
+    @Test
+    fun `tapping the playback notification opens the app`() {
+        val activity = session()!!.sessionActivity
+        assertNotNull(activity)
+        val intent = shadowOf(activity).savedIntent
+        assertEquals(org.sonora.MainActivity::class.java.name, intent.component?.className)
+        assertTrue(shadowOf(activity).isActivity)
     }
 
     @Test
