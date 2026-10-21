@@ -11,6 +11,8 @@ class PersistentPlayQueue(private val storage: QueueStorage) : PlayQueue {
     override val items: StateFlow<List<Long>> = _items
 
     override fun enqueue(episodeId: Long) = change { if (episodeId in it) it else it + episodeId }
+    override fun enqueueNext(episodeId: Long) = change { listOf(episodeId) + (it - episodeId) }
+    override fun replaceAll(episodeIds: List<Long>) = change { episodeIds.distinct() }
     override fun remove(episodeId: Long) = change { it - episodeId }
     override fun clear() = change { emptyList() }
 

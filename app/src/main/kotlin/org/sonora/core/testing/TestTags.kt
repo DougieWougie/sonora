@@ -8,6 +8,8 @@ object TestTags {
     const val FULL_PLAYER_SHEET = "full_player_sheet"
     const val PLAY_PAUSE_BUTTON = "play_pause_button"
     const val SKIP_FORWARD_BUTTON = "skip_forward_button"
+    const val PREVIOUS_BUTTON = "previous_button"
+    const val NEXT_BUTTON = "next_button"
     const val SKIP_BACK_BUTTON = "skip_back_button"
     const val SEEK_SLIDER = "seek_slider"
     const val SPEED_CONTROL_BUTTON = "speed_control_button"

@@ -123,6 +123,11 @@ flowchart LR
   lives inside the service, waiting briefly if the service has not started yet. ViewModels depend on
   the `PlaybackPort` interface, not on the hub.
 - The manager is not thread-safe; it must be called from the dispatcher that owns the player (Main).
+- The `PlayQueue` ("Up next") never contains the episode that is playing: starting an episode
+  removes it, and finishing one starts the head. `next()` skips to the head. `previous()` restarts the
+  episode if it is more than 3 seconds in; otherwise it goes back to the last episode played and puts
+  the current one back at the head of the queue, so `next()` returns to it. That "last played" list is
+  an in-memory history (50 entries) owned by the manager, so it is lost when the service is destroyed.
 
 ### Downloads and retention
 `EpisodeDownloadManager` downloads enclosures to `*.part` files (resumable via HTTP `Range`) and

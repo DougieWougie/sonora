@@ -16,6 +16,8 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertAny
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.hasAnyAncestor
@@ -137,6 +139,27 @@ class ExpressivePlayerSheetTest {
         composeTestRule.onNodeWithTag(TestTags.SKIP_FORWARD_BUTTON).performClick()
 
         assertEquals(listOf(PlayerIntent.Rewind, PlayerIntent.SkipForward), intents)
+    }
+
+    @Test
+    fun previousAndNextButtonsEmitTheirIntents() {
+        state = state.copy(upNext = listOf(episode))
+        setContent(expanded = true)
+
+        composeTestRule.onNodeWithTag(TestTags.PREVIOUS_BUTTON).assertContentDescriptionEquals("Previous episode")
+        composeTestRule.onNodeWithTag(TestTags.NEXT_BUTTON).assertContentDescriptionEquals("Next episode")
+        composeTestRule.onNodeWithTag(TestTags.PREVIOUS_BUTTON).performClick()
+        composeTestRule.onNodeWithTag(TestTags.NEXT_BUTTON).performClick()
+
+        assertEquals(listOf(PlayerIntent.Previous, PlayerIntent.Next), intents)
+    }
+
+    @Test
+    fun nextButtonIsDisabledWhenNothingIsQueued() {
+        setContent(expanded = true)
+
+        composeTestRule.onNodeWithTag(TestTags.NEXT_BUTTON).assertIsNotEnabled()
+        composeTestRule.onNodeWithTag(TestTags.PREVIOUS_BUTTON).assertIsEnabled()
     }
 
     @Test
