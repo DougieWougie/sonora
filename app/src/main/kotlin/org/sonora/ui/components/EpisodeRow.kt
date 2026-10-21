@@ -19,6 +19,7 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ColorScheme
@@ -62,6 +63,7 @@ data class EpisodeActionsUi(
     val onDeleteDownload: (EpisodeItem) -> Unit,
     val onSetPlayed: (EpisodeItem, Boolean) -> Unit,
     val onMarkOlderPlayed: (EpisodeItem) -> Unit,
+    val onPlayNext: (EpisodeItem) -> Unit = {},
 )
 
 /**
@@ -148,7 +150,12 @@ fun EpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: Modifier 
                 IconButton(onClick = { menuOpen = true }) { Icon(Icons.Rounded.MoreVert, contentDescription = "More actions") }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
-                        text = { Text(if (item.queued) "Remove from queue" else "Add to queue") },
+                        text = { Text("Play next") },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistPlay, null) },
+                        onClick = { menuOpen = false; actions.onPlayNext(item) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(if (item.queued) "Remove from queue" else "Add to end of queue") },
                         leadingIcon = { Icon(if (item.queued) Icons.Rounded.PlaylistRemove else Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
                         onClick = { menuOpen = false; actions.onToggleQueue(item) },
                     )

@@ -30,6 +30,7 @@ data class EpisodesUiState(
     val inbox: List<EpisodeItem> = emptyList(),
     val queue: List<EpisodeItem> = emptyList(),
     val pendingMarkOlder: PendingMarkOlder? = null,
+    val confirmingClear: Boolean = false,
     val isLoading: Boolean = true,
 )
 
@@ -37,6 +38,13 @@ sealed interface EpisodesIntent {
     data class Play(val episodeId: Long) : EpisodesIntent
     data class Enqueue(val episodeId: Long) : EpisodesIntent
     data class Dequeue(val episodeId: Long) : EpisodesIntent
+    data class PlayNext(val episodeId: Long) : EpisodesIntent
+    data class MoveInQueue(val episodeId: Long, val toIndex: Int) : EpisodesIntent
+    /** Puts the queue back as it was, e.g. to undo a removal. */
+    data class RestoreQueue(val episodeIds: List<Long>) : EpisodesIntent
+    data object RequestClearQueue : EpisodesIntent
+    data object DismissClearQueue : EpisodesIntent
+    /** Clears for real; [RequestClearQueue] is the one that asks first. */
     data object ClearQueue : EpisodesIntent
     data object PlayQueue : EpisodesIntent
     data object ShuffleQueue : EpisodesIntent
@@ -50,6 +58,8 @@ sealed interface EpisodesIntent {
 
 sealed interface EpisodesEvent {
     data class Message(val text: String) : EpisodesEvent
+    /** The queue lost something; [previous] is its order before, so the screen can offer to undo. */
+    data class QueueChanged(val text: String, val previous: List<Long>) : EpisodesEvent
 }
 
 @HiltViewModel
@@ -61,6 +71,7 @@ class EpisodesViewModel @Inject constructor(
     private val playback: PlaybackPort,
 ) : ViewModel() {
     private val pendingMarkOlder = MutableStateFlow<PendingMarkOlder?>(null)
+    private val confirmingClear = MutableStateFlow(false)
     private val _events = Channel<EpisodesEvent>(Channel.BUFFERED)
     val events: Flow<EpisodesEvent> = _events.receiveAsFlow()
 
@@ -69,13 +80,15 @@ class EpisodesViewModel @Inject constructor(
         podcastDao.observeAll(),
         queue.items,
         pendingMarkOlder,
-    ) { unplayed, podcasts, queued, pending ->
+        confirmingClear,
+    ) { unplayed, podcasts, queued, pending, confirming ->
         val byId = podcasts.associateBy { it.id }
         val queuedSet = queued.toSet()
         EpisodesUiState(
             inbox = unplayed.map { it.toItem(byId[it.podcastId], it.id in queuedSet) },
             queue = queued.mapNotNull { id -> episodeDao.findById(id)?.let { it.toItem(byId[it.podcastId], true) } },
             pendingMarkOlder = pending,
+            confirmingClear = confirming,
             isLoading = false,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), EpisodesUiState())
@@ -83,8 +96,17 @@ class EpisodesViewModel @Inject constructor(
     fun onIntent(intent: EpisodesIntent) {
         when (intent) {
             is EpisodesIntent.Enqueue -> queue.enqueue(intent.episodeId)
-            is EpisodesIntent.Dequeue -> queue.remove(intent.episodeId)
-            EpisodesIntent.ClearQueue -> queue.clear()
+            is EpisodesIntent.Dequeue -> {
+                val previous = queue.items.value
+                queue.remove(intent.episodeId)
+                if (previous != queue.items.value) _events.trySend(EpisodesEvent.QueueChanged("Removed from Up next", previous))
+            }
+            is EpisodesIntent.PlayNext -> queue.enqueueNext(intent.episodeId)
+            is EpisodesIntent.MoveInQueue -> queue.move(intent.episodeId, intent.toIndex)
+            is EpisodesIntent.RestoreQueue -> queue.replaceAll(intent.episodeIds)
+            EpisodesIntent.RequestClearQueue -> confirmingClear.value = queue.items.value.isNotEmpty()
+            EpisodesIntent.DismissClearQueue -> confirmingClear.value = false
+            EpisodesIntent.ClearQueue -> { queue.clear(); confirmingClear.value = false }
             EpisodesIntent.PlayQueue -> attempt { queue.items.value.firstOrNull()?.let { playback.play(it) } }
             EpisodesIntent.ShuffleQueue -> attempt {
                 queue.replaceAll(queue.items.value.shuffled())

@@ -7,7 +7,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -18,6 +24,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.sonora.core.model.DownloadState
+import org.sonora.testutil.performCustomAction
 import org.sonora.feature.common.EpisodeItem
 import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.ui.components.EpisodeActionsUi
@@ -41,7 +48,7 @@ class EpisodesScreenTest {
             MaterialExpressiveTheme {
                 EpisodesContent(
                     state,
-                    EpisodeActionsUi({ played += it }, {}, {}, {}, { _, _ -> }, {}),
+                    EpisodeActionsUi({ played += it }, {}, {}, {}, { _, _ -> }, {}, onPlayNext = {}),
                     { intents += it },
                     downloadsLink = { Text("Manage downloads") },
                 )
@@ -88,7 +95,65 @@ class EpisodesScreenTest {
 
         composeTestRule.onNodeWithText("Clear").performClick()
 
-        assertEquals(listOf<EpisodesIntent>(EpisodesIntent.ClearQueue), intents)
+        assertEquals(listOf<EpisodesIntent>(EpisodesIntent.RequestClearQueue), intents)
+    }
+
+    @Test
+    fun `clearing is confirmed with the number of episodes it removes`() {
+        state = state.copy(queue = listOf(item(1, "A"), item(2, "B")), confirmingClear = true)
+        setContent()
+
+        composeTestRule.onNodeWithText("Clear 2 episodes from Up next?").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Clear queue").performClick()
+        composeTestRule.onNodeWithText("Cancel").performClick()
+
+        assertEquals(listOf(EpisodesIntent.ClearQueue, EpisodesIntent.DismissClearQueue), intents)
+    }
+
+    @Test
+    fun `queued episodes can be moved up and down from the keyboard or a screen reader`() {
+        state = state.copy(queue = listOf(item(1, "First"), item(2, "Second"), item(3, "Third")))
+        setContent()
+
+        fun custom(description: String, label: String) =
+            composeTestRule.onNodeWithContentDescription(description).performCustomAction(composeTestRule, label)
+
+        custom("Reorder Second", "Move up")
+        custom("Reorder Second", "Move down")
+
+        assertEquals(listOf(EpisodesIntent.MoveInQueue(2, 0), EpisodesIntent.MoveInQueue(2, 2)), intents)
+    }
+
+    @Test
+    fun `the first queued episode cannot move up and the last cannot move down`() {
+        state = state.copy(queue = listOf(item(1, "First"), item(2, "Second")))
+        setContent()
+
+        composeTestRule.onNodeWithContentDescription("Reorder First").assert(
+            SemanticsMatcher("only Move down") { node ->
+                node.config.getOrNull(SemanticsActions.CustomActions)?.map { it.label } == listOf("Move down")
+            },
+        )
+        composeTestRule.onNodeWithContentDescription("Reorder Second").assert(
+            SemanticsMatcher("only Move up") { node ->
+                node.config.getOrNull(SemanticsActions.CustomActions)?.map { it.label } == listOf("Move up")
+            },
+        )
+    }
+
+    @Test
+    fun `dragging a handle past the next row moves the episode`() {
+        state = state.copy(queue = listOf(item(1, "First"), item(2, "Second")))
+        setContent()
+
+        composeTestRule.onNodeWithContentDescription("Reorder First").performTouchInput {
+            down(center)
+            moveBy(Offset(0f, 40f))
+            moveBy(Offset(0f, 200f))
+            up()
+        }
+
+        assertEquals(EpisodesIntent.MoveInQueue(1, 1), intents.first())
     }
 
     @Test

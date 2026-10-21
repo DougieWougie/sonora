@@ -220,6 +220,18 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `moving a queued episode reorders up next`() = runTest {
+        val ids = seed()
+        queue.enqueue(ids[0]); queue.enqueue(ids[1]); queue.enqueue(ids[2])
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.upNext.size == 3 }
+            vm.onIntent(PlayerIntent.MoveInQueue(ids[2], 0))
+            assertEquals(listOf(ids[2], ids[0], ids[1]), awaitUntil { it.upNext.first().id == ids[2] }.upNext.map { it.id })
+        }
+    }
+
+    @Test
     fun `next and previous are delegated to playback`() = runTest {
         val vm = vm()
         vm.uiState.test {

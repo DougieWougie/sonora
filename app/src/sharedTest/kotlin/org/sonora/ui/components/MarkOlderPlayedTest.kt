@@ -83,4 +83,29 @@ class MarkOlderPlayedTest {
         composeTestRule.onNodeWithText("No older unplayed episodes").assertIsDisplayed()
         composeTestRule.onNodeWithText("Mark as played").assertDoesNotExist()
     }
+
+    @Test
+    fun `the episode menu offers play next`() {
+        val requested = mutableListOf<EpisodeItem>()
+        composeTestRule.setContent {
+            MaterialExpressiveTheme {
+                EpisodeRow(item, EpisodeActionsUi({}, {}, {}, {}, { _, _ -> }, {}, onPlayNext = { requested += it }))
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("More actions").performClick()
+        composeTestRule.onNodeWithText("Play next").performClick()
+
+        assertEquals(listOf(item), requested)
+    }
+
+    @Test
+    fun `the queue entry reads add to end, or remove once queued`() {
+        composeTestRule.setContent {
+            MaterialExpressiveTheme { EpisodeRow(item, EpisodeActionsUi({}, {}, {}, {}, { _, _ -> }, {})) }
+        }
+
+        composeTestRule.onNodeWithContentDescription("More actions").performClick()
+        composeTestRule.onNodeWithText("Add to end of queue").assertIsDisplayed()
+    }
 }

@@ -63,6 +63,7 @@ sealed interface PodcastDetailIntent {
     data class Play(val episodeId: Long) : PodcastDetailIntent
     data class Enqueue(val episodeId: Long) : PodcastDetailIntent
     data class Dequeue(val episodeId: Long) : PodcastDetailIntent
+    data class PlayNext(val episodeId: Long) : PodcastDetailIntent
     data class Download(val episodeId: Long) : PodcastDetailIntent
     data class DeleteDownload(val episodeId: Long) : PodcastDetailIntent
     data class SetPlayed(val episodeId: Long, val played: Boolean) : PodcastDetailIntent
@@ -135,6 +136,7 @@ class PodcastDetailViewModel @Inject constructor(
             is PodcastDetailIntent.SetQuery -> controls.update { it.copy(query = intent.query) }
             is PodcastDetailIntent.Enqueue -> queue.enqueue(intent.episodeId)
             is PodcastDetailIntent.Dequeue -> queue.remove(intent.episodeId)
+            is PodcastDetailIntent.PlayNext -> queue.enqueueNext(intent.episodeId)
             is PodcastDetailIntent.Play -> attempt { playback.play(intent.episodeId) }
             is PodcastDetailIntent.Download -> attempt { actions.download(intent.episodeId) }
             is PodcastDetailIntent.DeleteDownload -> attempt { actions.deleteDownload(intent.episodeId) }

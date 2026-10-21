@@ -76,4 +76,22 @@ class PersistentPlayQueueTest {
         assertEquals(listOf(4L, 2L, 3L), queue.items.value)
         assertEquals(listOf(4L, 2L, 3L), storage.stored)
     }
+
+    @Test
+    fun `move puts an episode at an index, clamping out-of-range targets`() {
+        listOf(1L, 2L, 3L, 4L).forEach(queue::enqueue)
+        queue.move(4, 1)
+        assertEquals(listOf(1L, 4L, 2L, 3L), queue.items.value)
+        queue.move(1, 99)
+        assertEquals(listOf(4L, 2L, 3L, 1L), queue.items.value)
+        queue.move(3, -5)
+        assertEquals(listOf(3L, 4L, 2L, 1L), storage.stored)
+    }
+
+    @Test
+    fun `moving an episode that is not queued changes nothing`() {
+        queue.enqueue(1)
+        queue.move(9, 0)
+        assertEquals(listOf(1L), queue.items.value)
+    }
 }

@@ -154,6 +154,20 @@ class PodcastDetailViewModelTest {
     }
 
     @Test
+    fun `play next puts the episode at the head of the queue`() = runTest {
+        seed()
+        queue.enqueue(idOf("Mars landing"))
+        val vm = vm()
+        val id = idOf("Cooking basics")
+        vm.uiState.test {
+            awaitUntil { it.episodes.isNotEmpty() }
+            vm.onIntent(PodcastDetailIntent.PlayNext(id))
+            awaitUntil { s -> s.episodes.first { it.id == id }.queued }
+        }
+        assertEquals(id, queue.items.value.first())
+    }
+
+    @Test
     fun `download, delete and played actions are delegated`() = runTest {
         seed()
         val vm = vm()

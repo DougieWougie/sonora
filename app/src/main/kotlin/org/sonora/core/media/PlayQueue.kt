@@ -9,6 +9,8 @@ interface PlayQueue {
     fun enqueue(episodeId: Long)
     /** Puts the episode at the head, moving it there if it is already queued. */
     fun enqueueNext(episodeId: Long)
+    /** Moves a queued episode to [toIndex] (clamped to the queue); does nothing if it is not queued. */
+    fun move(episodeId: Long, toIndex: Int)
     fun remove(episodeId: Long)
     /** Sets a new order wholesale; duplicates keep their first place. */
     fun replaceAll(episodeIds: List<Long>)
