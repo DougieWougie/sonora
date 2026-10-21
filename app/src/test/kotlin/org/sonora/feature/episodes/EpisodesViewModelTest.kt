@@ -122,6 +122,69 @@ class EpisodesViewModelTest {
     }
 
     @Test
+    fun `play next puts an episode at the head of the queue`() = runTest {
+        val ids = seed()
+        queue.enqueue(ids[0]); queue.enqueue(ids[1])
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.queue.size == 2 }
+            vm.onIntent(EpisodesIntent.PlayNext(ids[2]))
+            assertEquals(listOf(ids[2], ids[0], ids[1]), awaitUntil { it.queue.size == 3 }.queue.map { it.id })
+        }
+    }
+
+    @Test
+    fun `moving a queued episode reorders the queue`() = runTest {
+        val ids = seed()
+        ids.take(3).forEach(queue::enqueue)
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.queue.size == 3 }
+            vm.onIntent(EpisodesIntent.MoveInQueue(ids[0], 2))
+            assertEquals(listOf(ids[1], ids[2], ids[0]), awaitUntil { s -> s.queue.first().id == ids[1] }.queue.map { it.id })
+        }
+    }
+
+    @Test
+    fun `removing from the queue offers an undo that restores the old order`() = runTest {
+        val ids = seed()
+        ids.take(3).forEach(queue::enqueue)
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.queue.size == 3 }
+            vm.events.test {
+                vm.onIntent(EpisodesIntent.Dequeue(ids[1]))
+                val event = awaitItem() as EpisodesEvent.QueueChanged
+                assertEquals(listOf(ids[0], ids[1], ids[2]), event.previous)
+                assertEquals(listOf(ids[0], ids[2]), queue.items.value)
+                vm.onIntent(EpisodesIntent.RestoreQueue(event.previous))
+            }
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(ids.take(3), queue.items.value)
+    }
+
+    @Test
+    fun `clearing the queue asks first and can be cancelled`() = runTest {
+        val ids = seed()
+        queue.enqueue(ids[0])
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.queue.size == 1 }
+            vm.onIntent(EpisodesIntent.RequestClearQueue)
+            assertEquals(true, awaitUntil { it.confirmingClear }.confirmingClear)
+            assertEquals(listOf(ids[0]), queue.items.value)
+            vm.onIntent(EpisodesIntent.DismissClearQueue)
+            awaitUntil { !it.confirmingClear }
+            vm.onIntent(EpisodesIntent.RequestClearQueue)
+            awaitUntil { it.confirmingClear }
+            vm.onIntent(EpisodesIntent.ClearQueue)
+            val cleared = awaitUntil { it.queue.isEmpty() }
+            assertEquals(false, cleared.confirmingClear)
+        }
+    }
+
+    @Test
     fun `play, download and mark played are delegated`() = runTest {
         val ids = seed()
         val vm = vm()

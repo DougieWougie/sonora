@@ -24,7 +24,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -78,6 +79,8 @@ import org.sonora.core.testing.TestTags
 import org.sonora.ui.components.ArtworkImage
 import org.sonora.ui.components.ExpressiveScrubber
 import org.sonora.ui.components.MorphingPlayPauseButton
+import org.sonora.ui.components.QueueDragHandle
+import org.sonora.ui.components.rememberReorderState
 import org.sonora.ui.formatTimestamp
 import org.sonora.ui.rememberHtml
 import org.sonora.ui.theme.tabular
@@ -375,11 +378,27 @@ private fun QueueSheet(state: PlayerUiState, onIntent: (PlayerIntent) -> Unit, o
         if (state.upNext.isEmpty()) {
             Text("The queue is empty. Swipe an episode right to add it.", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        LazyColumn {
-            items(state.upNext, key = { it.id }) { next ->
+        val listState = rememberLazyListState()
+        val reorder = rememberReorderState(listState, { state.upNext.map { it.id } }, { from, to -> onIntent(PlayerIntent.MoveInQueue(state.upNext[from].id, to)) })
+        LazyColumn(state = listState) {
+            itemsIndexed(state.upNext, key = { _, it -> it.id }) { index, next ->
                 ListItem(
-                    modifier = Modifier.clickable { onIntent(PlayerIntent.PlayQueued(next.id)); onDismiss() },
-                    leadingContent = { ArtworkImage(next.artworkUrl, null, Modifier.size(48.dp), RoundedCornerShape(12.dp)) },
+                    modifier = with(reorder) { Modifier.reorderable(next.id).let { if (next.id == draggedKey) it else it.animateItem() } }
+                        .clickable { onIntent(PlayerIntent.PlayQueued(next.id)); onDismiss() },
+                    leadingContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            QueueDragHandle(
+                                title = next.title,
+                                key = next.id,
+                                state = reorder,
+                                canMoveUp = index > 0,
+                                canMoveDown = index < state.upNext.lastIndex,
+                                onMoveUp = { onIntent(PlayerIntent.MoveInQueue(next.id, index - 1)) },
+                                onMoveDown = { onIntent(PlayerIntent.MoveInQueue(next.id, index + 1)) },
+                            )
+                            ArtworkImage(next.artworkUrl, null, Modifier.size(48.dp), RoundedCornerShape(12.dp))
+                        }
+                    },
                     content = { Text(next.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                     supportingContent = next.podcastTitle?.let { { Text(it, maxLines = 1) } },
                     trailingContent = {

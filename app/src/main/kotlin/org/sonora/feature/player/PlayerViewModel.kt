@@ -51,6 +51,7 @@ sealed interface PlayerIntent {
     data object CancelSleepTimer : PlayerIntent
     data class PlayQueued(val episodeId: Long) : PlayerIntent
     data class RemoveFromQueue(val episodeId: Long) : PlayerIntent
+    data class MoveInQueue(val episodeId: Long, val toIndex: Int) : PlayerIntent
 }
 
 sealed interface PlayerEvent {
@@ -107,6 +108,7 @@ class PlayerViewModel @Inject constructor(
             PlayerIntent.CancelSleepTimer -> port.cancelSleepTimer()
             is PlayerIntent.PlayQueued -> launch { port.play(intent.episodeId) }
             is PlayerIntent.RemoveFromQueue -> queue.remove(intent.episodeId)
+            is PlayerIntent.MoveInQueue -> queue.move(intent.episodeId, intent.toIndex)
         }
     }
 

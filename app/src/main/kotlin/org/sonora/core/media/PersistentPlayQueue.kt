@@ -13,6 +13,11 @@ class PersistentPlayQueue(private val storage: QueueStorage) : PlayQueue {
     override fun enqueue(episodeId: Long) = change { if (episodeId in it) it else it + episodeId }
     override fun enqueueNext(episodeId: Long) = change { listOf(episodeId) + (it - episodeId) }
     override fun replaceAll(episodeIds: List<Long>) = change { episodeIds.distinct() }
+    override fun move(episodeId: Long, toIndex: Int) = change {
+        if (episodeId !in it) return@change it
+        val rest = it - episodeId
+        rest.take(toIndex.coerceIn(0, rest.size)) + episodeId + rest.drop(toIndex.coerceIn(0, rest.size))
+    }
     override fun remove(episodeId: Long) = change { it - episodeId }
     override fun clear() = change { emptyList() }
 

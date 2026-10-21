@@ -45,6 +45,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.sonora.core.testing.TestTags
+import org.sonora.testutil.performCustomAction
 
 @RunWith(AndroidJUnit4::class)
 class ExpressivePlayerSheetTest {
@@ -276,6 +277,17 @@ class ExpressivePlayerSheetTest {
         tagged(TestTags.QUEUE_CHIP).performClick()
 
         composeTestRule.onNodeWithText("Up next").assertIsDisplayed()
+    }
+
+    @Test
+    fun upNextEpisodesCanBeMovedWithinTheQueueSheet() {
+        state = state.copy(upNext = listOf(episode.copy(id = 11, title = "Queued A"), episode.copy(id = 12, title = "Queued B")))
+        setContent(expanded = true)
+        tagged(TestTags.QUEUE_CHIP).performClick()
+
+        composeTestRule.onNodeWithContentDescription("Reorder Queued B").performCustomAction(composeTestRule, "Move up")
+
+        assertEquals(listOf<PlayerIntent>(PlayerIntent.MoveInQueue(12, 0)), intents)
     }
 
     @Test

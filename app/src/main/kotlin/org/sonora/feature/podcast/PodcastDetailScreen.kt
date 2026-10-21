@@ -65,6 +65,7 @@ fun PodcastDetailScreen(
     val actions = remember(viewModel) {
         EpisodeActionsUi(
             onPlay = { viewModel.onIntent(PodcastDetailIntent.Play(it.id)) },
+            onPlayNext = { viewModel.onIntent(PodcastDetailIntent.PlayNext(it.id)) },
             onToggleQueue = { viewModel.onIntent(if (it.queued) PodcastDetailIntent.Dequeue(it.id) else PodcastDetailIntent.Enqueue(it.id)) },
             onDownload = { viewModel.onIntent(PodcastDetailIntent.Download(it.id)) },
             onDeleteDownload = { viewModel.onIntent(PodcastDetailIntent.DeleteDownload(it.id)) },

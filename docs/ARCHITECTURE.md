@@ -128,6 +128,11 @@ flowchart LR
   episode if it is more than 3 seconds in; otherwise it goes back to the last episode played and puts
   the current one back at the head of the queue, so `next()` returns to it. That "last played" list is
   an in-memory history (50 entries) owned by the manager, so it is lost when the service is destroyed.
+- Queue edits are plain `PlayQueue` operations: `enqueue` (add to end), `enqueueNext` (play next),
+  `move`, `remove`, `replaceAll`. Undo is just `replaceAll` with the previous order, which the
+  Episodes view model hands to the screen in `EpisodesEvent.QueueChanged`. Reordering is drag on
+  `QueueDragHandle` (via `ReorderState` in `ui/components/QueueReorder.kt`) or the "Move up/down"
+  accessibility actions on the same handle; clearing asks for confirmation first.
 
 ### Downloads and retention
 `EpisodeDownloadManager` downloads enclosures to `*.part` files (resumable via HTTP `Range`) and
