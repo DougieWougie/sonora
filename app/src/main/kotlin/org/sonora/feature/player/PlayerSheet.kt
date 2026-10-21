@@ -77,7 +77,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.sonora.core.testing.TestTags
 import org.sonora.ui.components.ArtworkImage
+import org.sonora.core.media.PlaybackSource
 import org.sonora.ui.components.ExpressiveScrubber
+import org.sonora.ui.components.PlaybackSourceChip
+import org.sonora.ui.components.PlaybackSourceIcon
 import org.sonora.ui.components.MorphingPlayPauseButton
 import org.sonora.ui.components.QueueDragHandle
 import org.sonora.ui.components.rememberReorderState
@@ -127,14 +130,17 @@ fun SharedTransitionScope.MiniPlayer(
                         style = MaterialTheme.typography.titleMediumEmphasized,
                         modifier = Modifier.sharedBounds(rememberSharedContentState(KEY_TITLE), visibilityScope, boundsTransform = transform),
                     )
-                    episode.podcastTitle?.let {
-                        Text(
-                            it,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        state.source?.let { PlaybackSourceIcon(it) }
+                        episode.podcastTitle?.let {
+                            Text(
+                                it,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                            )
+                        }
                     }
                 }
                 MorphingPlayPauseButton(
@@ -236,11 +242,14 @@ private fun SharedTransitionScope.PlayerDock(
         modifier = Modifier.fillMaxWidth().testTag(TestTags.PLAYER_DOCK),
     ) {
         Column(Modifier.navigationBarsPadding().padding(horizontal = 24.dp).padding(top = 8.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            state.source?.let { PlaybackSourceChip(it) }
             ExpressiveScrubber(
                 positionMs = state.positionMs,
                 durationMs = state.durationMs,
                 isPlaying = state.isPlaying,
                 onSeek = { onIntent(PlayerIntent.SeekTo(it)) },
+                bufferedMs = state.bufferedMs,
+                streaming = state.source == PlaybackSource.STREAMING,
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { onIntent(PlayerIntent.Previous) }, modifier = Modifier.size(48.dp).testTag(TestTags.PREVIOUS_BUTTON)) {

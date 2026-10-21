@@ -18,6 +18,7 @@ import org.sonora.core.database.PodcastDao
 import org.sonora.core.media.PlayQueue
 import org.sonora.core.media.PlaybackFailure
 import org.sonora.core.media.PlaybackPort
+import org.sonora.core.media.PlaybackSource
 import org.sonora.core.media.PlaybackStateManager
 
 data class PlayerEpisode(val id: Long, val title: String, val podcastTitle: String?, val artworkUrl: String?, val showNotes: String? = null)
@@ -31,6 +32,7 @@ data class PlayerUiState(
     val speed: Float = 1f,
     val skipSilence: Boolean = false,
     val sleepTimerRemainingMs: Long? = null,
+    val source: PlaybackSource? = null,
     val upNext: List<PlayerEpisode> = emptyList(),
 ) {
     val hasNext: Boolean get() = upNext.isNotEmpty()
@@ -78,6 +80,7 @@ class PlayerViewModel @Inject constructor(
                 speed = playback.speed,
                 skipSilence = playback.skipSilence,
                 sleepTimerRemainingMs = playback.sleepTimerRemainingMs,
+                source = playback.source,
                 upNext = queued.filter { it != playback.episodeId }.mapNotNull { resolve(it) },
             )
         }

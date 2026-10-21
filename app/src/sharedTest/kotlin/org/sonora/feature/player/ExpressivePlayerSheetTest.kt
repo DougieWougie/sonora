@@ -44,6 +44,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.sonora.core.media.PlaybackSource
 import org.sonora.core.testing.TestTags
 import org.sonora.testutil.performCustomAction
 
@@ -328,5 +329,57 @@ class ExpressivePlayerSheetTest {
 
         state = state.copy(episode = episode.copy(showNotes = "<p> </p>"))
         composeTestRule.onNodeWithTag(TestTags.SHOW_NOTES).assertDoesNotExist()
+    }
+
+    @Test
+    fun noSourceIndicatorsWhileNothingIsLoaded() {
+        setContent(expanded = true)
+
+        composeTestRule.onNodeWithTag(TestTags.SOURCE_CHIP).assertDoesNotExist()
+    }
+
+    @Test
+    fun sourceChipSaysStreamingForARemoteEpisode() {
+        state = state.copy(source = PlaybackSource.STREAMING)
+        setContent(expanded = true)
+
+        composeTestRule.onNodeWithTag(TestTags.SOURCE_CHIP).assertTextEquals("Streaming")
+    }
+
+    @Test
+    fun sourceChipSaysOfflineForADownloadedEpisodeAndFollowsChanges() {
+        state = state.copy(source = PlaybackSource.OFFLINE)
+        setContent(expanded = true)
+        composeTestRule.onNodeWithTag(TestTags.SOURCE_CHIP).assertTextEquals("Offline")
+
+        state = state.copy(source = PlaybackSource.STREAMING)
+        composeTestRule.onNodeWithTag(TestTags.SOURCE_CHIP).assertTextEquals("Streaming")
+    }
+
+    @Test
+    fun bufferedExtentIsShownOnTheScrubberOnlyWhileStreaming() {
+        state = state.copy(source = PlaybackSource.STREAMING, bufferedMs = 900_000)
+        setContent(expanded = true)
+        composeTestRule.onNodeWithTag(TestTags.BUFFERED_TRACK, useUnmergedTree = true).assertExists()
+
+        state = state.copy(source = PlaybackSource.OFFLINE)
+        composeTestRule.onNodeWithTag(TestTags.BUFFERED_TRACK, useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun miniPlayerHintsTheSourceWithAnIcon() {
+        state = state.copy(source = PlaybackSource.STREAMING)
+        setContent()
+        composeTestRule.onNodeWithTag(TestTags.MINI_SOURCE_ICON, useUnmergedTree = true).assertContentDescriptionEquals("Streaming")
+
+        state = state.copy(source = PlaybackSource.OFFLINE)
+        composeTestRule.onNodeWithTag(TestTags.MINI_SOURCE_ICON, useUnmergedTree = true).assertContentDescriptionEquals("Offline")
+    }
+
+    @Test
+    fun miniPlayerHasNoSourceIconWithoutASource() {
+        setContent()
+
+        composeTestRule.onNodeWithTag(TestTags.MINI_SOURCE_ICON, useUnmergedTree = true).assertDoesNotExist()
     }
 }

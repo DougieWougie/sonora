@@ -243,6 +243,49 @@ class PlaybackStateManagerTest {
     }
 
     @Test
+    fun `reports the source as streaming for a remote episode`() = runTest {
+        val id = seed()
+        val m = manager()
+
+        m.play(id)
+
+        assertEquals(PlaybackSource.STREAMING, m.state.value.source)
+    }
+
+    @Test
+    fun `reports the source as offline when playing the downloaded file`() = runTest {
+        val id = seed(state = DownloadState.DOWNLOADED, path = "/data/ep/g1.mp3")
+        existingFiles = setOf("/data/ep/g1.mp3")
+        val m = manager()
+
+        m.play(id)
+
+        assertEquals(PlaybackSource.OFFLINE, m.state.value.source)
+    }
+
+    @Test
+    fun `reports streaming when the downloaded file is missing`() = runTest {
+        val id = seed(state = DownloadState.DOWNLOADED, path = "/data/ep/g1.mp3")
+        existingFiles = emptySet()
+        val m = manager()
+
+        m.play(id)
+
+        assertEquals(PlaybackSource.STREAMING, m.state.value.source)
+    }
+
+    @Test
+    fun `has no source once playback stops`() = runTest {
+        val id = seed()
+        val m = manager()
+        m.play(id)
+
+        m.stop()
+
+        assertNull(m.state.value.source)
+    }
+
+    @Test
     fun `passes episode and podcast metadata to the engine for notifications`() = runTest {
         val id = seed()
 
