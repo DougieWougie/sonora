@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.core.media
 
+import android.app.PendingIntent
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -34,6 +35,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+import org.sonora.MainActivity
 import org.sonora.R
 import org.sonora.core.database.EpisodeDao
 import org.sonora.core.database.EpisodeRepository
@@ -128,8 +130,17 @@ class PodcastMediaSessionService : MediaSessionService() {
         )
         session = MediaSession.Builder(this, ManagedPlayer(player))
             .setCallback(SessionCallback())
+            .setSessionActivity(openAppIntent())
             .build()
     }
+
+    /** What the system media controls launch when tapped: the app's existing task, not a new one. */
+    private fun openAppIntent(): PendingIntent = PendingIntent.getActivity(
+        this,
+        0,
+        Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
 

@@ -35,10 +35,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,16 +70,19 @@ data class EpisodeActionsUi(
  */
 @Composable
 fun SwipeableEpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: Modifier = Modifier) {
+    val currentItem by rememberUpdatedState(item)
+    val currentActions by rememberUpdatedState(actions)
     val state = rememberSwipeToDismissBoxState()
-    // Act on the swipe, then snap back: the state change shows up in the row itself.
+    // Act once per swipe, then animate back to rest: the state change shows up in the row itself.
     LaunchedEffect(state.currentValue) {
         when (state.currentValue) {
-            SwipeToDismissBoxValue.StartToEnd -> actions.onToggleQueue(item)
+            SwipeToDismissBoxValue.StartToEnd -> currentActions.onToggleQueue(currentItem)
             SwipeToDismissBoxValue.EndToStart ->
-                if (item.downloadState == DownloadState.DOWNLOADED) actions.onDeleteDownload(item) else actions.onDownload(item)
+                if (currentItem.downloadState == DownloadState.DOWNLOADED) currentActions.onDeleteDownload(currentItem)
+                else currentActions.onDownload(currentItem)
             SwipeToDismissBoxValue.Settled -> return@LaunchedEffect
         }
-        state.reset()
+        state.snapTo(SwipeToDismissBoxValue.Settled)
     }
     SwipeToDismissBox(
         state = state,
