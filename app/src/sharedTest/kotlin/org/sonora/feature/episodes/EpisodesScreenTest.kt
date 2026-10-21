@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -88,6 +89,25 @@ class EpisodesScreenTest {
         composeTestRule.onNodeWithText("Clear").performClick()
 
         assertEquals(listOf<EpisodesIntent>(EpisodesIntent.ClearQueue), intents)
+    }
+
+    @Test
+    fun `a queue can be played or shuffled from its heading`() {
+        state = state.copy(queue = listOf(item(1, "Queued one")))
+        setContent()
+
+        composeTestRule.onNodeWithContentDescription("Play queue").performClick()
+        composeTestRule.onNodeWithContentDescription("Shuffle queue").performClick()
+
+        assertEquals(listOf(EpisodesIntent.PlayQueue, EpisodesIntent.ShuffleQueue), intents)
+    }
+
+    @Test
+    fun `play and shuffle are offered only when there is a queue`() {
+        setContent()
+
+        composeTestRule.onNodeWithContentDescription("Play queue").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("Shuffle queue").assertDoesNotExist()
     }
 
     @Test

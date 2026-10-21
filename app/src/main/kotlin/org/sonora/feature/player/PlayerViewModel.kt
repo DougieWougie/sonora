@@ -32,13 +32,17 @@ data class PlayerUiState(
     val skipSilence: Boolean = false,
     val sleepTimerRemainingMs: Long? = null,
     val upNext: List<PlayerEpisode> = emptyList(),
-)
+) {
+    val hasNext: Boolean get() = upNext.isNotEmpty()
+}
 
 sealed interface PlayerIntent {
     data object TogglePlayPause : PlayerIntent
     data class SeekTo(val positionMs: Long) : PlayerIntent
     data object SkipForward : PlayerIntent
     data object Rewind : PlayerIntent
+    data object Next : PlayerIntent
+    data object Previous : PlayerIntent
     /** [direction] is +1 or -1 tenths of a speed step. */
     data class StepSpeed(val direction: Int) : PlayerIntent
     data class SetSpeed(val speed: Float) : PlayerIntent
@@ -91,6 +95,8 @@ class PlayerViewModel @Inject constructor(
             is PlayerIntent.SeekTo -> launch { port.seekTo(clamp(intent.positionMs, state.durationMs)) }
             PlayerIntent.SkipForward -> launch { port.seekTo(clamp(state.positionMs + SKIP_FORWARD_MS, state.durationMs)) }
             PlayerIntent.Rewind -> launch { port.seekTo(clamp(state.positionMs - REWIND_MS, state.durationMs)) }
+            PlayerIntent.Next -> launch { port.next() }
+            PlayerIntent.Previous -> launch { port.previous() }
             is PlayerIntent.StepSpeed -> {
                 val tenths = (state.speed * 10).roundToInt() + intent.direction
                 port.setSpeed((tenths / 10f).coerceIn(PlaybackStateManager.MIN_SPEED, PlaybackStateManager.MAX_SPEED))

@@ -61,16 +61,23 @@ class PlaybackStateManager(
     private var failed = false
     private var loadedDurationMs = 0L
     private var sessionStartSeconds = 0L
+    /** Episodes played before the current one, oldest first. Lives as long as the service. */
+    private val history = ArrayDeque<Long>()
     private var progressJob: Job? = null
     private var sleepJob: Job? = null
 
-    suspend fun play(episodeId: Long) {
+    suspend fun play(episodeId: Long) = start(episodeId, recordHistory = true)
+
+    private suspend fun start(episodeId: Long, recordHistory: Boolean) {
         if (loadedId == episodeId && !failed) {
             sessionStartSeconds = engine.positionMs / 1000
         } else {
             val episode = episodeDao.findById(episodeId)
                 ?: throw NoSuchElementException("No episode with id $episodeId")
-            if (loadedId != null) checkpoint()
+            if (loadedId != null) {
+                checkpoint()
+                if (recordHistory) remember(loadedId)
+            }
             val saved = episode.playbackPositionSeconds
             val finished = episode.durationSeconds?.let { saved >= it } == true
             val startSeconds = if (finished) 0 else saved
@@ -143,6 +150,37 @@ class PlaybackStateManager(
         _state.update { it.copy(isPlaying = false) }
         checkpoint(forceComplete = true)
         playNextInQueue()
+    }
+
+    /** Skips to the head of the queue, if there is one. The episode left behind stays reachable through [previous]. */
+    suspend fun next() {
+        if (loadedId == null) return
+        playNextInQueue()
+    }
+
+    /**
+     * Within [RESTART_THRESHOLD_MS] of the start (or with no history) this goes back to the episode
+     * played before this one, and puts this one back at the head of the queue; later on it restarts.
+     */
+    suspend fun previous() {
+        val current = loadedId ?: return
+        val before = if (engine.positionMs > RESTART_THRESHOLD_MS) null else history.removeLastOrNull()
+        if (before == null) return seekTo(0)
+        queue?.enqueueNext(current)
+        try {
+            start(before, recordHistory = false)
+        } catch (e: Exception) {
+            history.addLast(before)
+            queue?.remove(current)
+            throw e
+        }
+    }
+
+    private fun remember(episodeId: Long?) {
+        if (episodeId == null) return
+        history.remove(episodeId)
+        history.addLast(episodeId)
+        while (history.size > HISTORY_LIMIT) history.removeFirst()
     }
 
     /** Starts the first queued episode that still exists. */
@@ -243,6 +281,8 @@ class PlaybackStateManager(
     companion object {
         const val MIN_SPEED = 0.5f
         const val MAX_SPEED = 3.0f
+        private const val RESTART_THRESHOLD_MS = 3_000L
+        private const val HISTORY_LIMIT = 50
         private const val SLEEP_TICK_MS = 1_000L
         private const val PROGRESS_POLL_MS = 500L
     }

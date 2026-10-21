@@ -220,6 +220,30 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `next and previous are delegated to playback`() = runTest {
+        val vm = vm()
+        vm.uiState.test {
+            vm.onIntent(PlayerIntent.Next)
+            vm.onIntent(PlayerIntent.Previous)
+            testScheduler.advanceUntilIdle()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(listOf("next", "previous"), port.calls)
+    }
+
+    @Test
+    fun `there is a next episode only while the queue has one`() = runTest {
+        val (first, second) = seed()
+        port.stateFlow.value = port.stateFlow.value.copy(episodeId = first)
+        val vm = vm()
+        vm.uiState.test {
+            assertFalse(awaitUntil { it.episode != null }.hasNext)
+            queue.enqueue(second)
+            assertTrue(awaitUntil { it.upNext.isNotEmpty() }.hasNext)
+        }
+    }
+
+    @Test
     fun `speed steps by a tenth within 0_5 to 3_0`() = runTest {
         val vm = vm()
         vm.uiState.test {

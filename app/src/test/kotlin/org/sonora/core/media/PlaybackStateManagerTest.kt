@@ -525,6 +525,104 @@ class PlaybackStateManagerTest {
         assertEquals(c, m.state.value.episodeId)
     }
 
+    // --- next / previous ---------------------------------------------------------------------
+
+    @Test
+    fun `next starts the head of the queue and keeps the position of the one it leaves`() = runTest {
+        val a = seed(guid = "a"); val b = seed(guid = "b")
+        playQueue.enqueue(b)
+        val m = manager()
+        m.play(a)
+        engine.positionMs = 90_000
+
+        m.next()
+
+        assertEquals(b, m.state.value.episodeId)
+        assertEquals(90L, episodeDao.findById(a)!!.playbackPositionSeconds)
+        assertTrue(playQueue.items.value.isEmpty())
+    }
+
+    @Test
+    fun `next with an empty queue changes nothing`() = runTest {
+        val a = seed(guid = "a")
+        val m = manager()
+        m.play(a)
+
+        m.next()
+
+        assertEquals(a, m.state.value.episodeId)
+        assertTrue(m.state.value.isPlaying)
+    }
+
+    @Test
+    fun `previous restarts the episode when it is well into playback`() = runTest {
+        val a = seed(guid = "a"); val b = seed(guid = "b")
+        playQueue.enqueue(b)
+        val m = manager()
+        m.play(a); m.next()
+        engine.positionMs = 20_000
+
+        m.previous()
+
+        assertEquals(b, m.state.value.episodeId)
+        assertEquals(0L, engine.positionMs)
+    }
+
+    @Test
+    fun `previous near the start goes back to the last episode and puts the current one back on the queue`() = runTest {
+        val a = seed(guid = "a"); val b = seed(guid = "b"); val c = seed(guid = "c")
+        playQueue.enqueue(b); playQueue.enqueue(c)
+        val m = manager()
+        m.play(a); m.next()
+        engine.positionMs = 1_000
+
+        m.previous()
+
+        assertEquals(a, m.state.value.episodeId)
+        assertEquals(listOf(b, c), playQueue.items.value)
+    }
+
+    @Test
+    fun `previous can step back more than once`() = runTest {
+        val a = seed(guid = "a"); val b = seed(guid = "b"); val c = seed(guid = "c")
+        playQueue.enqueue(b); playQueue.enqueue(c)
+        val m = manager()
+        m.play(a); m.next(); m.next()
+        engine.positionMs = 0
+
+        m.previous(); engine.positionMs = 0
+        m.previous()
+
+        assertEquals(a, m.state.value.episodeId)
+        assertEquals(listOf(b, c), playQueue.items.value)
+    }
+
+    @Test
+    fun `previous with no history restarts the episode`() = runTest {
+        val a = seed(guid = "a")
+        val m = manager()
+        m.play(a)
+        engine.positionMs = 1_000
+
+        m.previous()
+
+        assertEquals(a, m.state.value.episodeId)
+        assertEquals(0L, engine.positionMs)
+    }
+
+    @Test
+    fun `an episode that finished is in the history too`() = runTest {
+        val a = seed(guid = "a"); val b = seed(guid = "b")
+        playQueue.enqueue(b)
+        val m = manager()
+        m.play(a); m.onPlaybackEnded()
+        engine.positionMs = 0
+
+        m.previous()
+
+        assertEquals(a, m.state.value.episodeId)
+    }
+
     // --- progress ----------------------------------------------------------------------------
 
     @Test

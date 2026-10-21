@@ -38,6 +38,8 @@ sealed interface EpisodesIntent {
     data class Enqueue(val episodeId: Long) : EpisodesIntent
     data class Dequeue(val episodeId: Long) : EpisodesIntent
     data object ClearQueue : EpisodesIntent
+    data object PlayQueue : EpisodesIntent
+    data object ShuffleQueue : EpisodesIntent
     data class Download(val episodeId: Long) : EpisodesIntent
     data class DeleteDownload(val episodeId: Long) : EpisodesIntent
     data class SetPlayed(val episodeId: Long, val played: Boolean) : EpisodesIntent
@@ -83,6 +85,11 @@ class EpisodesViewModel @Inject constructor(
             is EpisodesIntent.Enqueue -> queue.enqueue(intent.episodeId)
             is EpisodesIntent.Dequeue -> queue.remove(intent.episodeId)
             EpisodesIntent.ClearQueue -> queue.clear()
+            EpisodesIntent.PlayQueue -> attempt { queue.items.value.firstOrNull()?.let { playback.play(it) } }
+            EpisodesIntent.ShuffleQueue -> attempt {
+                queue.replaceAll(queue.items.value.shuffled())
+                queue.items.value.firstOrNull()?.let { playback.play(it) }
+            }
             is EpisodesIntent.Play -> attempt { playback.play(intent.episodeId) }
             is EpisodesIntent.Download -> attempt { actions.download(intent.episodeId) }
             is EpisodesIntent.DeleteDownload -> attempt { actions.deleteDownload(intent.episodeId) }

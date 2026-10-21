@@ -80,6 +80,48 @@ class EpisodesViewModelTest {
     }
 
     @Test
+    fun `playing the queue starts its first episode and leaves the order alone`() = runTest {
+        val ids = seed()
+        queue.enqueue(ids[2]); queue.enqueue(ids[0]); queue.enqueue(ids[1])
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.queue.size == 3 }
+            vm.onIntent(EpisodesIntent.PlayQueue)
+            testScheduler.advanceUntilIdle()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(listOf("play:${ids[2]}"), playback.calls)
+        assertEquals(listOf(ids[2], ids[0], ids[1]), queue.items.value)
+    }
+
+    @Test
+    fun `shuffling the queue reorders it and plays whatever comes first`() = runTest {
+        val ids = seed()
+        ids.forEach(queue::enqueue)
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.queue.size == 4 }
+            vm.onIntent(EpisodesIntent.ShuffleQueue)
+            testScheduler.advanceUntilIdle()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(ids.toSet(), queue.items.value.toSet())
+        assertEquals(listOf("play:${queue.items.value.first()}"), playback.calls)
+    }
+
+    @Test
+    fun `playing an empty queue does nothing`() = runTest {
+        val vm = vm()
+        vm.uiState.test {
+            awaitItem()
+            vm.onIntent(EpisodesIntent.PlayQueue); vm.onIntent(EpisodesIntent.ShuffleQueue)
+            testScheduler.advanceUntilIdle()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertTrue(playback.calls.isEmpty())
+    }
+
+    @Test
     fun `play, download and mark played are delegated`() = runTest {
         val ids = seed()
         val vm = vm()

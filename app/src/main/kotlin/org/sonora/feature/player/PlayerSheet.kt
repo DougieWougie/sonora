@@ -40,6 +40,8 @@ import androidx.compose.material.icons.rounded.Forward30
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -238,6 +240,9 @@ private fun SharedTransitionScope.PlayerDock(
                 onSeek = { onIntent(PlayerIntent.SeekTo(it)) },
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { onIntent(PlayerIntent.Previous) }, modifier = Modifier.size(48.dp).testTag(TestTags.PREVIOUS_BUTTON)) {
+                    Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous episode", Modifier.size(28.dp))
+                }
                 FilledTonalIconButton(onClick = { onIntent(PlayerIntent.Rewind) }, modifier = Modifier.size(56.dp).testTag(TestTags.SKIP_BACK_BUTTON)) {
                     Icon(Icons.Rounded.Replay10, contentDescription = "Back 10 seconds", Modifier.size(32.dp))
                 }
@@ -255,6 +260,9 @@ private fun SharedTransitionScope.PlayerDock(
                 }
                 FilledTonalIconButton(onClick = { onIntent(PlayerIntent.SkipForward) }, modifier = Modifier.size(56.dp).testTag(TestTags.SKIP_FORWARD_BUTTON)) {
                     Icon(Icons.Rounded.Forward30, contentDescription = "Forward 30 seconds", Modifier.size(32.dp))
+                }
+                IconButton(onClick = { onIntent(PlayerIntent.Next) }, enabled = state.hasNext, modifier = Modifier.size(48.dp).testTag(TestTags.NEXT_BUTTON)) {
+                    Icon(Icons.Rounded.SkipNext, contentDescription = "Next episode", Modifier.size(28.dp))
                 }
             }
         }

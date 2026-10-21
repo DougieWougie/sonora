@@ -19,6 +19,10 @@ interface PlaybackPort {
     suspend fun play(episodeId: Long)
     suspend fun pause()
     suspend fun seekTo(positionMs: Long)
+    /** Starts the head of the queue; does nothing when it is empty. */
+    suspend fun next()
+    /** Restarts the episode if it is well under way, otherwise goes back to the one played before it. */
+    suspend fun previous()
     fun setSpeed(speed: Float)
     fun setSkipSilence(enabled: Boolean)
     fun startSleepTimer(durationMs: Long)

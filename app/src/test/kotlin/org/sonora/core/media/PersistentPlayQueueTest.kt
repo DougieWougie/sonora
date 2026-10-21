@@ -59,4 +59,21 @@ class PersistentPlayQueueTest {
         assertEquals(emptyList<Long>(), queue.items.value)
         assertEquals(emptyList<Long>(), storage.stored)
     }
+
+    @Test
+    fun `enqueueNext puts an episode at the head, moving it if already queued`() {
+        listOf(1L, 2L, 3L).forEach(queue::enqueue)
+        queue.enqueueNext(3)
+        assertEquals(listOf(3L, 1L, 2L), queue.items.value)
+        queue.enqueueNext(9)
+        assertEquals(listOf(9L, 3L, 1L, 2L), storage.stored)
+    }
+
+    @Test
+    fun `replaceAll sets a new order without duplicates and persists`() {
+        queue.enqueue(1)
+        queue.replaceAll(listOf(4, 2, 4, 3))
+        assertEquals(listOf(4L, 2L, 3L), queue.items.value)
+        assertEquals(listOf(4L, 2L, 3L), storage.stored)
+    }
 }

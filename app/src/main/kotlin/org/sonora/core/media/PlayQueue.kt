@@ -7,7 +7,11 @@ import kotlinx.coroutines.flow.StateFlow
 interface PlayQueue {
     val items: StateFlow<List<Long>>
     fun enqueue(episodeId: Long)
+    /** Puts the episode at the head, moving it there if it is already queued. */
+    fun enqueueNext(episodeId: Long)
     fun remove(episodeId: Long)
+    /** Sets a new order wholesale; duplicates keep their first place. */
+    fun replaceAll(episodeIds: List<Long>)
     fun clear()
 
     /** Removes and returns the first item, if any. */

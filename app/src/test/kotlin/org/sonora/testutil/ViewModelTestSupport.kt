@@ -181,6 +181,8 @@ class FakePlaybackPort : PlaybackPort {
     }
 
     override suspend fun seekTo(positionMs: Long) { calls += "seek:$positionMs" }
+    override suspend fun next() { calls += "next" }
+    override suspend fun previous() { calls += "previous" }
     override fun setSpeed(speed: Float) { calls += "speed:$speed"; stateFlow.value = stateFlow.value.copy(speed = speed) }
     override fun setSkipSilence(enabled: Boolean) { calls += "silence:$enabled"; stateFlow.value = stateFlow.value.copy(skipSilence = enabled) }
     override fun startSleepTimer(durationMs: Long) { calls += "sleep:$durationMs"; stateFlow.value = stateFlow.value.copy(sleepTimerRemainingMs = durationMs) }
