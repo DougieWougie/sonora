@@ -37,6 +37,7 @@ import org.sonora.feature.library.LibraryLayout
 import org.sonora.feature.library.LibraryPreferences
 import org.sonora.feature.library.LibrarySort
 import org.sonora.feature.discover.DirectorySearch
+import org.sonora.feature.discover.DirectorySuggestions
 import org.sonora.feature.discover.DirectorySource
 import org.sonora.feature.discover.OpmlImportResult
 import org.sonora.feature.discover.OpmlTransfer
@@ -140,6 +141,19 @@ class FakeDirectorySearch : DirectorySearch {
         calls += query to source
         failure?.let { throw it }
         emit(results(query, source))
+    }
+}
+
+class FakeDirectorySuggestions : DirectorySuggestions {
+    var results: List<DirectoryPodcast> = emptyList()
+    var cached: List<DirectoryPodcast> = emptyList()
+    var failure: Throwable? = null
+    var calls = 0
+    override fun cached() = cached
+    override suspend fun suggestions(): List<DirectoryPodcast> {
+        calls++
+        failure?.let { throw it }
+        return results
     }
 }
 

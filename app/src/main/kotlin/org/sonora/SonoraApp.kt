@@ -10,10 +10,15 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.sonora.core.network.withTransportPolicy
 import org.sonora.core.work.WorkManagerSyncScheduler
 import org.sonora.feature.settings.AppSettings
+import org.sonora.feature.discover.DirectorySuggestions
 import org.sonora.ui.HttpsUpgradeInterceptor
 
 @HiltAndroidApp
@@ -22,6 +27,7 @@ class SonoraApp : Application(), Configuration.Provider, SingletonImageLoader.Fa
     @Inject lateinit var syncScheduler: WorkManagerSyncScheduler
     @Inject lateinit var settings: AppSettings
     @Inject lateinit var okHttpClient: OkHttpClient
+    @Inject lateinit var suggestions: DirectorySuggestions
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
@@ -41,5 +47,7 @@ class SonoraApp : Application(), Configuration.Provider, SingletonImageLoader.Fa
     override fun onCreate() {
         super.onCreate()
         syncScheduler.setPeriodicInterval(settings.syncIntervalHours)
+        // Warm Discover's suggestions so the tab has them by the time it is opened; failures are fine.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { runCatching { suggestions.suggestions() } }
     }
 }

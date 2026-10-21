@@ -87,6 +87,44 @@ class DiscoverScreenTest {
         composeTestRule.onNodeWithText("Search failed").assertIsDisplayed()
     }
 
+    // --- suggestions ---------------------------------------------------------------------------
+
+    @Test
+    fun `suggestions are listed under a heading while nothing is typed, and can be subscribed to`() {
+        state = state.copy(suggestions = listOf(DiscoverResult(space, subscribed = false)))
+        setContent()
+
+        composeTestRule.onNodeWithText("Suggested podcasts").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Space Talk").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Search a directory", substring = true).assertDoesNotExist()
+        composeTestRule.onNodeWithText("Subscribe").performClick()
+
+        assertEquals(listOf<DiscoverIntent>(DiscoverIntent.Subscribe(space)), intents)
+    }
+
+    @Test
+    fun `a subscribed suggestion shows as added`() {
+        state = state.copy(suggestions = listOf(DiscoverResult(space, subscribed = true)))
+        setContent()
+
+        composeTestRule.onNodeWithText("Added").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `suggestions give way to search results once the user types`() {
+        val other = DirectoryPodcast("Other Show", null, "https://other/feed", null)
+        state = state.copy(
+            query = "other",
+            suggestions = listOf(DiscoverResult(space, subscribed = false)),
+            results = listOf(DiscoverResult(other, subscribed = false)),
+        )
+        setContent()
+
+        composeTestRule.onNodeWithText("Other Show").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Space Talk").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Suggested podcasts").assertDoesNotExist()
+    }
+
     // --- results -------------------------------------------------------------------------------
 
     @Test

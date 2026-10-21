@@ -29,6 +29,7 @@ import org.sonora.core.model.ParsedFeed
 import org.sonora.core.network.discovery.DirectoryException
 import org.sonora.core.sync.FeedFetcher
 import org.sonora.testutil.FakeDirectorySearch
+import org.sonora.testutil.FakeDirectorySuggestions
 import org.sonora.testutil.FakeOpmlTransfer
 import org.sonora.testutil.FakeSettingsStore
 import org.sonora.testutil.FakeSyncController
@@ -39,6 +40,7 @@ class DiscoverViewModelTest {
     val main = MainDispatcherExtension()
 
     private val search = FakeDirectorySearch()
+    private val suggestions = FakeDirectorySuggestions()
     private val podcasts = FakePodcastDao()
     private val episodes = FakeEpisodeDao()
     private val changes = FakeSubscriptionChangeDao()
@@ -54,9 +56,82 @@ class DiscoverViewModelTest {
     private val fetchedUrls = mutableListOf<String>()
     private val fetcher = FeedFetcher { url -> fetchedUrls += url; feedResult() }
 
-    private fun vm() = DiscoverViewModel(search, podcasts, subscriptions, repository, fetcher, opml, sync, settings)
+    private fun vm() = DiscoverViewModel(search, suggestions, podcasts, subscriptions, repository, fetcher, opml, sync, settings)
 
     private fun pod(title: String, feed: String = "https://f/$title") = DirectoryPodcast(title, "auth", feed, "https://art/$title")
+
+    // --- suggestions -------------------------------------------------------------------------
+
+    @Test
+    fun `suggestions are loaded on start and flagged when already subscribed`() = runTest {
+        podcasts.insert(PodcastEntity(feedUrl = "https://f/Known", title = "Known"))
+        suggestions.results = listOf(pod("Known"), pod("New"))
+
+        val vm = vm()
+        runCurrent()
+
+        assertEquals(listOf("Known", "New"), vm.uiState.value.suggestions.map { it.podcast.title })
+        assertEquals(listOf(true, false), vm.uiState.value.suggestions.map { it.subscribed })
+    }
+
+    @Test
+    fun `cached suggestions show immediately, before the refresh answers`() = runTest {
+        suggestions.cached = listOf(pod("Cached"))
+        suggestions.results = listOf(pod("Fresh"))
+
+        val vm = vm()
+        assertEquals(listOf("Cached"), vm.uiState.value.suggestions.map { it.podcast.title })
+
+        runCurrent()
+        assertEquals(listOf("Fresh"), vm.uiState.value.suggestions.map { it.podcast.title })
+    }
+
+    @Test
+    fun `a failed refresh keeps the cached suggestions`() = runTest {
+        suggestions.cached = listOf(pod("Cached"))
+        suggestions.failure = DirectoryException("offline")
+
+        val vm = vm()
+        runCurrent()
+
+        assertEquals(listOf("Cached"), vm.uiState.value.suggestions.map { it.podcast.title })
+    }
+
+    @Test
+    fun `subscribing to a suggestion marks it added`() = runTest {
+        suggestions.results = listOf(pod("New"))
+        val vm = vm()
+        runCurrent()
+
+        vm.onIntent(DiscoverIntent.Subscribe(pod("New")))
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.suggestions.single().subscribed)
+    }
+
+    @Test
+    fun `suggestions failing to load leaves discover usable without an error`() = runTest {
+        suggestions.failure = DirectoryException("offline")
+
+        val vm = vm()
+        runCurrent()
+
+        assertTrue(vm.uiState.value.suggestions.isEmpty())
+        assertNull(vm.uiState.value.error)
+    }
+
+    @Test
+    fun `searching does not touch the suggestions`() = runTest {
+        suggestions.results = listOf(pod("Hot"))
+        search.results = { _, _ -> listOf(pod("Found")) }
+        val vm = vm()
+        vm.onIntent(DiscoverIntent.QueryChanged("x"))
+        advanceTimeBy(300); runCurrent()
+
+        assertEquals(listOf("Found"), vm.uiState.value.results.map { it.podcast.title })
+        assertEquals(listOf("Hot"), vm.uiState.value.suggestions.map { it.podcast.title })
+        assertEquals(1, suggestions.calls)
+    }
 
     // --- search ------------------------------------------------------------------------------
 

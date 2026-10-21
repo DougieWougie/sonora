@@ -52,6 +52,8 @@ data class DiscoverUiState(
     val query: String = "",
     val directory: DirectorySource = DirectorySource.APPLE,
     val results: List<DiscoverResult> = emptyList(),
+    /** Shown while nothing is typed; independent of [results]. */
+    val suggestions: List<DiscoverResult> = emptyList(),
     val isSearching: Boolean = false,
     val error: String? = null,
     val addUrl: AddUrlState? = null,
@@ -80,6 +82,7 @@ sealed interface DiscoverEvent {
 @HiltViewModel
 class DiscoverViewModel @Inject constructor(
     private val search: DirectorySearch,
+    private val suggestionSource: DirectorySuggestions,
     podcastDao: PodcastDao,
     private val subscriptions: SubscriptionRepository,
     private val podcastRepository: PodcastRepository,
@@ -95,7 +98,9 @@ class DiscoverViewModel @Inject constructor(
         data class Failed(val message: String) : SearchUpdate
     }
 
-    private val _state = MutableStateFlow(DiscoverUiState())
+    private val _state = MutableStateFlow(
+        DiscoverUiState(suggestions = suggestionSource.cached().map { DiscoverResult(it, subscribed = false) }),
+    )
     val uiState: StateFlow<DiscoverUiState> = _state.asStateFlow()
 
     private val _events = Channel<DiscoverEvent>(Channel.BUFFERED)
@@ -104,6 +109,7 @@ class DiscoverViewModel @Inject constructor(
     private val query = MutableStateFlow("")
     private val directory = MutableStateFlow(DirectorySource.APPLE)
     private var found = emptyList<DirectoryPodcast>()
+    private var suggested = suggestionSource.cached()
     private var subscribedUrls = emptySet<String>()
 
     init {
@@ -112,6 +118,17 @@ class DiscoverViewModel @Inject constructor(
                 subscribedUrls = it
                 publishResults()
             }
+        }
+        viewModelScope.launch {
+            // Suggestions are a nicety: offline or a directory outage just leaves the screen as it was.
+            try {
+                suggested = suggestionSource.suggestions()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // keep whatever was cached
+            }
+            publishResults()
         }
         viewModelScope.launch {
             combine(query.debounce(SEARCH_DEBOUNCE_MS).map { it.trim() }.distinctUntilChanged(), directory, ::Pair)
@@ -176,8 +193,9 @@ class DiscoverViewModel @Inject constructor(
     }
 
     private fun publishResults() {
-        val results = found.map { DiscoverResult(it, it.feedUrl.normalized() in subscribedUrls) }
-        _state.update { it.copy(results = results) }
+        fun flagged(podcasts: List<DirectoryPodcast>) =
+            podcasts.map { DiscoverResult(it, it.feedUrl.normalized() in subscribedUrls) }
+        _state.update { it.copy(results = flagged(found), suggestions = flagged(suggested)) }
     }
 
     // --- subscribing -------------------------------------------------------------------------
