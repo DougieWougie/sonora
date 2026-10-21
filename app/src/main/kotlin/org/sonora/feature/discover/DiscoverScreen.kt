@@ -147,23 +147,18 @@ internal fun DiscoverContent(
         state.error?.let { error ->
             item { Text(error, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) }
         }
-        items(state.results, key = { it.podcast.feedUrl }) { result ->
-            ListItem(
-                leadingContent = { ArtworkImage(result.podcast.artworkUrl, result.podcast.title, Modifier.size(64.dp)) },
-                content = { Text(result.podcast.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMediumEmphasized) },
-                supportingContent = result.podcast.author?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
-                trailingContent = {
-                    FilledTonalButton(
-                        onClick = { onIntent(DiscoverIntent.Subscribe(result.podcast)) },
-                        enabled = !result.subscribed,
-                    ) {
-                        Icon(if (result.subscribed) Icons.Rounded.Check else Icons.Rounded.Add, null, Modifier.size(18.dp))
-                        Text(if (result.subscribed) "Added" else "Subscribe", Modifier.padding(start = 6.dp))
-                    }
-                },
-            )
+        items(state.results, key = { it.podcast.feedUrl }) { result -> PodcastRow(result, onIntent) }
+        if (state.query.isBlank() && state.suggestions.isNotEmpty()) {
+            item {
+                Text(
+                    "Suggested podcasts",
+                    style = MaterialTheme.typography.titleLargeEmphasized,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            items(state.suggestions, key = { "suggested:" + it.podcast.feedUrl }) { PodcastRow(it, onIntent) }
         }
-        if (state.query.isBlank() && state.results.isEmpty()) {
+        if (state.query.isBlank() && state.results.isEmpty() && state.suggestions.isEmpty()) {
             item { Text("Search a directory, paste a feed address, or import your subscriptions.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
@@ -177,6 +172,24 @@ internal fun DiscoverContent(
             dismissButton = { AddUrlCancelButton(onIntent) },
         )
     }
+}
+
+@Composable
+private fun PodcastRow(result: DiscoverResult, onIntent: (DiscoverIntent) -> Unit) {
+    ListItem(
+        leadingContent = { ArtworkImage(result.podcast.artworkUrl, result.podcast.title, Modifier.size(64.dp)) },
+        content = { Text(result.podcast.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMediumEmphasized) },
+        supportingContent = result.podcast.author?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
+        trailingContent = {
+            FilledTonalButton(
+                onClick = { onIntent(DiscoverIntent.Subscribe(result.podcast)) },
+                enabled = !result.subscribed,
+            ) {
+                Icon(if (result.subscribed) Icons.Rounded.Check else Icons.Rounded.Add, null, Modifier.size(18.dp))
+                Text(if (result.subscribed) "Added" else "Subscribe", Modifier.padding(start = 6.dp))
+            }
+        },
+    )
 }
 
 // The dialog's parts are separate so tests can render them in the main window: a text field inside a

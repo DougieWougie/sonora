@@ -32,6 +32,7 @@ import org.sonora.core.download.PrefsEvictionNotices
 import org.sonora.core.network.OkHttpFeedFetcher
 import org.sonora.feature.library.LibraryPreferences
 import org.sonora.feature.library.PrefsLibraryPreferences
+import org.sonora.core.network.discovery.ApplePodcastChartProvider
 import org.sonora.core.network.discovery.ApplePodcastSearchProvider
 import org.sonora.core.network.discovery.DirectoryApiFactory
 import org.sonora.core.network.discovery.PodcastIndexSearchProvider
@@ -48,6 +49,8 @@ import org.sonora.core.work.DeviceConditionsMonitor
 import org.sonora.core.work.WorkManagerDownloadScheduler
 import org.sonora.core.work.WorkManagerDownloadWaits
 import org.sonora.core.work.WorkManagerSyncScheduler
+import org.sonora.feature.discover.ChartSuggestions
+import org.sonora.feature.discover.DirectorySuggestions
 import org.sonora.feature.discover.DiscoveryRepository
 import org.sonora.feature.settings.AppSettings
 import org.sonora.core.download.DefaultEpisodeActions
@@ -261,6 +264,17 @@ object AppModule {
 
     @Provides @Singleton
     fun directorySearch(repository: DiscoveryRepository): DirectorySearch = repository
+
+    @Provides @Singleton
+    fun directorySuggestions(client: OkHttpClient, settings: AppSettings): DirectorySuggestions {
+        val cleartext = settings.allowCleartext
+        return ChartSuggestions(
+            ApplePodcastChartProvider(
+                DirectoryApiFactory.appleCharts(client = client, allowCleartext = cleartext),
+                DirectoryApiFactory.apple(client = client, allowCleartext = cleartext),
+            ),
+        )
+    }
 
     @Provides @Singleton
     fun loginFlow(client: OkHttpClient, settings: AppSettings): LoginFlowApi =

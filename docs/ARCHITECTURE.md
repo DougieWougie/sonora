@@ -76,6 +76,10 @@ the same transaction, so they are pushed to the server on the next sync and neve
   `upgradedToHttps`, and artwork requests are upgraded by a Coil interceptor (`HttpsUpgradeInterceptor`).
 - Directory search (Apple, PodcastIndex) sits behind `DirectorySearch`; the Nextcloud login uses
   Login Flow v2, so the app never sees the user's password.
+- Before the user types anything, Discover shows `DirectorySuggestions`: `ChartSuggestions` takes
+  Apple's UK top-podcasts chart first and a smaller US tail after it (`ChartSuggestions.DEFAULT_SLOTS`),
+  de-duplicated by feed URL. The chart only names shows, so `ApplePodcastChartProvider` looks them up to
+  find their feeds. No API key is needed, and a failure just leaves the list empty.
 
 ### Background sync
 `PodcastSyncWorker` (WorkManager, periodic or on demand) runs `PodcastSyncPipeline.run()`:

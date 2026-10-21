@@ -12,6 +12,7 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
 object DirectoryApiFactory {
     const val APPLE_BASE_URL = "https://itunes.apple.com/"
+    const val APPLE_CHARTS_BASE_URL = "https://rss.marketingtools.apple.com/"
     const val PODCAST_INDEX_BASE_URL = "https://api.podcastindex.org/"
 
     fun apple(
@@ -19,6 +20,12 @@ object DirectoryApiFactory {
         client: OkHttpClient = OkHttpClient(),
         allowCleartext: Boolean = false,
     ): ApplePodcastApi = retrofit(baseUrl, client, allowCleartext).create(ApplePodcastApi::class.java)
+
+    fun appleCharts(
+        baseUrl: String = APPLE_CHARTS_BASE_URL,
+        client: OkHttpClient = OkHttpClient(),
+        allowCleartext: Boolean = false,
+    ): ApplePodcastChartsApi = retrofit(baseUrl, client, allowCleartext).create(ApplePodcastChartsApi::class.java)
 
     fun podcastIndex(
         baseUrl: String = PODCAST_INDEX_BASE_URL,
