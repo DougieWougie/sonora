@@ -49,7 +49,9 @@ import org.sonora.core.work.DeviceConditionsMonitor
 import org.sonora.core.work.WorkManagerDownloadScheduler
 import org.sonora.core.work.WorkManagerDownloadWaits
 import org.sonora.core.work.WorkManagerSyncScheduler
+import org.sonora.feature.discover.CachingSuggestions
 import org.sonora.feature.discover.ChartSuggestions
+import org.sonora.feature.discover.PrefsSuggestionStore
 import org.sonora.feature.discover.DirectorySuggestions
 import org.sonora.feature.discover.DiscoveryRepository
 import org.sonora.feature.settings.AppSettings
@@ -266,13 +268,22 @@ object AppModule {
     fun directorySearch(repository: DiscoveryRepository): DirectorySearch = repository
 
     @Provides @Singleton
-    fun directorySuggestions(client: OkHttpClient, settings: AppSettings): DirectorySuggestions {
+    fun directorySuggestions(
+        client: OkHttpClient,
+        settings: AppSettings,
+        clock: Clock,
+        @ApplicationContext context: Context,
+    ): DirectorySuggestions {
         val cleartext = settings.allowCleartext
-        return ChartSuggestions(
-            ApplePodcastChartProvider(
-                DirectoryApiFactory.appleCharts(client = client, allowCleartext = cleartext),
-                DirectoryApiFactory.apple(client = client, allowCleartext = cleartext),
+        return CachingSuggestions(
+            ChartSuggestions(
+                ApplePodcastChartProvider(
+                    DirectoryApiFactory.appleCharts(client = client, allowCleartext = cleartext),
+                    DirectoryApiFactory.apple(client = client, allowCleartext = cleartext),
+                ),
             ),
+            PrefsSuggestionStore(context),
+            clock,
         )
     }
 

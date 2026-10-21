@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.feature.discover
 
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -17,6 +19,7 @@ class ChartSuggestionsTest {
         val calls = mutableListOf<Pair<String, Int>>()
         override suspend fun top(country: String, limit: Int): List<DirectoryPodcast> {
             calls += country to limit
+            delay(1000)
             if (country in failing) throw DirectoryException("$country down")
             return charts.getValue(country)
         }
@@ -60,6 +63,28 @@ class ChartSuggestionsTest {
             ChartSuggestions(charts, listOf(ChartSlot("gb", 5), ChartSlot("us", 5))).suggestions()
         }
         assertEquals("gb down", error.message)
+    }
+
+    @Test
+    fun `charts are fetched at the same time, not one after another`() = runTest {
+        val charts = FakeCharts(mapOf("gb" to listOf(pod("UK1")), "us" to listOf(pod("US1"))))
+
+        ChartSuggestions(charts, listOf(ChartSlot("gb", 5), ChartSlot("us", 5))).suggestions()
+
+        assertEquals(1000, currentTime)
+    }
+
+    @Test
+    fun `having no charts configured is an error`() = runTest {
+        assertThrows<IllegalStateException> { ChartSuggestions(FakeCharts(emptyMap()), emptyList()).suggestions() }
+    }
+
+    @Test
+    fun `a source with no cache offers nothing instantly`() {
+        val source = object : DirectorySuggestions {
+            override suspend fun suggestions() = emptyList<DirectoryPodcast>()
+        }
+        assertEquals(emptyList<DirectoryPodcast>(), source.cached())
     }
 
     @Test

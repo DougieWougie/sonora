@@ -98,7 +98,9 @@ class DiscoverViewModel @Inject constructor(
         data class Failed(val message: String) : SearchUpdate
     }
 
-    private val _state = MutableStateFlow(DiscoverUiState())
+    private val _state = MutableStateFlow(
+        DiscoverUiState(suggestions = suggestionSource.cached().map { DiscoverResult(it, subscribed = false) }),
+    )
     val uiState: StateFlow<DiscoverUiState> = _state.asStateFlow()
 
     private val _events = Channel<DiscoverEvent>(Channel.BUFFERED)
@@ -107,7 +109,7 @@ class DiscoverViewModel @Inject constructor(
     private val query = MutableStateFlow("")
     private val directory = MutableStateFlow(DirectorySource.APPLE)
     private var found = emptyList<DirectoryPodcast>()
-    private var suggested = emptyList<DirectoryPodcast>()
+    private var suggested = suggestionSource.cached()
     private var subscribedUrls = emptySet<String>()
 
     init {
@@ -119,12 +121,12 @@ class DiscoverViewModel @Inject constructor(
         }
         viewModelScope.launch {
             // Suggestions are a nicety: offline or a directory outage just leaves the screen as it was.
-            suggested = try {
-                suggestionSource.suggestions()
+            try {
+                suggested = suggestionSource.suggestions()
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
-                emptyList()
+            } catch (_: Exception) {
+                // keep whatever was cached
             }
             publishResults()
         }

@@ -146,8 +146,10 @@ class FakeDirectorySearch : DirectorySearch {
 
 class FakeDirectorySuggestions : DirectorySuggestions {
     var results: List<DirectoryPodcast> = emptyList()
+    var cached: List<DirectoryPodcast> = emptyList()
     var failure: Throwable? = null
     var calls = 0
+    override fun cached() = cached
     override suspend fun suggestions(): List<DirectoryPodcast> {
         calls++
         failure?.let { throw it }

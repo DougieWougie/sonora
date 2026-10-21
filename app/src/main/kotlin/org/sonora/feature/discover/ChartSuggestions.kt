@@ -2,11 +2,17 @@
 package org.sonora.feature.discover
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import org.sonora.core.model.DirectoryPodcast
 import org.sonora.core.network.discovery.PodcastChartProvider
 
 /** What Discover offers before the user has searched for anything. */
-fun interface DirectorySuggestions {
+interface DirectorySuggestions {
+    /** Whatever is already known, instantly and without the network. Empty if nothing is. */
+    fun cached(): List<DirectoryPodcast> = emptyList()
+
     suspend fun suggestions(): List<DirectoryPodcast>
 }
 
@@ -22,21 +28,24 @@ class ChartSuggestions(
     private val slots: List<ChartSlot> = DEFAULT_SLOTS,
 ) : DirectorySuggestions {
     override suspend fun suggestions(): List<DirectoryPodcast> {
-        var firstFailure: Exception? = null
-        var succeeded = false
-        val all = mutableListOf<DirectoryPodcast>()
-        for (slot in slots) {
-            try {
-                all += charts.top(slot.country, slot.limit)
-                succeeded = true
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                firstFailure = firstFailure ?: e
-            }
+        // Each chart is two round trips, so ask for them all at once.
+        val answers = coroutineScope {
+            slots.map { slot ->
+                async {
+                    try {
+                        Result.success(charts.top(slot.country, slot.limit))
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Result.failure(e)
+                    }
+                }
+            }.awaitAll()
         }
-        if (!succeeded) throw firstFailure ?: IllegalStateException("No charts configured")
-        return all.distinctBy { it.feedUrl.trim().trimEnd('/').lowercase() }
+        if (answers.none { it.isSuccess }) {
+            throw answers.firstOrNull()?.exceptionOrNull() ?: IllegalStateException("No charts configured")
+        }
+        return answers.flatMap { it.getOrDefault(emptyList()) }.distinctBy { it.feedUrl.trim().trimEnd('/').lowercase() }
     }
 
     companion object {

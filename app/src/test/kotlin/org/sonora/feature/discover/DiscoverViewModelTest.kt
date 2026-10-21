@@ -75,6 +75,29 @@ class DiscoverViewModelTest {
     }
 
     @Test
+    fun `cached suggestions show immediately, before the refresh answers`() = runTest {
+        suggestions.cached = listOf(pod("Cached"))
+        suggestions.results = listOf(pod("Fresh"))
+
+        val vm = vm()
+        assertEquals(listOf("Cached"), vm.uiState.value.suggestions.map { it.podcast.title })
+
+        runCurrent()
+        assertEquals(listOf("Fresh"), vm.uiState.value.suggestions.map { it.podcast.title })
+    }
+
+    @Test
+    fun `a failed refresh keeps the cached suggestions`() = runTest {
+        suggestions.cached = listOf(pod("Cached"))
+        suggestions.failure = DirectoryException("offline")
+
+        val vm = vm()
+        runCurrent()
+
+        assertEquals(listOf("Cached"), vm.uiState.value.suggestions.map { it.podcast.title })
+    }
+
+    @Test
     fun `subscribing to a suggestion marks it added`() = runTest {
         suggestions.results = listOf(pod("New"))
         val vm = vm()

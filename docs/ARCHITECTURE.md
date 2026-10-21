@@ -79,7 +79,9 @@ the same transaction, so they are pushed to the server on the next sync and neve
 - Before the user types anything, Discover shows `DirectorySuggestions`: `ChartSuggestions` takes
   Apple's UK top-podcasts chart first and a smaller US tail after it (`ChartSuggestions.DEFAULT_SLOTS`),
   de-duplicated by feed URL. The chart only names shows, so `ApplePodcastChartProvider` looks them up to
-  find their feeds. No API key is needed, and a failure just leaves the list empty.
+  find their feeds. No API key is needed, and a failure just leaves the list empty. The charts are
+  fetched in parallel, and `CachingSuggestions` keeps the last answer (6 hours, in `PrefsSuggestionStore`)
+  so the tab opens with it instantly; `SonoraApp` prefetches at start-up so it is usually fresh too.
 
 ### Background sync
 `PodcastSyncWorker` (WorkManager, periodic or on demand) runs `PodcastSyncPipeline.run()`:
