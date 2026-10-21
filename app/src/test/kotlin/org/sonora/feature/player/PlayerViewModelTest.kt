@@ -19,6 +19,7 @@ import org.sonora.core.media.PersistentPlayQueue
 import org.sonora.core.media.PlaybackFailure
 import org.sonora.core.media.PlaybackFailureReason
 import org.sonora.core.media.PlaybackProgress
+import org.sonora.core.media.PlaybackSource
 import org.sonora.testutil.FakePlaybackPort
 import org.sonora.testutil.MainDispatcherExtension
 import org.sonora.testutil.awaitUntil
@@ -56,6 +57,18 @@ class PlayerViewModelTest {
             assertNull(state.episode)
             assertFalse(state.isPlaying)
             assertTrue(state.upNext.isEmpty())
+        }
+    }
+
+    @Test
+    fun `carries the playback source into the ui state`() = runTest {
+        val (id) = seed(1)
+        port.stateFlow.value = port.stateFlow.value.copy(episodeId = id, source = PlaybackSource.OFFLINE)
+
+        vm().uiState.test {
+            assertEquals(PlaybackSource.OFFLINE, awaitUntil { it.episode != null }.source)
+            port.stateFlow.value = port.stateFlow.value.copy(source = PlaybackSource.STREAMING)
+            assertEquals(PlaybackSource.STREAMING, awaitUntil { it.source == PlaybackSource.STREAMING }.source)
         }
     }
 

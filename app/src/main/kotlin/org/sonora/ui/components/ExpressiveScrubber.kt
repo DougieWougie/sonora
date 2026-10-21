@@ -53,6 +53,9 @@ fun ExpressiveScrubber(
     isPlaying: Boolean,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    /** How far the stream has buffered; drawn under the track only when [streaming]. */
+    bufferedMs: Long = 0,
+    streaming: Boolean = false,
 ) {
     var dragging by remember { mutableStateOf(false) }
     var dragFraction by remember { mutableFloatStateOf(0f) }
@@ -108,6 +111,22 @@ fun ExpressiveScrubber(
                 },
                 track = {
                     Box(Modifier.fillMaxWidth().height(32.dp), contentAlignment = Alignment.Center) {
+                        if (streaming && enabled) {
+                            val buffered by animateFloatAsState(
+                                targetValue = (bufferedMs.toFloat() / durationMs).coerceIn(0f, 1f),
+                                animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+                                label = "bufferedFraction",
+                            )
+                            Box(Modifier.fillMaxWidth().align(Alignment.BottomStart)) {
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth(buffered)
+                                        .height(3.dp)
+                                        .testTag(TestTags.BUFFERED_TRACK)
+                                        .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f), RoundedCornerShape(50)),
+                                )
+                            }
+                        }
                         LinearWavyProgressIndicator(
                             progress = { fraction },
                             amplitude = { amplitude },

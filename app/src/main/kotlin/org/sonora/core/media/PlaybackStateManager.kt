@@ -21,12 +21,17 @@ import org.sonora.core.model.DownloadState
 import org.sonora.core.network.isTransportAllowed
 import org.sonora.core.network.upgradedToHttps
 
+/** Where the loaded episode's audio is coming from. */
+enum class PlaybackSource { STREAMING, OFFLINE }
+
 data class PlaybackState(
     val episodeId: Long? = null,
     val isPlaying: Boolean = false,
     val speed: Float = 1f,
     val skipSilence: Boolean = false,
     val sleepTimerRemainingMs: Long? = null,
+    /** Null while nothing is loaded. */
+    val source: PlaybackSource? = null,
 )
 
 /**
@@ -60,6 +65,7 @@ class PlaybackStateManager(
     /** The player errored on the loaded item, so it must be prepared again before it can play. */
     private var failed = false
     private var loadedDurationMs = 0L
+    private var loadedSource: PlaybackSource? = null
     private var sessionStartSeconds = 0L
     /** Episodes played before the current one, oldest first. Lives as long as the service. */
     private val history = ArrayDeque<Long>()
@@ -96,6 +102,7 @@ class PlaybackStateManager(
                 throw e
             }
             engine.prepare(uri, startSeconds * 1000, metadata)
+            loadedSource = if (uri.startsWith("file:")) PlaybackSource.OFFLINE else PlaybackSource.STREAMING
             failed = false
             sessionStartSeconds = startSeconds
             loadedId = episodeId
@@ -103,7 +110,7 @@ class PlaybackStateManager(
         }
         engine.play()
         queue?.remove(episodeId)
-        _state.update { it.copy(episodeId = episodeId, isPlaying = true) }
+        _state.update { it.copy(episodeId = episodeId, isPlaying = true, source = loadedSource) }
         startProgressTicker(episodeId)
     }
 
@@ -123,7 +130,7 @@ class PlaybackStateManager(
         engine.stop()
         loadedId = null
         loadedDurationMs = 0
-        _state.update { it.copy(episodeId = null, isPlaying = false) }
+        _state.update { it.copy(episodeId = null, isPlaying = false, source = null) }
     }
 
     suspend fun seekTo(positionMs: Long) {
