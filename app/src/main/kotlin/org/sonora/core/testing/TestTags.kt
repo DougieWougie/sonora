@@ -3,6 +3,9 @@ package org.sonora.core.testing
 
 /** Semantic handles for UI tests, so they keep working when the visible strings change or are translated. */
 object TestTags {
+    // Navigation
+    const val NAV_BADGE_EPISODES = "nav_badge_episodes"
+
     // Player
     const val MINI_PLAYER_BAR = "mini_player_bar"
     const val FULL_PLAYER_SHEET = "full_player_sheet"

@@ -17,6 +17,8 @@ import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
@@ -46,6 +48,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -60,6 +65,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import kotlin.reflect.KClass
 import kotlinx.serialization.Serializable
+import org.sonora.core.testing.TestTags
 import org.sonora.feature.discover.DiscoverScreen
 import org.sonora.feature.downloads.DownloadsScreen
 import org.sonora.feature.episodes.EpisodesScreen
@@ -115,11 +121,14 @@ internal fun navigationLayoutFor(width: Dp, height: Dp): NavigationLayout = when
 fun SonoraRoot(
     themeViewModel: ThemeViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel(),
+    badgesViewModel: NavBadgesViewModel = hiltViewModel(),
 ) {
     val theme by themeViewModel.state.collectAsStateWithLifecycle()
     val player by playerViewModel.uiState.collectAsStateWithLifecycle()
+    val badges by badgesViewModel.badges.collectAsStateWithLifecycle()
     SonoraRootContent(
         theme, player, playerViewModel.events, playerViewModel::onIntent, themeViewModel::onArtworkSeed, HiltAppScreens,
+        badges,
     )
 }
 
@@ -132,6 +141,7 @@ internal fun SonoraRootContent(
     onPlayerIntent: (PlayerIntent) -> Unit,
     onArtworkSeed: (Int?) -> Unit,
     screens: AppScreens,
+    badges: NavBadges = NavBadges(),
 ) {
     // Re-tint from the playing episode's artwork. Keep the last palette while the next cover loads.
     val seed = ArtworkColorExtractor.rememberSeed(player.episode?.artworkUrl)
@@ -140,7 +150,7 @@ internal fun SonoraRootContent(
     }
 
     PodcastExpressiveTheme(theme) {
-        SonoraScaffold(player, playerEvents, onPlayerIntent) { navController, snackbar, modifier ->
+        SonoraScaffold(player, playerEvents, onPlayerIntent, badges = badges) { navController, snackbar, modifier ->
             AppNavHost(navController, snackbar, modifier, screens)
         }
     }
@@ -159,6 +169,7 @@ internal fun SonoraScaffold(
     playerEvents: Flow<PlayerEvent>,
     onPlayerIntent: (org.sonora.feature.player.PlayerIntent) -> Unit,
     layout: NavigationLayout = currentNavigationLayout(),
+    badges: NavBadges = NavBadges(),
     navHost: @Composable (NavHostController, SnackbarHostState, Modifier) -> Unit,
 ) {
     val navController = rememberNavController()
@@ -188,7 +199,7 @@ internal fun SonoraScaffold(
     SharedTransitionLayout {
         Box(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxSize()) {
-                if (layout == NavigationLayout.Rail) TopLevelRail(navController)
+                if (layout == NavigationLayout.Rail) TopLevelRail(navController, badges)
                 Scaffold(
                     modifier = Modifier.weight(1f),
                     snackbarHost = { SnackbarHost(snackbar) },
@@ -198,8 +209,8 @@ internal fun SonoraScaffold(
                                 MiniPlayer(player, this, onPlayerIntent, onExpand = { expanded = true })
                             }
                             when (layout) {
-                                NavigationLayout.BottomBar -> TopLevelBar(navController)
-                                NavigationLayout.SlimBottomBar -> SlimTopLevelBar(navController)
+                                NavigationLayout.BottomBar -> TopLevelBar(navController, badges)
+                                NavigationLayout.SlimBottomBar -> SlimTopLevelBar(navController, badges)
                                 NavigationLayout.Rail -> Unit
                             }
                         }
@@ -261,14 +272,14 @@ internal fun AppNavHost(
 }
 
 @Composable
-private fun TopLevelBar(navController: NavHostController) {
+private fun TopLevelBar(navController: NavHostController, badges: NavBadges) {
     val destination = navController.currentBackStackEntryAsState().value?.destination
     NavigationBar {
         TopLevel.entries.forEach { top ->
             NavigationBarItem(
                 selected = destination?.hierarchy?.any { it.hasRoute(top.routeClass) } == true,
                 onClick = { navController.navigateTop(top.route) },
-                icon = { androidx.compose.material3.Icon(top.icon, contentDescription = null) },
+                icon = { TopLevelIcon(top, badges) },
                 label = { Text(top.label) },
             )
         }
@@ -277,14 +288,14 @@ private fun TopLevelBar(navController: NavHostController) {
 
 /** The landscape phone bar: icon beside label on a shorter bar, to leave the content room. */
 @Composable
-private fun SlimTopLevelBar(navController: NavHostController) {
+private fun SlimTopLevelBar(navController: NavHostController, badges: NavBadges) {
     val destination = navController.currentBackStackEntryAsState().value?.destination
     ShortNavigationBar {
         TopLevel.entries.forEach { top ->
             ShortNavigationBarItem(
                 selected = destination?.hierarchy?.any { it.hasRoute(top.routeClass) } == true,
                 onClick = { navController.navigateTop(top.route) },
-                icon = { androidx.compose.material3.Icon(top.icon, contentDescription = null) },
+                icon = { TopLevelIcon(top, badges) },
                 label = { Text(top.label) },
                 iconPosition = NavigationItemIconPosition.Start,
             )
@@ -293,14 +304,14 @@ private fun SlimTopLevelBar(navController: NavHostController) {
 }
 
 @Composable
-private fun TopLevelRail(navController: NavHostController) {
+private fun TopLevelRail(navController: NavHostController, badges: NavBadges) {
     val destination = navController.currentBackStackEntryAsState().value?.destination
     NavigationRail {
         TopLevel.entries.forEach { top ->
             NavigationRailItem(
                 selected = destination?.hierarchy?.any { it.hasRoute(top.routeClass) } == true,
                 onClick = { navController.navigateTop(top.route) },
-                icon = { androidx.compose.material3.Icon(top.icon, contentDescription = null) },
+                icon = { TopLevelIcon(top, badges) },
                 label = { Text(top.label) },
             )
         }
@@ -311,4 +322,20 @@ private fun NavHostController.navigateTop(route: Any) = navigate(route) {
     popUpTo(graph.findStartDestination().id) { saveState = true }
     launchSingleTop = true
     restoreState = true
+}
+
+@Composable
+private fun TopLevelIcon(top: TopLevel, badges: NavBadges) {
+    val label = if (top == TopLevel.Episodes) badgeLabel(badges.episodes) else null
+    if (label == null) {
+        androidx.compose.material3.Icon(top.icon, contentDescription = null)
+        return
+    }
+    BadgedBox(badge = {
+        Badge(Modifier.testTag(TestTags.NAV_BADGE_EPISODES).semantics { contentDescription = "$label unplayed" }) {
+            Text(label)
+        }
+    }) {
+        androidx.compose.material3.Icon(top.icon, contentDescription = null)
+    }
 }

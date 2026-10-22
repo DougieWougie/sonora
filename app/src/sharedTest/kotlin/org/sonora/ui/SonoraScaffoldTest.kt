@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -42,10 +43,10 @@ class SonoraScaffoldTest {
     private var player by mutableStateOf(PlayerUiState())
 
     /** The real shell and routes, with plain text standing in for the Hilt-backed screens. */
-    private fun setContent(layout: NavigationLayout = NavigationLayout.BottomBar) {
+    private fun setContent(layout: NavigationLayout = NavigationLayout.BottomBar, badges: NavBadges = NavBadges()) {
         composeTestRule.setContent {
             MaterialExpressiveTheme {
-                SonoraScaffold(player, events.receiveAsFlow(), { intents += it }, layout) { navController, _, modifier ->
+                SonoraScaffold(player, events.receiveAsFlow(), { intents += it }, layout, badges) { navController, _, modifier ->
                     NavHost(navController, startDestination = LibraryRoute, modifier = modifier) {
                         composable<LibraryRoute> { Text("Library screen") }
                         composable<EpisodesRoute> { Text("Episodes screen") }
@@ -85,6 +86,40 @@ class SonoraScaffoldTest {
 
         composeTestRule.onNodeWithText("Library").performClick()
         composeTestRule.onNodeWithText("Library screen").assertIsDisplayed()
+    }
+
+    // --- badges --------------------------------------------------------------------------------
+
+    private fun assertEpisodesBadgeShown(layout: NavigationLayout) {
+        setContent(layout, NavBadges(episodes = 7))
+
+        composeTestRule.onNodeWithTag(TestTags.NAV_BADGE_EPISODES, useUnmergedTree = true).assertIsDisplayed().assertContentDescriptionEquals("7 unplayed")
+    }
+
+    @Test
+    fun `the episodes tab shows how many episodes are unplayed in the bottom bar`() =
+        assertEpisodesBadgeShown(NavigationLayout.BottomBar)
+
+    @Test
+    fun `the episodes tab shows how many episodes are unplayed in the slim bottom bar`() =
+        assertEpisodesBadgeShown(NavigationLayout.SlimBottomBar)
+
+    @Test
+    fun `the episodes tab shows how many episodes are unplayed in the rail`() =
+        assertEpisodesBadgeShown(NavigationLayout.Rail)
+
+    @Test
+    fun `the episodes badge is capped for large counts`() {
+        setContent(badges = NavBadges(episodes = 250))
+
+        composeTestRule.onNodeWithTag(TestTags.NAV_BADGE_EPISODES, useUnmergedTree = true).assertContentDescriptionEquals("99+ unplayed")
+    }
+
+    @Test
+    fun `there is no badge when nothing is unplayed`() {
+        setContent(badges = NavBadges(episodes = 0))
+
+        composeTestRule.onNodeWithTag(TestTags.NAV_BADGE_EPISODES, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
