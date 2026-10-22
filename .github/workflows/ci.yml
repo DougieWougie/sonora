@@ -25,8 +25,8 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
-    name: Unit Tests, Lint & Debug APK
+  unit-tests:
+    name: Unit Tests
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -49,19 +49,80 @@ jobs:
       - name: Ensure gradlew is executable
         run: chmod +x ./gradlew
 
-      - name: Test, Lint & Assemble
-        run: ./gradlew testDebugUnitTest lintDebug assembleDebug --stacktrace
+      - name: Run Unit Tests
+        run: ./gradlew testDebugUnitTest --stacktrace
 
-      - name: Upload Test and Lint Reports on Failure
+      - name: Upload Test Reports on Failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: test-and-lint-reports
+          name: test-reports
+          path: '**/build/reports/tests/testDebugUnitTest/'
+          retention-days: 7
+
+  lint:
+    name: Android Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 17 (Temurin)
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle and Cache
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-cleanup: on-success
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Ensure gradlew is executable
+        run: chmod +x ./gradlew
+
+      - name: Run Android Lint
+        run: ./gradlew lintDebug --stacktrace
+
+      - name: Upload Lint Reports on Failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lint-reports
           path: |
-            **/build/reports/tests/testDebugUnitTest/
             **/build/reports/lint-results-debug.html
             **/build/reports/lint-results-debug.xml
           retention-days: 7
+
+  build:
+    name: Debug APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 17 (Temurin)
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle and Cache
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-cleanup: on-success
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Ensure gradlew is executable
+        run: chmod +x ./gradlew
+
+      - name: Assemble Debug APK
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload Debug APK
         if: success()
