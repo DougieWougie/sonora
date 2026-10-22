@@ -6,10 +6,16 @@ on:
     branches:
       - main
       - develop
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
   pull_request:
     branches:
       - main
       - develop
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -38,18 +44,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           cache-cleanup: on-success
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Ensure gradlew is executable
         run: chmod +x ./gradlew
 
-      - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest --stacktrace
-
-      - name: Run Android Lint
-        run: ./gradlew lintDebug --stacktrace
-
-      - name: Assemble Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Test, Lint & Assemble
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug --stacktrace
 
       - name: Upload Test and Lint Reports on Failure
         if: failure()
