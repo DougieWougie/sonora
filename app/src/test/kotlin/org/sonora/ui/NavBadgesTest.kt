@@ -34,6 +34,11 @@ class NavBadgesTest {
     }
 
     @Test
+    fun `no badge when the count is negative`() {
+        assertNull(badgeLabel(-1))
+    }
+
+    @Test
     fun `small counts are shown as they are`() {
         assertEquals("1", badgeLabel(1))
         assertEquals("99", badgeLabel(99))
