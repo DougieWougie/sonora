@@ -89,6 +89,8 @@ class FakeEpisodeDao : EpisodeDao {
 
     override fun observeUnplayed(limit: Int): Flow<List<EpisodeEntity>> =
         rows.map { all -> all.filter { !it.played }.sortedByDescending { it.publishedAtMillis }.take(limit) }
+
+    override fun observeUnplayedCount(): Flow<Int> = rows.map { all -> all.count { !it.played } }
 }
 
 class FakeSyncQueueDao : SyncQueueDao {

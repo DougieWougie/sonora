@@ -177,6 +177,19 @@ abstract class DaoContract {
     }
 
     @Test
+    fun `unplayed episodes are counted across podcasts`() = runBlocking {
+        val a = podcast("https://a")
+        val b = podcast("https://b")
+        assertEquals(0, episodes.observeUnplayedCount().first())
+
+        episodes.insertAll(
+            listOf(episode(a, "e1"), episode(a, "e2", played = true), episode(b, "e3"), episode(b, "e4")),
+        )
+
+        assertEquals(3, episodes.observeUnplayedCount().first())
+    }
+
+    @Test
     fun `stats count unplayed episodes and find the latest publication per podcast`() = runBlocking {
         val a = podcast("https://a")
         val b = podcast("https://b")

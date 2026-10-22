@@ -76,6 +76,9 @@ interface EpisodeDao {
     @Query("SELECT * FROM episode WHERE played = 0 ORDER BY publishedAtMillis DESC LIMIT :limit")
     fun observeUnplayed(limit: Int): Flow<List<EpisodeEntity>>
 
+    @Query("SELECT COUNT(*) FROM episode WHERE played = 0")
+    fun observeUnplayedCount(): Flow<Int>
+
     @Query("SELECT * FROM episode WHERE podcastId = :podcastId ORDER BY publishedAtMillis DESC")
     fun observeForPodcast(podcastId: Long): Flow<List<EpisodeEntity>>
 }
