@@ -136,7 +136,7 @@ class PodcastSyncPipeline(
     }
 
     private suspend fun refresh(podcast: PodcastEntity): FeedResult = try {
-        val knownGuids = episodeDao.getForPodcast(podcast.id).mapTo(HashSet()) { it.guid }
+        val knownGuids = episodeDao.getGuidsForPodcast(podcast.id).toHashSet()
         val feed = feedFetcher.fetch(podcast.feedUrl)
         podcastRepository.refresh(podcast.feedUrl, feed)
 

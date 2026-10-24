@@ -116,6 +116,27 @@ abstract class DaoContract {
     }
 
     @Test
+    fun `updatePosition changes only the position and reports whether a row matched`() = runBlocking {
+        val id = podcast("https://a")
+        episodes.insertAll(listOf(episode(id, "e1")))
+        val before = episodes.getForPodcast(id).single()
+
+        assertEquals(1, episodes.updatePosition(before.id, 77))
+        assertEquals(0, episodes.updatePosition(before.id + 100, 5))
+
+        assertEquals(before.copy(playbackPositionSeconds = 77), episodes.getForPodcast(id).single())
+    }
+
+    @Test
+    fun `guids for a podcast lists only that podcast's episodes`() = runBlocking {
+        val id = podcast("https://a")
+        val other = podcast("https://b")
+        episodes.insertAll(listOf(episode(id, "e1"), episode(id, "e2"), episode(other, "x")))
+
+        assertEquals(setOf("e1", "e2"), episodes.getGuidsForPodcast(id).toSet())
+    }
+
+    @Test
     fun `older unplayed returns only unplayed episodes of the podcast published strictly before the cutoff`() = runBlocking {
         val id = podcast("https://a")
         val other = podcast("https://b")

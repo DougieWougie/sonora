@@ -35,6 +35,10 @@ You need JDK 17 and the Android SDK.
 ./gradlew verifyCoverage            # fails if line coverage of hand-written code is below the minimum (also part of `check`)
 ```
 
+## Roadmap
+
+Planned work is listed in [docs/ROADMAP.md](docs/ROADMAP.md).
+
 ## Contributing
 
 The project is developed test-first: write a failing test, make it pass, then tidy up. Kotlin files carry an `SPDX-License-Identifier: GPL-3.0-or-later` header. See [CLAUDE.md](CLAUDE.md) for the full conventions and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the app is put together.

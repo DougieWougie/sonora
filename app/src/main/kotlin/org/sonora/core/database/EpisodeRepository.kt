@@ -31,7 +31,7 @@ class EpisodeRepository(
 
     /** Cheap periodic checkpoint: stores the position only, without touching the sync queue. */
     suspend fun savePosition(episodeId: Long, positionSeconds: Long) {
-        episodeDao.update(requireEpisode(episodeId).copy(playbackPositionSeconds = positionSeconds))
+        if (episodeDao.updatePosition(episodeId, positionSeconds) == 0) throw NoSuchElementException("No episode with id $episodeId")
     }
 
     suspend fun markPlayed(episodeId: Long) = transactions.run { markPlayed(requireEpisode(episodeId)) }

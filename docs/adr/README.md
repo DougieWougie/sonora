@@ -15,3 +15,4 @@ and update the old one's status to `Superseded by NNNN`.
 | [0005](0005-pull-resolve-push-sync.md) | Sync by pull, resolve, then push; latest timestamp wins |
 | [0006](0006-service-owned-playback.md) | Playback owned by a Media3 service, reached through PlaybackHub |
 | [0007](0007-shared-ui-tests.md) | UI tests shared between Robolectric and device runs |
+| [0008](0008-defer-episode-indexes.md) | Defer extra indexes on the episode table until a measurement justifies a migration |

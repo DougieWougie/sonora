@@ -261,7 +261,7 @@ class EpisodeDownloadManager(
     private fun extensionOf(episode: EpisodeEntity): String {
         val name = episode.enclosureUrl.substringBefore('?').substringBefore('#').substringAfterLast('/')
         val ext = name.substringAfterLast('.', "").lowercase()
-        return if (Regex("[a-z0-9]{2,4}").matches(ext)) ext else "mp3"
+        return if (EXTENSION.matches(ext)) ext else "mp3"
     }
 
     private sealed interface Outcome {
@@ -271,5 +271,6 @@ class EpisodeDownloadManager(
 
     private companion object {
         const val CHUNK_BYTES = 8L * 1024
+        val EXTENSION = Regex("[a-z0-9]{2,4}")
     }
 }
