@@ -29,6 +29,9 @@ class KeystoreSecretStore(context: Context) : SecretStore {
         } catch (_: GeneralSecurityException) {
             remove(name)
             null
+        } catch (_: IllegalArgumentException) { // not valid Base64
+            remove(name)
+            null
         } catch (_: IndexOutOfBoundsException) {
             remove(name)
             null
