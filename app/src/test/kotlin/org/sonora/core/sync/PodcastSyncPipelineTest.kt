@@ -233,6 +233,17 @@ class PodcastSyncPipelineTest {
     }
 
     @Test
+    fun `a refresh loads a podcast's episode rows once when nothing is to be auto-downloaded`() = runTest {
+        subscribe("https://manual", autoDownload = false, existing = listOf("old"))
+        feeds["https://manual"] = { feed(episode("old", 1), episode("new", 2)) }
+        val before = episodeDao.fullLoads
+
+        pipeline().run()
+
+        assertEquals(1, episodeDao.fullLoads - before) // PodcastRepository.refresh's merge
+    }
+
+    @Test
     fun `does not download the back catalogue on a podcast's first refresh`() = runTest {
         subscribe("https://fresh", autoDownload = true)
         feeds["https://fresh"] = { feed(episode("a", 1), episode("b", 2)) }

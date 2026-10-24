@@ -145,6 +145,11 @@ class EpisodeRepositoryTest {
         assertTrue(queue.getAll().isEmpty())
     }
 
+    @Test
+    fun `savePosition rejects an unknown episode`() = runTest {
+        assertThrows<NoSuchElementException> { repo.savePosition(42, 10) }
+    }
+
     // --- marking older episodes -----------------------------------------------------------------
 
     private class Series(val podcastId: Long, val ids: Map<String, Long>)

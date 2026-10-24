@@ -52,6 +52,13 @@ interface EpisodeDao {
     @Query("SELECT * FROM episode WHERE id = :id")
     suspend fun findById(id: Long): EpisodeEntity?
 
+    /** Writes the playback position alone, so the periodic checkpoint need not read and rewrite the whole row. */
+    @Query("UPDATE episode SET playbackPositionSeconds = :positionSeconds WHERE id = :id")
+    suspend fun updatePosition(id: Long, positionSeconds: Long): Int
+
+    @Query("SELECT guid FROM episode WHERE podcastId = :podcastId")
+    suspend fun getGuidsForPodcast(podcastId: Long): List<String>
+
     @Query("SELECT * FROM episode WHERE enclosureUrl = :enclosureUrl LIMIT 1")
     suspend fun findByEnclosureUrl(enclosureUrl: String): EpisodeEntity?
 

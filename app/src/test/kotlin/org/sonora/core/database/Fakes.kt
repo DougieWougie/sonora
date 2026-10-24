@@ -58,6 +58,9 @@ class FakeEpisodeDao : EpisodeDao {
     /** How many rows were written through [update]/[updateAll], to prove unchanged rows are left alone. */
     var rowsUpdated = 0
 
+    /** How many times whole episode rows were loaded for a podcast, to keep refreshes from loading them repeatedly. */
+    var fullLoads = 0
+
     override suspend fun insertAll(episodes: List<EpisodeEntity>) {
         rows.value += episodes.map { it.copy(id = nextId++) }
     }
@@ -74,7 +77,18 @@ class FakeEpisodeDao : EpisodeDao {
     override suspend fun updateAll(episodes: List<EpisodeEntity>) = episodes.forEach { update(it) }
     override suspend fun findById(id: Long) = rows.value.firstOrNull { it.id == id }
     override suspend fun findByEnclosureUrl(enclosureUrl: String) = rows.value.firstOrNull { it.enclosureUrl == enclosureUrl }
-    override suspend fun getForPodcast(podcastId: Long) = rows.value.filter { it.podcastId == podcastId }
+    override suspend fun getForPodcast(podcastId: Long): List<EpisodeEntity> {
+        fullLoads++
+        return rows.value.filter { it.podcastId == podcastId }
+    }
+
+    override suspend fun getGuidsForPodcast(podcastId: Long) = rows.value.filter { it.podcastId == podcastId }.map { it.guid }
+
+    override suspend fun updatePosition(id: Long, positionSeconds: Long): Int {
+        val found = rows.value.any { it.id == id }
+        rows.value = rows.value.map { if (it.id == id) it.copy(playbackPositionSeconds = positionSeconds) else it }
+        return if (found) 1 else 0
+    }
     override suspend fun getByDownloadState(state: org.sonora.core.model.DownloadState) =
         rows.value.filter { it.downloadState == state }
     override suspend fun getOlderUnplayed(podcastId: Long, publishedBefore: Long) =
