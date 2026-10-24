@@ -20,10 +20,26 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Release signing comes from the environment or ~/.gradle/gradle.properties, never from the repo.
+    // Without it the release build is left unsigned (e.g. on CI).
+    val releaseKeystore = providers.environmentVariable("SONORA_KEYSTORE").orElse(providers.gradleProperty("sonora.keystore")).orNull
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = providers.environmentVariable("SONORA_KEYSTORE_PASSWORD").orElse(providers.gradleProperty("sonora.keystorePassword")).orNull
+                keyAlias = providers.environmentVariable("SONORA_KEY_ALIAS").orElse(providers.gradleProperty("sonora.keyAlias")).orNull
+                keyPassword = providers.environmentVariable("SONORA_KEY_PASSWORD").orElse(providers.gradleProperty("sonora.keyPassword")).orNull
+            }
+        }
+    }
+
     buildTypes {
         debug { enableUnitTestCoverage = true }
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
