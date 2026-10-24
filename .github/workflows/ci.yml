@@ -49,15 +49,17 @@ jobs:
       - name: Ensure gradlew is executable
         run: chmod +x ./gradlew
 
-      - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest --stacktrace
+      - name: Run Unit Tests and enforce the coverage floor
+        run: ./gradlew testDebugUnitTest verifyCoverage --stacktrace
 
       - name: Upload Test Reports on Failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: test-reports
-          path: '**/build/reports/tests/testDebugUnitTest/'
+          path: |
+            **/build/reports/tests/testDebugUnitTest/
+            **/build/reports/coverage/test/debug/
           retention-days: 7
 
   lint:

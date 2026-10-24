@@ -174,6 +174,9 @@ val verifyCoverage by tasks.registering {
     description = "Fails if debug unit-test line coverage of hand-written code is below $minimumLineCoverage%."
     dependsOn("createDebugUnitTestCoverageReport")
     val report = layout.buildDirectory.file("reports/coverage/test/debug/report.xml")
+    // Copied into locals: a task action that reaches for script-level values cannot be stored in the configuration cache.
+    val floor = minimumLineCoverage
+    val skipped = generatedClass
     doLast {
         val factory = javax.xml.parsers.DocumentBuilderFactory.newInstance().apply {
             setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
@@ -183,7 +186,7 @@ val verifyCoverage by tasks.registering {
         var missed = 0.0
         for (i in 0 until classes.length) {
             val cls = classes.item(i) as org.w3c.dom.Element
-            if (generatedClass.containsMatchIn(cls.getAttribute("name"))) continue
+            if (skipped.containsMatchIn(cls.getAttribute("name"))) continue
             val children = cls.childNodes
             for (c in 0 until children.length) {
                 val counter = children.item(c) as? org.w3c.dom.Element ?: continue
@@ -194,9 +197,9 @@ val verifyCoverage by tasks.registering {
             }
         }
         val percent = 100 * covered / (covered + missed)
-        logger.lifecycle("Line coverage (hand-written): %.1f%% (minimum %.1f%%)".format(percent, minimumLineCoverage))
-        check(percent >= minimumLineCoverage) {
-            "Line coverage %.1f%% is below the %.1f%% minimum".format(percent, minimumLineCoverage)
+        logger.lifecycle("Line coverage (hand-written): %.1f%% (minimum %.1f%%)".format(percent, floor))
+        check(percent >= floor) {
+            "Line coverage %.1f%% is below the %.1f%% minimum".format(percent, floor)
         }
     }
 }
