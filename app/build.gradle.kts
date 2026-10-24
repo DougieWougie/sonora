@@ -20,10 +20,26 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Release signing comes from the environment or ~/.gradle/gradle.properties, never from the repo.
+    // Without it the release build is left unsigned (e.g. on CI).
+    val releaseKeystore = providers.environmentVariable("SONORA_KEYSTORE").orElse(providers.gradleProperty("sonora.keystore")).orNull
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = providers.environmentVariable("SONORA_KEYSTORE_PASSWORD").orElse(providers.gradleProperty("sonora.keystorePassword")).orNull
+                keyAlias = providers.environmentVariable("SONORA_KEY_ALIAS").orElse(providers.gradleProperty("sonora.keyAlias")).orNull
+                keyPassword = providers.environmentVariable("SONORA_KEY_PASSWORD").orElse(providers.gradleProperty("sonora.keyPassword")).orNull
+            }
+        }
+    }
+
     buildTypes {
         debug { enableUnitTestCoverage = true }
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -158,6 +174,9 @@ val verifyCoverage by tasks.registering {
     description = "Fails if debug unit-test line coverage of hand-written code is below $minimumLineCoverage%."
     dependsOn("createDebugUnitTestCoverageReport")
     val report = layout.buildDirectory.file("reports/coverage/test/debug/report.xml")
+    // Copied into locals: a task action that reaches for script-level values cannot be stored in the configuration cache.
+    val floor = minimumLineCoverage
+    val skipped = generatedClass
     doLast {
         val factory = javax.xml.parsers.DocumentBuilderFactory.newInstance().apply {
             setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
@@ -167,7 +186,7 @@ val verifyCoverage by tasks.registering {
         var missed = 0.0
         for (i in 0 until classes.length) {
             val cls = classes.item(i) as org.w3c.dom.Element
-            if (generatedClass.containsMatchIn(cls.getAttribute("name"))) continue
+            if (skipped.containsMatchIn(cls.getAttribute("name"))) continue
             val children = cls.childNodes
             for (c in 0 until children.length) {
                 val counter = children.item(c) as? org.w3c.dom.Element ?: continue
@@ -178,9 +197,9 @@ val verifyCoverage by tasks.registering {
             }
         }
         val percent = 100 * covered / (covered + missed)
-        logger.lifecycle("Line coverage (hand-written): %.1f%% (minimum %.1f%%)".format(percent, minimumLineCoverage))
-        check(percent >= minimumLineCoverage) {
-            "Line coverage %.1f%% is below the %.1f%% minimum".format(percent, minimumLineCoverage)
+        logger.lifecycle("Line coverage (hand-written): %.1f%% (minimum %.1f%%)".format(percent, floor))
+        check(percent >= floor) {
+            "Line coverage %.1f%% is below the %.1f%% minimum".format(percent, floor)
         }
     }
 }

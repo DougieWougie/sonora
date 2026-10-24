@@ -55,11 +55,15 @@ class FakeEpisodeDao : EpisodeDao {
     val rows = MutableStateFlow<List<EpisodeEntity>>(emptyList())
     private var nextId = 1L
 
+    /** How many rows were written through [update]/[updateAll], to prove unchanged rows are left alone. */
+    var rowsUpdated = 0
+
     override suspend fun insertAll(episodes: List<EpisodeEntity>) {
         rows.value += episodes.map { it.copy(id = nextId++) }
     }
 
     override suspend fun update(episode: EpisodeEntity) {
+        rowsUpdated++
         rows.value = rows.value.map { if (it.id == episode.id) episode else it }
     }
 

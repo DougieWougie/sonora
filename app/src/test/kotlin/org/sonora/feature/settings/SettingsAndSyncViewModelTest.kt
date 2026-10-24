@@ -170,6 +170,18 @@ class SettingsAndSyncViewModelTest {
     }
 
     @Test
+    fun `credentials naming a cleartext server are refused and not stored`() = runTest {
+        login.pollResults = mutableListOf(Result.success(NextcloudCredentials("http://cloud.example", "alice", "app-pass")))
+        val vm = vm()
+        vm.onIntent(SettingsIntent.StartLogin("cloud.example")); advanceUntilIdle()
+        vm.onIntent(SettingsIntent.BrowserLaunched); runCurrent()
+
+        assertTrue((vm.nextcloud as NextcloudState.Error).message.contains("HTTPS"))
+        assertNull(settings.account)
+        assertEquals(0, sync.requests)
+    }
+
+    @Test
     fun `polling stops after connecting`() = runTest {
         login.pollResults = mutableListOf(Result.success(creds))
         val vm = vm()

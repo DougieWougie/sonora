@@ -24,7 +24,11 @@ class PodcastRepository(
 
         val local = episodeDao.getForPodcast(podcastId).associateBy { it.guid }
         val (known, fresh) = feed.episodes.distinctBy { it.guid }.partition { it.guid in local }
-        episodeDao.updateAll(known.map { parsed -> parsed.mergeInto(local.getValue(parsed.guid)) })
+        val changed = known.mapNotNull { parsed ->
+            val stored = local.getValue(parsed.guid)
+            parsed.mergeInto(stored).takeIf { it != stored }
+        }
+        if (changed.isNotEmpty()) episodeDao.updateAll(changed)
         episodeDao.insertAll(fresh.map { it.toEntity(podcastId) })
         podcastId
     }

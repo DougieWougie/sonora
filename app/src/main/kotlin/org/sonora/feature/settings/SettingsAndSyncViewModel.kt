@@ -252,6 +252,11 @@ class SettingsAndSyncViewModel @Inject constructor(
     }
 
     private fun connect(credentials: NextcloudCredentials) {
+        // The server address comes from the server's response: hold it to the same transport policy.
+        if (credentials.server.toHttpUrlOrNull() == null || !isTransportAllowed(credentials.server, settings.allowCleartext)) {
+            session = null
+            return setNextcloud(NextcloudState.Error("The server returned an insecure address (HTTPS is required)."))
+        }
         settings.saveNextcloudAccount(NextcloudAccount(credentials.server, credentials.loginName, credentials.appPassword))
         session = null
         setNextcloud(NextcloudState.Connected(credentials.loginName, credentials.server, settings.lastSyncMillis.value.orNull()))

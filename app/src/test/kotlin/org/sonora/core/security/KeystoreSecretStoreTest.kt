@@ -102,6 +102,14 @@ class KeystoreSecretStoreTest {
     }
 
     @Test
+    fun `a value that is not valid base64 is discarded`() {
+        prefs.edit().putString("token", "!!!:???").commit()
+
+        assertNull(store.get("token"))
+        assertFalse(prefs.contains("token"))
+    }
+
+    @Test
     fun `a secret whose key was wiped is discarded`() {
         store.put("token", "s3cret")
 

@@ -52,6 +52,17 @@ class PodcastRepositoryTest {
     }
 
     @Test
+    fun `refresh only writes episodes whose feed data changed`() = runTest {
+        val id = repo.refresh("https://f/feed", feed("Show", ep("a"), ep("b")))
+        episodeDao.rowsUpdated = 0
+
+        repo.refresh("https://f/feed", feed("Show", ep("a"), ep("b", title = "B renamed")))
+
+        assertEquals(1, episodeDao.rowsUpdated)
+        assertEquals("B renamed", episodeDao.getForPodcast(id).first { it.guid == "b" }.title)
+    }
+
+    @Test
     fun `refresh preserves local playback and download state`() = runTest {
         val id = repo.refresh("https://f/feed", feed("Show", ep("a")))
         val local = episodeDao.getForPodcast(id).single().copy(
