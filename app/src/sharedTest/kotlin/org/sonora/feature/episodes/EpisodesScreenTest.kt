@@ -81,7 +81,8 @@ class EpisodesScreenTest {
         state = state.copy(queue = listOf(item(1, "Queued one")), inbox = listOf(item(2, "Inbox one")))
         setContent()
 
-        composeTestRule.onNodeWithText("Up next").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Queue").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Up next").assertDoesNotExist()
         composeTestRule.onNodeWithText("Queued one").assertIsDisplayed()
         composeTestRule.onNodeWithText("Inbox").assertIsDisplayed()
         composeTestRule.onNodeWithText("Inbox one").assertIsDisplayed()
@@ -104,7 +105,7 @@ class EpisodesScreenTest {
         state = state.copy(queue = listOf(item(1, "A"), item(2, "B")), confirmingClear = true)
         setContent()
 
-        composeTestRule.onNodeWithText("Clear 2 episodes from Up next?").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Clear 2 episodes from Queue?").assertIsDisplayed()
         composeTestRule.onNodeWithText("Clear queue").performClick()
         composeTestRule.onNodeWithText("Cancel").performClick()
 
@@ -200,5 +201,76 @@ class EpisodesScreenTest {
             listOf(EpisodesIntent.ConfirmMarkOlderPlayed, EpisodesIntent.DismissMarkOlderPlayed),
             intents,
         )
+    }
+
+    // --- collapsible sections ------------------------------------------------------------------
+
+    @Test
+    fun `section headers show how many episodes they hold`() {
+        state = state.copy(queue = listOf(item(1, "Q1"), item(2, "Q2")), inbox = listOf(item(3, "I1")))
+        setContent()
+
+        composeTestRule.onNodeWithText("2", substring = false).assertIsDisplayed()
+        composeTestRule.onNodeWithText("1", substring = false).assertIsDisplayed()
+    }
+
+    @Test
+    fun `an expanded section offers to collapse and a collapsed one to expand`() {
+        state = state.copy(inboxExpanded = false)
+        setContent()
+
+        composeTestRule.onNodeWithContentDescription("Collapse Queue").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Expand Inbox").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the chevron and the title both toggle their section`() {
+        setContent()
+
+        composeTestRule.onNodeWithContentDescription("Collapse Queue").performClick()
+        composeTestRule.onNodeWithText("Inbox").performClick()
+
+        assertEquals(
+            listOf<EpisodesIntent>(
+                EpisodesIntent.ToggleSection(EpisodesSection.QUEUE),
+                EpisodesIntent.ToggleSection(EpisodesSection.INBOX),
+            ),
+            intents,
+        )
+    }
+
+    @Test
+    fun `a collapsed queue hides its episodes and hint but keeps its actions`() {
+        state = state.copy(queue = listOf(item(1, "Queued one")), queueExpanded = false)
+        setContent()
+
+        composeTestRule.onNodeWithText("Queued one").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("Play queue").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Shuffle queue").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Clear").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a collapsed empty queue does not show its hint`() {
+        state = state.copy(queueExpanded = false)
+        setContent()
+
+        composeTestRule.onNodeWithText("Swipe an episode right to queue it.").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a collapsed inbox hides its episodes`() {
+        state = state.copy(inbox = listOf(item(2, "Inbox one")), inboxExpanded = false)
+        setContent()
+
+        composeTestRule.onNodeWithText("Inbox one").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a collapsed empty inbox does not show its caught-up message`() {
+        state = state.copy(inboxExpanded = false)
+        setContent()
+
+        composeTestRule.onNodeWithText("You're all caught up.").assertDoesNotExist()
     }
 }

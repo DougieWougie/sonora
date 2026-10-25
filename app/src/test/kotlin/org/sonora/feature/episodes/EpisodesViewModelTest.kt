@@ -18,6 +18,7 @@ import org.sonora.core.media.PersistentPlayQueue
 import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.testutil.FakeEpisodeActions
 import org.sonora.testutil.FakePlaybackPort
+import org.sonora.testutil.FakeSettingsStore
 import org.sonora.testutil.MainDispatcherExtension
 import org.sonora.testutil.awaitUntil
 
@@ -30,8 +31,9 @@ class EpisodesViewModelTest {
     private val queue = PersistentPlayQueue(FakeQueueStorage())
     private val actions = FakeEpisodeActions()
     private val playback = FakePlaybackPort()
+    private val settings = FakeSettingsStore()
 
-    private fun vm() = EpisodesViewModel(episodes, podcasts, queue, actions, playback)
+    private fun vm() = EpisodesViewModel(episodes, podcasts, queue, actions, playback, settings)
 
     private suspend fun seed(): List<Long> {
         val a = podcasts.insert(PodcastEntity(feedUrl = "https://a", title = "Alpha"))
@@ -280,5 +282,61 @@ class EpisodesViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(emptyList<String>(), actions.calls)
+    }
+
+    // --- collapsible sections ----------------------------------------------------------------
+
+    @Test
+    fun `both sections start expanded`() = runTest {
+        vm().uiState.test {
+            val state = awaitUntil { !it.isLoading }
+            assertTrue(state.queueExpanded)
+            assertTrue(state.inboxExpanded)
+        }
+    }
+
+    @Test
+    fun `sections start as they were left`() = runTest {
+        settings.queueCollapsed = true
+        settings.inboxCollapsed = true
+
+        vm().uiState.test {
+            val state = awaitUntil { !it.isLoading }
+            assertEquals(false, state.queueExpanded)
+            assertEquals(false, state.inboxExpanded)
+        }
+    }
+
+    @Test
+    fun `toggling a section flips only that section and saves it`() = runTest {
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { !it.isLoading }
+
+            vm.onIntent(EpisodesIntent.ToggleSection(EpisodesSection.QUEUE))
+            val collapsed = awaitUntil { !it.queueExpanded }
+            assertTrue(collapsed.inboxExpanded)
+            assertTrue(settings.queueCollapsed)
+            assertEquals(false, settings.inboxCollapsed)
+
+            vm.onIntent(EpisodesIntent.ToggleSection(EpisodesSection.QUEUE))
+            awaitUntil { it.queueExpanded }
+            assertEquals(false, settings.queueCollapsed)
+
+            vm.onIntent(EpisodesIntent.ToggleSection(EpisodesSection.INBOX))
+            awaitUntil { !it.inboxExpanded }
+            assertTrue(settings.inboxCollapsed)
+        }
+    }
+
+    @Test
+    fun `removing from the queue says Queue`() = runTest {
+        val ids = seed()
+        queue.enqueue(ids[0])
+        val vm = vm()
+        vm.events.test {
+            vm.onIntent(EpisodesIntent.Dequeue(ids[0]))
+            assertEquals("Removed from Queue", (awaitItem() as EpisodesEvent.QueueChanged).text)
+        }
     }
 }

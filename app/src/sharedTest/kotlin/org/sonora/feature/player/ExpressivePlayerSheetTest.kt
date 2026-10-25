@@ -15,6 +15,7 @@ import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertAny
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -26,6 +27,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onChildren
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
@@ -272,12 +274,13 @@ class ExpressivePlayerSheetTest {
     }
 
     @Test
-    fun queueChipOpensTheUpNextSheet() {
+    fun queueChipOpensTheQueueSheet() {
         setContent(expanded = true)
 
         tagged(TestTags.QUEUE_CHIP).performClick()
 
-        composeTestRule.onNodeWithText("Up next").assertIsDisplayed()
+        // The chip and the sheet's heading share the name.
+        composeTestRule.onAllNodesWithText("Queue").assertCountEquals(2)
     }
 
     @Test

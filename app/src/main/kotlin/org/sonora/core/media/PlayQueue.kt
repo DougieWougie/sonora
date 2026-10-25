@@ -3,7 +3,7 @@ package org.sonora.core.media
 
 import kotlinx.coroutines.flow.StateFlow
 
-/** The user's "up next" list of episode ids, in play order. */
+/** The user's queue of episode ids, in play order. */
 interface PlayQueue {
     val items: StateFlow<List<Long>>
     fun enqueue(episodeId: Long)
