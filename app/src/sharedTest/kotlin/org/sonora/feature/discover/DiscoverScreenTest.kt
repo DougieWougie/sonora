@@ -20,6 +20,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import org.sonora.ui.assertScreenHeading
 import org.junit.runner.RunWith
 import org.sonora.core.model.DirectoryPodcast
 
@@ -48,7 +49,7 @@ class DiscoverScreenTest {
     fun `before searching the screen explains the options`() {
         setContent()
 
-        composeTestRule.onNodeWithText("Discover").assertIsDisplayed()
+        composeTestRule.assertScreenHeading("Discover")
         composeTestRule.onNodeWithText("Search a directory", substring = true).assertIsDisplayed()
     }
 

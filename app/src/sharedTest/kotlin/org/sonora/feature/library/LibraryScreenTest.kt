@@ -16,6 +16,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import org.sonora.ui.assertScreenHeading
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
@@ -43,7 +44,7 @@ class LibraryScreenTest {
     fun `an empty library points to Discover`() {
         setContent()
 
-        composeTestRule.onNodeWithText("Library").assertIsDisplayed()
+        composeTestRule.assertScreenHeading("Library")
         composeTestRule.onNodeWithText("No subscriptions yet", substring = true).assertIsDisplayed()
     }
 
@@ -61,7 +62,7 @@ class LibraryScreenTest {
         state = SubscriptionsUiState(isLoading = true)
         setContent()
 
-        composeTestRule.onNodeWithText("Library").assertIsDisplayed()
+        composeTestRule.assertScreenHeading("Library")
         composeTestRule.onNodeWithText("No subscriptions yet", substring = true).assertDoesNotExist()
     }
 

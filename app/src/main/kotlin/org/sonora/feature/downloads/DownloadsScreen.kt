@@ -55,6 +55,7 @@ import org.sonora.core.model.DownloadState
 import org.sonora.core.testing.TestTags
 import org.sonora.feature.common.EpisodeItem
 import org.sonora.ui.components.ArtworkImage
+import org.sonora.ui.components.ScreenHeading
 import org.sonora.ui.formatBytes
 import org.sonora.ui.formatUsageSummary
 
@@ -86,7 +87,7 @@ fun DownloadsContent(
             IconButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp).testTag(TestTags.DOWNLOADS_BACK)) {
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
             }
-            Text("Downloads", style = MaterialTheme.typography.headlineSmallEmphasized)
+            ScreenHeading("Downloads")
         }
 
         if (state.isLoading) {

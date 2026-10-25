@@ -14,11 +14,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.automirrored.rounded.ViewList
@@ -43,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.sonora.ui.components.ArtworkImage
+import org.sonora.ui.components.ScreenHeading
 import org.sonora.ui.components.SonoraLogo
 
 @Composable
@@ -90,21 +93,9 @@ internal fun LibraryContent(
 
 @Composable
 private fun LibraryHeader(state: SubscriptionsUiState, onIntent: (SubscriptionsIntent) -> Unit) {
-    Column(Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp).animateContentSize()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Library", style = MaterialTheme.typography.headlineLargeEmphasized, modifier = Modifier.weight(1f))
-            if (state.isRefreshing) LoadingIndicator(Modifier.size(40.dp))
-            IconToggleButton(
-                checked = state.layout == LibraryLayout.LIST,
-                onCheckedChange = { onIntent(SubscriptionsIntent.SetLayout(if (it) LibraryLayout.LIST else LibraryLayout.GRID)) },
-            ) {
-                Icon(
-                    if (state.layout == LibraryLayout.GRID) Icons.AutoMirrored.Rounded.ViewList else Icons.Rounded.GridView,
-                    contentDescription = if (state.layout == LibraryLayout.GRID) "Show as list" else "Show as grid",
-                )
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
+    ScreenHeading("Library")
+    Row(Modifier.padding(start = 16.dp, top = 4.dp, end = 4.dp).animateContentSize(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             LibrarySort.entries.forEach { sort ->
                 FilterChip(
                     selected = state.sort == sort,
@@ -116,6 +107,16 @@ private fun LibraryHeader(state: SubscriptionsUiState, onIntent: (SubscriptionsI
                 selected = state.unplayedOnly,
                 onClick = { onIntent(SubscriptionsIntent.SetUnplayedOnly(!state.unplayedOnly)) },
                 label = { Text("Has new") },
+            )
+        }
+        if (state.isRefreshing) LoadingIndicator(Modifier.size(40.dp))
+        IconToggleButton(
+            checked = state.layout == LibraryLayout.LIST,
+            onCheckedChange = { onIntent(SubscriptionsIntent.SetLayout(if (it) LibraryLayout.LIST else LibraryLayout.GRID)) },
+        ) {
+            Icon(
+                if (state.layout == LibraryLayout.GRID) Icons.AutoMirrored.Rounded.ViewList else Icons.Rounded.GridView,
+                contentDescription = if (state.layout == LibraryLayout.GRID) "Show as list" else "Show as grid",
             )
         }
     }
