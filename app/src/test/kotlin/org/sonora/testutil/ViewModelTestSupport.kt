@@ -103,6 +103,7 @@ class FakeSettingsStore : SettingsStore {
     override var autoDownloadUnmeteredOnly = true
     override var deleteDownloadsWhenPlayed = true
     override var allowCleartext = false
+    override var hideExplicit = true
     override var autoDownloadChargingOnly = false
     override var autoDownloadPerPodcast = 3
     override var keepPerPodcast = 0

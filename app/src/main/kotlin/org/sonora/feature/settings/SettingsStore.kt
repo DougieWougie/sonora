@@ -20,6 +20,8 @@ interface SettingsStore {
     var autoDownloadUnmeteredOnly: Boolean
     var deleteDownloadsWhenPlayed: Boolean
     var allowCleartext: Boolean
+    /** Discover leaves out shows their directory marks explicit. */
+    var hideExplicit: Boolean
 
     /** Only while charging; background auto-downloads only. */
     var autoDownloadChargingOnly: Boolean
