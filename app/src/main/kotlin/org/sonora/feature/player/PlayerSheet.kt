@@ -383,7 +383,7 @@ private fun SleepTimerButton(remainingMs: Long?, onIntent: (PlayerIntent) -> Uni
 @Composable
 private fun QueueSheet(state: PlayerUiState, onIntent: (PlayerIntent) -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Text("Up next", style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+        Text("Queue", style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         if (state.upNext.isEmpty()) {
             Text("The queue is empty. Swipe an episode right to add it.", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }

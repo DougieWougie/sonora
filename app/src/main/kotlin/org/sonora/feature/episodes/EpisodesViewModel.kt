@@ -25,12 +25,18 @@ import org.sonora.core.media.PlaybackPort
 import org.sonora.feature.common.EpisodeItem
 import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.feature.common.toItem
+import org.sonora.feature.settings.SettingsStore
+
+/** The foldable parts of the Episodes tab. */
+enum class EpisodesSection { QUEUE, INBOX }
 
 data class EpisodesUiState(
     val inbox: List<EpisodeItem> = emptyList(),
     val queue: List<EpisodeItem> = emptyList(),
     val pendingMarkOlder: PendingMarkOlder? = null,
     val confirmingClear: Boolean = false,
+    val queueExpanded: Boolean = true,
+    val inboxExpanded: Boolean = true,
     val isLoading: Boolean = true,
 )
 
@@ -48,6 +54,7 @@ sealed interface EpisodesIntent {
     data object ClearQueue : EpisodesIntent
     data object PlayQueue : EpisodesIntent
     data object ShuffleQueue : EpisodesIntent
+    data class ToggleSection(val section: EpisodesSection) : EpisodesIntent
     data class Download(val episodeId: Long) : EpisodesIntent
     data class DeleteDownload(val episodeId: Long) : EpisodesIntent
     data class SetPlayed(val episodeId: Long, val played: Boolean) : EpisodesIntent
@@ -69,26 +76,38 @@ class EpisodesViewModel @Inject constructor(
     private val queue: PlayQueue,
     private val actions: EpisodeActions,
     private val playback: PlaybackPort,
+    private val settings: SettingsStore,
 ) : ViewModel() {
     private val pendingMarkOlder = MutableStateFlow<PendingMarkOlder?>(null)
     private val confirmingClear = MutableStateFlow(false)
+    private val queueExpanded = MutableStateFlow(!settings.queueCollapsed)
+    private val inboxExpanded = MutableStateFlow(!settings.inboxCollapsed)
     private val _events = Channel<EpisodesEvent>(Channel.BUFFERED)
     val events: Flow<EpisodesEvent> = _events.receiveAsFlow()
+
+    /** Everything besides the lists themselves, bundled so [uiState] stays within combine's arity. */
+    private data class Chrome(
+        val pendingMarkOlder: PendingMarkOlder?,
+        val confirmingClear: Boolean,
+        val queueExpanded: Boolean,
+        val inboxExpanded: Boolean,
+    )
 
     val uiState: StateFlow<EpisodesUiState> = combine(
         episodeDao.observeUnplayed(INBOX_LIMIT),
         podcastDao.observeAll(),
         queue.items,
-        pendingMarkOlder,
-        confirmingClear,
-    ) { unplayed, podcasts, queued, pending, confirming ->
+        combine(pendingMarkOlder, confirmingClear, queueExpanded, inboxExpanded, ::Chrome),
+    ) { unplayed, podcasts, queued, chrome ->
         val byId = podcasts.associateBy { it.id }
         val queuedSet = queued.toSet()
         EpisodesUiState(
             inbox = unplayed.map { it.toItem(byId[it.podcastId], it.id in queuedSet) },
             queue = queued.mapNotNull { id -> episodeDao.findById(id)?.let { it.toItem(byId[it.podcastId], true) } },
-            pendingMarkOlder = pending,
-            confirmingClear = confirming,
+            pendingMarkOlder = chrome.pendingMarkOlder,
+            confirmingClear = chrome.confirmingClear,
+            queueExpanded = chrome.queueExpanded,
+            inboxExpanded = chrome.inboxExpanded,
             isLoading = false,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), EpisodesUiState())
@@ -99,14 +118,24 @@ class EpisodesViewModel @Inject constructor(
             is EpisodesIntent.Dequeue -> {
                 val previous = queue.items.value
                 queue.remove(intent.episodeId)
-                if (previous != queue.items.value) _events.trySend(EpisodesEvent.QueueChanged("Removed from Up next", previous))
+                if (previous != queue.items.value) _events.trySend(EpisodesEvent.QueueChanged("Removed from Queue", previous))
             }
             is EpisodesIntent.PlayNext -> queue.enqueueNext(intent.episodeId)
             is EpisodesIntent.MoveInQueue -> queue.move(intent.episodeId, intent.toIndex)
             is EpisodesIntent.RestoreQueue -> queue.replaceAll(intent.episodeIds)
             EpisodesIntent.RequestClearQueue -> confirmingClear.value = queue.items.value.isNotEmpty()
             EpisodesIntent.DismissClearQueue -> confirmingClear.value = false
-            EpisodesIntent.ClearQueue -> { queue.clear(); confirmingClear.value = false }
+            EpisodesIntent.ClearQueue -> { confirmingClear.value = false; queue.clear() }
+            is EpisodesIntent.ToggleSection -> when (intent.section) {
+                EpisodesSection.QUEUE -> {
+                    queueExpanded.value = !queueExpanded.value
+                    settings.queueCollapsed = !queueExpanded.value
+                }
+                EpisodesSection.INBOX -> {
+                    inboxExpanded.value = !inboxExpanded.value
+                    settings.inboxCollapsed = !inboxExpanded.value
+                }
+            }
             EpisodesIntent.PlayQueue -> attempt { queue.items.value.firstOrNull()?.let { playback.play(it) } }
             EpisodesIntent.ShuffleQueue -> attempt {
                 queue.replaceAll(queue.items.value.shuffled())

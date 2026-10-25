@@ -2,6 +2,17 @@
 package org.sonora.feature.episodes
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,7 +37,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -95,7 +105,7 @@ internal fun EpisodesContent(
         val count = state.queue.size
         AlertDialog(
             onDismissRequest = { onIntent(EpisodesIntent.DismissClearQueue) },
-            title = { Text("Clear $count ${if (count == 1) "episode" else "episodes"} from Up next?") },
+            title = { Text("Clear $count ${if (count == 1) "episode" else "episodes"} from Queue?") },
             text = { Text("They stay in your library; only the queue is emptied.") },
             confirmButton = { TextButton(onClick = { onIntent(EpisodesIntent.ClearQueue) }) { Text("Clear queue") } },
             dismissButton = { TextButton(onClick = { onIntent(EpisodesIntent.DismissClearQueue) }) { Text("Cancel") } },
@@ -107,50 +117,108 @@ internal fun EpisodesContent(
         return
     }
     val listState = rememberLazyListState()
-    val queueKeys = state.queue.map { "q${it.id}" }
+    val queueKeys = if (state.queueExpanded) state.queue.map { "q${it.id}" } else emptyList()
     val reorder = rememberReorderState(listState, { queueKeys }, { from, to -> onIntent(EpisodesIntent.MoveInQueue(state.queue[from].id, to)) })
     LazyColumn(modifier.fillMaxSize(), state = listState) {
         item { ScreenHeading("Episodes") }
         item { downloadsLink() }
         item {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Up next", style = MaterialTheme.typography.titleMediumEmphasized)
+            SectionHeader(
+                title = "Queue",
+                count = state.queue.size,
+                expanded = state.queueExpanded,
+                onToggle = { onIntent(EpisodesIntent.ToggleSection(EpisodesSection.QUEUE)) },
+            ) {
                 if (state.queue.isNotEmpty()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { onIntent(EpisodesIntent.PlayQueue) }) { Icon(Icons.Rounded.PlayArrow, contentDescription = "Play queue") }
-                        IconButton(onClick = { onIntent(EpisodesIntent.ShuffleQueue) }) { Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle queue") }
-                        TextButton(onClick = { onIntent(EpisodesIntent.RequestClearQueue) }) { Text("Clear") }
+                    IconButton(onClick = { onIntent(EpisodesIntent.PlayQueue) }) { Icon(Icons.Rounded.PlayArrow, contentDescription = "Play queue") }
+                    IconButton(onClick = { onIntent(EpisodesIntent.ShuffleQueue) }) { Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle queue") }
+                    TextButton(onClick = { onIntent(EpisodesIntent.RequestClearQueue) }) { Text("Clear") }
+                }
+            }
+        }
+        if (state.queueExpanded) {
+            if (state.queue.isEmpty()) {
+                item { Text("Swipe an episode right to queue it.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            itemsIndexed(state.queue, key = { _, it -> "q${it.id}" }) { index, episode ->
+                val key = "q${episode.id}"
+                with(reorder) {
+                    Row(
+                        Modifier.reorderable(key).let { if (key == draggedKey) it else it.animateItem() },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        QueueDragHandle(
+                            title = episode.title,
+                            key = key,
+                            state = reorder,
+                            canMoveUp = index > 0,
+                            canMoveDown = index < state.queue.lastIndex,
+                            onMoveUp = { onIntent(EpisodesIntent.MoveInQueue(episode.id, index - 1)) },
+                            onMoveDown = { onIntent(EpisodesIntent.MoveInQueue(episode.id, index + 1)) },
+                        )
+                        SwipeableEpisodeRow(episode, actions, Modifier.weight(1f))
                     }
                 }
             }
         }
-        if (state.queue.isEmpty()) {
-            item { Text("Swipe an episode right to queue it.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item {
+            SectionHeader(
+                title = "Inbox",
+                count = state.inbox.size,
+                expanded = state.inboxExpanded,
+                onToggle = { onIntent(EpisodesIntent.ToggleSection(EpisodesSection.INBOX)) },
+                modifier = Modifier.padding(top = 16.dp),
+            )
         }
-        itemsIndexed(state.queue, key = { _, it -> "q${it.id}" }) { index, episode ->
-            val key = "q${episode.id}"
-            with(reorder) {
-                Row(
-                    Modifier.reorderable(key).let { if (key == draggedKey) it else it.animateItem() },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    QueueDragHandle(
-                        title = episode.title,
-                        key = key,
-                        state = reorder,
-                        canMoveUp = index > 0,
-                        canMoveDown = index < state.queue.lastIndex,
-                        onMoveUp = { onIntent(EpisodesIntent.MoveInQueue(episode.id, index - 1)) },
-                        onMoveDown = { onIntent(EpisodesIntent.MoveInQueue(episode.id, index + 1)) },
-                    )
-                    SwipeableEpisodeRow(episode, actions, Modifier.weight(1f))
-                }
+        if (state.inboxExpanded) {
+            if (state.inbox.isEmpty()) {
+                item { Text("You're all caught up.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            items(state.inbox, key = { "i${it.id}" }) { SwipeableEpisodeRow(it, actions, Modifier.animateItem()) }
+        }
+    }
+}
+
+/**
+ * A tonal bar naming a foldable section. The chevron is the one control TalkBack sees; tapping the
+ * title is a bigger target for the same action. [actions] stay put while the section is folded.
+ */
+@Composable
+private fun SectionHeader(
+    title: String,
+    count: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 0f else -90f,
+        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+        label = "chevron",
+    )
+    Surface(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(Modifier.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.weight(1f).heightIn(min = 48.dp).pointerInput(onToggle) { detectTapGestures { onToggle() } },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(title, style = MaterialTheme.typography.titleMediumEmphasized, modifier = Modifier.semantics { heading() })
+                Text(count.toString(), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            actions()
+            IconButton(onClick = onToggle) {
+                Icon(
+                    Icons.Rounded.ExpandMore,
+                    contentDescription = "${if (expanded) "Collapse" else "Expand"} $title",
+                    modifier = Modifier.rotate(rotation),
+                )
             }
         }
-        item { Text("Inbox", style = MaterialTheme.typography.titleMediumEmphasized, modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 4.dp)) }
-        if (state.inbox.isEmpty()) {
-            item { Text("You're all caught up.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        }
-        items(state.inbox, key = { "i${it.id}" }) { SwipeableEpisodeRow(it, actions) }
     }
 }

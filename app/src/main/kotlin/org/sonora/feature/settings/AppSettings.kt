@@ -36,6 +36,14 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
         get() = prefs.getBoolean(HIDE_EXPLICIT, true)
         set(value) = prefs.edit().putBoolean(HIDE_EXPLICIT, value).apply()
 
+    override var queueCollapsed: Boolean
+        get() = prefs.getBoolean(QUEUE_COLLAPSED, false)
+        set(value) = prefs.edit().putBoolean(QUEUE_COLLAPSED, value).apply()
+
+    override var inboxCollapsed: Boolean
+        get() = prefs.getBoolean(INBOX_COLLAPSED, false)
+        set(value) = prefs.edit().putBoolean(INBOX_COLLAPSED, value).apply()
+
     override var autoDownloadChargingOnly: Boolean
         get() = prefs.getBoolean(CHARGING_ONLY, false)
         set(value) = prefs.edit().putBoolean(CHARGING_ONLY, value).apply()
@@ -121,6 +129,8 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
         const val ALLOW_CLEARTEXT = "allow_cleartext"
         const val UNMETERED_ONLY = "auto_download_unmetered_only"
         const val HIDE_EXPLICIT = "hide_explicit"
+        const val QUEUE_COLLAPSED = "queue_collapsed"
+        const val INBOX_COLLAPSED = "inbox_collapsed"
         const val DELETE_PLAYED = "delete_downloads_when_played"
         const val MAX_STORAGE = "max_storage_bytes"
         const val CHARGING_ONLY = "auto_download_charging_only"
