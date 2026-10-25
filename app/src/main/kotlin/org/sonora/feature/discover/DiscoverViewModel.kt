@@ -105,7 +105,7 @@ class DiscoverViewModel @Inject constructor(
         data class Failed(val message: String) : SearchUpdate
     }
 
-    private val _state = MutableStateFlow(DiscoverUiState())
+    private val _state = MutableStateFlow(DiscoverUiState(hideExplicit = settings.hideExplicit))
     val uiState: StateFlow<DiscoverUiState> = _state.asStateFlow()
 
     private val _events = Channel<DiscoverEvent>(Channel.BUFFERED)
@@ -156,6 +156,7 @@ class DiscoverViewModel @Inject constructor(
                 publishResults()
             }
             is DiscoverIntent.SetHideExplicit -> {
+                settings.hideExplicit = intent.hide
                 _state.update { it.copy(hideExplicit = intent.hide) }
                 publishResults()
             }

@@ -40,6 +40,7 @@ class AppSettingsTest {
         assertFalse(s.allowCleartext)
         assertTrue(s.autoDownloadUnmeteredOnly)
         assertTrue(s.deleteDownloadsWhenPlayed)
+        assertTrue(s.hideExplicit)
         assertFalse(s.autoDownloadChargingOnly)
         assertEquals(3, s.autoDownloadPerPodcast)
         assertEquals(0L, s.maxStorageBytes)
@@ -54,6 +55,7 @@ class AppSettingsTest {
             allowCleartext = true
             autoDownloadUnmeteredOnly = false
             deleteDownloadsWhenPlayed = false
+            hideExplicit = false
             autoDownloadChargingOnly = true
             autoDownloadPerPodcast = 7
             maxStorageBytes = 5_000_000_000
@@ -66,6 +68,7 @@ class AppSettingsTest {
         assertTrue(s.allowCleartext)
         assertFalse(s.autoDownloadUnmeteredOnly)
         assertFalse(s.deleteDownloadsWhenPlayed)
+        assertFalse(s.hideExplicit)
         assertTrue(s.autoDownloadChargingOnly)
         assertEquals(7, s.autoDownloadPerPodcast)
         assertEquals(5_000_000_000, s.maxStorageBytes)

@@ -32,6 +32,10 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
         get() = prefs.getBoolean(DELETE_PLAYED, true)
         set(value) = prefs.edit().putBoolean(DELETE_PLAYED, value).apply()
 
+    override var hideExplicit: Boolean
+        get() = prefs.getBoolean(HIDE_EXPLICIT, true)
+        set(value) = prefs.edit().putBoolean(HIDE_EXPLICIT, value).apply()
+
     override var autoDownloadChargingOnly: Boolean
         get() = prefs.getBoolean(CHARGING_ONLY, false)
         set(value) = prefs.edit().putBoolean(CHARGING_ONLY, value).apply()
@@ -116,6 +120,7 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
     private companion object {
         const val ALLOW_CLEARTEXT = "allow_cleartext"
         const val UNMETERED_ONLY = "auto_download_unmetered_only"
+        const val HIDE_EXPLICIT = "hide_explicit"
         const val DELETE_PLAYED = "delete_downloads_when_played"
         const val MAX_STORAGE = "max_storage_bytes"
         const val CHARGING_ONLY = "auto_download_charging_only"

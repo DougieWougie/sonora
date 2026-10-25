@@ -434,6 +434,29 @@ class DiscoverViewModelTest {
     }
 
     @Test
+    fun `the saved choice decides whether explicit shows start hidden`() = runTest {
+        settings.hideExplicit = false
+        suggestions.results = listOf(tagged("Clean", null), tagged("Rude", null, explicit = true))
+
+        val vm = vm()
+        runCurrent()
+
+        assertFalse(vm.uiState.value.hideExplicit)
+        assertEquals(listOf("Clean", "Rude"), vm.uiState.value.suggestions.map { it.podcast.title })
+    }
+
+    @Test
+    fun `toggling hide explicit saves the choice`() = runTest {
+        val vm = vm()
+
+        vm.onIntent(DiscoverIntent.SetHideExplicit(false))
+        assertFalse(settings.hideExplicit)
+
+        vm.onIntent(DiscoverIntent.SetHideExplicit(true))
+        assertTrue(settings.hideExplicit)
+    }
+
+    @Test
     fun `hide explicit removes explicit shows from suggestions and results`() = runTest {
         suggestions.results = listOf( tagged("Clean", null), tagged("Rude", null, explicit = true))
         search.results = { _, _ -> listOf( tagged("ClearHit", null), tagged("RudeHit", null, explicit = true)) }
