@@ -2,12 +2,23 @@
 package org.sonora.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Assert.assertEquals
@@ -31,12 +42,21 @@ class SonoraRootTest {
     private var primary: Color? = null
 
     private val screens = AppScreens(
-        library = { _, _ -> Text("Library screen"); primary = MaterialTheme.colorScheme.primary },
-        episodes = { _, _ -> },
-        discover = { },
-        settings = { },
+        library = { open, _ ->
+            Column(Modifier.fillMaxSize()) {
+                Text("Open podcast", Modifier.clickable { open(7) })
+                Text("Library screen", Modifier.fillMaxSize())
+            }
+            primary = MaterialTheme.colorScheme.primary
+        },
+        episodes = { _, _ -> Text("Episodes screen", Modifier.fillMaxSize()) },
+        discover = {
+            val drag = rememberDraggableState { }
+            Text("Discover screen", Modifier.fillMaxSize().draggable(drag, Orientation.Horizontal))
+        },
+        settings = { Text("Settings screen", Modifier.fillMaxSize()) },
         downloads = { _, _ -> },
-        podcast = { _, _ -> },
+        podcast = { _, _ -> Text("Podcast screen", Modifier.fillMaxSize()) },
     )
 
     private fun setContent(theme: ThemeState = ThemeState(), player: PlayerUiState = PlayerUiState()) {
@@ -77,5 +97,64 @@ class SonoraRootTest {
         composeTestRule.waitForIdle()
 
         assertEquals(emptyList<Int?>(), seeds)
+    }
+
+    private fun swipeOn(text: String, left: Boolean) {
+        composeTestRule.onNodeWithText(text).performTouchInput { if (left) swipeLeft() else swipeRight() }
+        composeTestRule.waitForIdle()
+    }
+
+    @Test
+    fun `swiping left moves to the next tab and right moves back`() {
+        setContent()
+
+        swipeOn("Library screen", left = true)
+        composeTestRule.onNodeWithText("Episodes screen").assertIsDisplayed()
+
+        swipeOn("Episodes screen", left = false)
+        composeTestRule.onNodeWithText("Library screen").assertIsDisplayed()
+    }
+
+    @Test
+    fun `swiping right on the first tab stays put`() {
+        setContent()
+
+        swipeOn("Library screen", left = false)
+
+        composeTestRule.onNodeWithText("Library screen").assertIsDisplayed()
+    }
+
+    @Test
+    fun `swiping left on the last tab stays put`() {
+        setContent()
+        composeTestRule.onNodeWithText("Settings").performClick()
+        composeTestRule.waitForIdle()
+
+        swipeOn("Settings screen", left = true)
+
+        composeTestRule.onNodeWithText("Settings screen").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a screen that handles horizontal drags keeps them`() {
+        setContent()
+        composeTestRule.onNodeWithText("Discover").performClick()
+        composeTestRule.waitForIdle()
+
+        swipeOn("Discover screen", left = true)
+
+        composeTestRule.onNodeWithText("Discover screen").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Settings screen").assertDoesNotExist()
+    }
+
+    @Test
+    fun `swiping does not leave a podcast`() {
+        setContent()
+        composeTestRule.onNodeWithText("Open podcast").performClick()
+        composeTestRule.waitForIdle()
+
+        swipeOn("Podcast screen", left = true)
+
+        composeTestRule.onNodeWithText("Podcast screen").assertIsDisplayed()
     }
 }

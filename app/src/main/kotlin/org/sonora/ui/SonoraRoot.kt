@@ -3,6 +3,7 @@ package org.sonora.ui
 
 import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.fadeIn
@@ -43,7 +44,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.abs
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -55,6 +61,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -216,7 +224,12 @@ internal fun SonoraScaffold(
                         }
                     },
                 ) { padding ->
-                    navHost(navController, snackbar, Modifier.padding(padding))
+                    val destination = navController.currentBackStackEntryAsState().value?.destination
+                    val current = TopLevel.entries.firstOrNull { top -> destination?.hierarchy?.any { it.hasRoute(top.routeClass) } == true }
+                    val swipeModifier = if (current == null) Modifier else Modifier.swipeBetweenTabs { direction ->
+                        TopLevel.entries.getOrNull(current.ordinal + direction)?.let { navController.navigateTop(it.route) }
+                    }
+                    navHost(navController, snackbar, Modifier.padding(padding).then(swipeModifier))
                 }
             }
             AnimatedVisibility(visible = hasEpisode && expanded, enter = fadeIn(), exit = fadeOut()) {
@@ -259,7 +272,15 @@ internal fun AppNavHost(
     modifier: Modifier,
     screens: AppScreens,
 ) {
-    NavHost(navController, startDestination = LibraryRoute, modifier = modifier) {
+    NavHost(
+        navController,
+        startDestination = LibraryRoute,
+        modifier = modifier,
+        enterTransition = { tabDirection()?.let { slideIntoContainer(it) } ?: fadeIn() },
+        exitTransition = { tabDirection()?.let { slideOutOfContainer(it) } ?: fadeOut() },
+        popEnterTransition = { fadeIn() },
+        popExitTransition = { fadeOut() },
+    ) {
         composable<LibraryRoute> {
             screens.library({ navController.navigate(PodcastRoute(it)) }, snackbar)
         }
@@ -317,6 +338,50 @@ private fun TopLevelRail(navController: NavHostController, badges: NavBadges) {
         }
     }
 }
+
+private fun NavDestination.tabIndex() = TopLevel.entries.indexOfFirst { top -> hierarchy.any { it.hasRoute(top.routeClass) } }
+    .takeIf { it >= 0 }
+
+/** The direction of travel between two tabs: towards the end for a later tab, or null when either is not a tab. */
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.tabDirection(): AnimatedContentTransitionScope.SlideDirection? {
+    val from = initialState.destination.tabIndex() ?: return null
+    val to = targetState.destination.tabIndex() ?: return null
+    return if (to > from) AnimatedContentTransitionScope.SlideDirection.Start else AnimatedContentTransitionScope.SlideDirection.End
+}
+
+/**
+ * Calls [onSwipe] with +1 for a swipe left (next tab) or -1 for a swipe right once a mostly horizontal drag is
+ * long enough. It never consumes the gesture, and ignores any drag a child already consumed, so swipeable rows,
+ * chip rows and reorder handles keep their own horizontal gestures.
+ */
+private fun Modifier.swipeBetweenTabs(onSwipe: (direction: Int) -> Unit): Modifier = composed {
+    val current by rememberUpdatedState(onSwipe)
+    val threshold = with(LocalDensity.current) { SWIPE_DISTANCE.toPx() }
+    pointerInput(threshold) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false)
+            var dx = 0f
+            var dy = 0f
+            var handled = false
+            do {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull() ?: break
+                if (change.isConsumed) handled = true
+                if (!handled) {
+                    val delta = change.position - change.previousPosition
+                    dx += delta.x
+                    dy += delta.y
+                    if (abs(dx) > threshold && abs(dx) > 2 * abs(dy)) {
+                        current(if (dx < 0) 1 else -1)
+                        handled = true
+                    }
+                }
+            } while (event.changes.any { it.pressed })
+        }
+    }
+}
+
+private val SWIPE_DISTANCE = 72.dp
 
 private fun NavHostController.navigateTop(route: Any) = navigate(route) {
     popUpTo(graph.findStartDestination().id) { saveState = true }
