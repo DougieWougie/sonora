@@ -38,6 +38,24 @@ class PrefsSuggestionStoreTest {
     }
 
     @Test
+    fun `category and explicitness survive a restart`() {
+        val saved = CachedSuggestions(1, listOf(DirectoryPodcast("A", null, "https://a", null, "News", explicit = true)))
+        PrefsSuggestionStore(context).save(saved)
+
+        assertEquals(saved, PrefsSuggestionStore(context).load())
+    }
+
+    @Test
+    fun `a cache written before categories existed still loads`() {
+        prefs.edit().putString(
+            "cache",
+            """{"fetchedAtMillis":1,"podcasts":[{"title":"A","author":null,"feedUrl":"https://a","artworkUrl":null}]}""",
+        ).commit()
+
+        assertEquals(DirectoryPodcast("A", null, "https://a", null), PrefsSuggestionStore(context).load()?.podcasts?.single())
+    }
+
+    @Test
     fun `unreadable stored data is treated as empty`() {
         prefs.edit().putString("cache", "{not json").commit()
         assertNull(PrefsSuggestionStore(context).load())

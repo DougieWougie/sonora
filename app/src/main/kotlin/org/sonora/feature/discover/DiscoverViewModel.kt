@@ -54,6 +54,10 @@ data class DiscoverUiState(
     val results: List<DiscoverResult> = emptyList(),
     /** Shown while nothing is typed; independent of [results]. */
     val suggestions: List<DiscoverResult> = emptyList(),
+    /** Categories among whatever is on screen (results while searching, else suggestions). */
+    val categories: List<String> = emptyList(),
+    val category: String? = null,
+    val hideExplicit: Boolean = true,
     val isSearching: Boolean = false,
     val error: String? = null,
     val addUrl: AddUrlState? = null,
@@ -63,6 +67,9 @@ data class DiscoverUiState(
 sealed interface DiscoverIntent {
     data class QueryChanged(val query: String) : DiscoverIntent
     data class SelectDirectory(val source: DirectorySource) : DiscoverIntent
+    /** Null clears the filter. */
+    data class SelectCategory(val category: String?) : DiscoverIntent
+    data class SetHideExplicit(val hide: Boolean) : DiscoverIntent
     data class Subscribe(val podcast: DirectoryPodcast) : DiscoverIntent
     data object ShowAddUrl : DiscoverIntent
     data object DismissAddUrl : DiscoverIntent
@@ -98,9 +105,7 @@ class DiscoverViewModel @Inject constructor(
         data class Failed(val message: String) : SearchUpdate
     }
 
-    private val _state = MutableStateFlow(
-        DiscoverUiState(suggestions = suggestionSource.cached().map { DiscoverResult(it, subscribed = false) }),
-    )
+    private val _state = MutableStateFlow(DiscoverUiState())
     val uiState: StateFlow<DiscoverUiState> = _state.asStateFlow()
 
     private val _events = Channel<DiscoverEvent>(Channel.BUFFERED)
@@ -113,6 +118,8 @@ class DiscoverViewModel @Inject constructor(
     private var subscribedUrls = emptySet<String>()
 
     init {
+        // Cached suggestions show before anything loads, so they go through the same filters.
+        publishResults()
         viewModelScope.launch {
             podcastDao.observeAll().map { all -> all.mapTo(HashSet()) { it.feedUrl.normalized() } }.collect {
                 subscribedUrls = it
@@ -142,6 +149,15 @@ class DiscoverViewModel @Inject constructor(
             is DiscoverIntent.QueryChanged -> {
                 query.value = intent.query
                 _state.update { it.copy(query = intent.query) }
+                publishResults()
+            }
+            is DiscoverIntent.SelectCategory -> {
+                _state.update { it.copy(category = intent.category) }
+                publishResults()
+            }
+            is DiscoverIntent.SetHideExplicit -> {
+                _state.update { it.copy(hideExplicit = intent.hide) }
+                publishResults()
             }
             is DiscoverIntent.SelectDirectory -> {
                 directory.value = intent.source
@@ -193,9 +209,16 @@ class DiscoverViewModel @Inject constructor(
     }
 
     private fun publishResults() {
-        fun flagged(podcasts: List<DirectoryPodcast>) =
-            podcasts.map { DiscoverResult(it, it.feedUrl.normalized() in subscribedUrls) }
-        _state.update { it.copy(results = flagged(found), suggestions = flagged(suggested)) }
+        _state.update { state ->
+            fun shown(podcasts: List<DirectoryPodcast>) = podcasts
+                .filter { (state.category == null || it.category == state.category) && !(state.hideExplicit && it.explicit) }
+                .map { DiscoverResult(it, it.feedUrl.normalized() in subscribedUrls) }
+
+            val onScreen = if (state.query.isBlank()) suggested else found
+            // Offered from the unfiltered list so the user can switch category without clearing first.
+            val categories = (onScreen.mapNotNull { it.category } + listOfNotNull(state.category)).distinct().sorted()
+            state.copy(results = shown(found), suggestions = shown(suggested), categories = categories)
+        }
     }
 
     // --- subscribing -------------------------------------------------------------------------

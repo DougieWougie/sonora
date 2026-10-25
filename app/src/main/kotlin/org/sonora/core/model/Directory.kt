@@ -7,4 +7,7 @@ data class DirectoryPodcast(
     val author: String?,
     val feedUrl: String,
     val artworkUrl: String?,
+    /** The directory's primary category, when it names one. */
+    val category: String? = null,
+    val explicit: Boolean = false,
 )
