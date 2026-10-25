@@ -22,6 +22,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import org.sonora.ui.assertScreenHeading
 import org.junit.runner.RunWith
 import org.sonora.core.model.DownloadState
 import org.sonora.testutil.performCustomAction
@@ -68,7 +69,7 @@ class EpisodesScreenTest {
     fun `empty queue and inbox explain themselves`() {
         setContent()
 
-        composeTestRule.onNodeWithText("Episodes").assertIsDisplayed()
+        composeTestRule.assertScreenHeading("Episodes")
         composeTestRule.onNodeWithText("Manage downloads").assertIsDisplayed()
         composeTestRule.onNodeWithText("Swipe an episode right to queue it.").assertIsDisplayed()
         composeTestRule.onNodeWithText("You're all caught up.").assertIsDisplayed()

@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.sonora.ui.components.ArtworkImage
+import org.sonora.ui.components.ScreenHeading
 
 @Composable
 fun DiscoverScreen(
@@ -106,7 +107,7 @@ internal fun DiscoverContent(
     onExportOpml: () -> Unit,
 ) {
     LazyColumn(modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        item { Text("Discover", style = MaterialTheme.typography.headlineLargeEmphasized, modifier = Modifier.padding(16.dp)) }
+        item { ScreenHeading("Discover") }
         item {
             OutlinedTextField(
                 value = state.query,

@@ -25,6 +25,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import org.sonora.ui.assertScreenHeading
 import org.junit.runner.RunWith
 import org.sonora.ui.theme.ThemeIntent
 import org.sonora.ui.theme.ThemeMode
@@ -76,8 +77,9 @@ class SettingsScreenTest {
     fun `every section is on the screen`() {
         setContent()
 
+        composeTestRule.assertScreenHeading("Settings & Sync")
         listOf(
-            "Settings & Sync", "Appearance", "Nextcloud GPodder Sync", "Background sync", "Downloads", "PodcastIndex",
+            "Appearance", "Nextcloud GPodder Sync", "Background sync", "Downloads", "PodcastIndex",
             "Advanced", "About", "Manage downloads", "Free software under the GPL-3.0-or-later",
         ).forEach { composeTestRule.onNodeWithText(it).assertExists(it) }
     }

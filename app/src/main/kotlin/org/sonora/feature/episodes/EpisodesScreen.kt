@@ -37,6 +37,7 @@ import org.sonora.feature.downloads.DownloadsLink
 import org.sonora.ui.components.EpisodeActionsUi
 import org.sonora.ui.components.MarkOlderPlayedDialog
 import org.sonora.ui.components.QueueDragHandle
+import org.sonora.ui.components.ScreenHeading
 import org.sonora.ui.components.rememberReorderState
 import org.sonora.ui.components.SwipeableEpisodeRow
 
@@ -109,7 +110,7 @@ internal fun EpisodesContent(
     val queueKeys = state.queue.map { "q${it.id}" }
     val reorder = rememberReorderState(listState, { queueKeys }, { from, to -> onIntent(EpisodesIntent.MoveInQueue(state.queue[from].id, to)) })
     LazyColumn(modifier.fillMaxSize(), state = listState) {
-        item { Text("Episodes", style = MaterialTheme.typography.headlineLargeEmphasized, modifier = Modifier.padding(16.dp)) }
+        item { ScreenHeading("Episodes") }
         item { downloadsLink() }
         item {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

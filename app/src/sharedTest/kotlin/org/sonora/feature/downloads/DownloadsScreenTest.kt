@@ -16,6 +16,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import org.sonora.ui.assertScreenHeading
 import org.junit.runner.RunWith
 import org.sonora.core.download.WaitReason
 import org.sonora.core.model.DownloadState
@@ -70,7 +71,7 @@ class DownloadsScreenTest {
     fun backIsReachable() {
         setContent()
 
-        composeTestRule.onNodeWithText("Downloads").assertIsDisplayed()
+        composeTestRule.assertScreenHeading("Downloads")
         composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_BACK).performClick()
 
         assertEquals(1, backs)

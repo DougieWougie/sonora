@@ -8,6 +8,7 @@ import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,6 +56,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import kotlinx.coroutines.flow.Flow
 import org.sonora.core.testing.TestTags
 import org.sonora.feature.downloads.DownloadsLink
+import org.sonora.ui.components.ScreenHeading
 import org.sonora.ui.components.SonoraLogo
 import org.sonora.ui.theme.ThemeIntent
 import org.sonora.ui.theme.ThemeMode
@@ -98,107 +100,109 @@ internal fun SettingsContent(
     downloadsLink: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
-    Column(
-        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text("Settings & Sync", style = MaterialTheme.typography.headlineLargeEmphasized)
-        SettingsSection.entries.forEach { section ->
-            when (section) {
-                SettingsSection.Nextcloud -> NextcloudCard(state, onIntent)
-                SettingsSection.Appearance -> {
-                    SettingsCard("Appearance") {
-                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ThemeMode.entries.forEach { mode ->
-                                FilterChip(
-                                    selected = theme.preferences.mode == mode,
-                                    onClick = { onThemeIntent(ThemeIntent.SelectMode(mode)) },
-                                    label = { Text(when (mode) { ThemeMode.SYSTEM -> "System"; ThemeMode.LIGHT -> "Light"; ThemeMode.DARK -> "Dark"; ThemeMode.AMOLED -> "AMOLED" }) },
-                                )
+    Box(modifier.fillMaxSize()) {
+        ScreenHeading("Settings & Sync")
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            SettingsSection.entries.forEach { section ->
+                when (section) {
+                    SettingsSection.Nextcloud -> NextcloudCard(state, onIntent)
+                    SettingsSection.Appearance -> {
+                        SettingsCard("Appearance") {
+                            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                ThemeMode.entries.forEach { mode ->
+                                    FilterChip(
+                                        selected = theme.preferences.mode == mode,
+                                        onClick = { onThemeIntent(ThemeIntent.SelectMode(mode)) },
+                                        label = { Text(when (mode) { ThemeMode.SYSTEM -> "System"; ThemeMode.LIGHT -> "Light"; ThemeMode.DARK -> "Dark"; ThemeMode.AMOLED -> "AMOLED" }) },
+                                    )
+                                }
                             }
-                        }
-                        SwitchRow("Colors from artwork", "Tint the app with the playing episode's cover", theme.preferences.artworkColors) {
-                            onThemeIntent(ThemeIntent.ToggleArtworkColors)
-                        }
-                }
-                }
-                SettingsSection.BackgroundSync -> {
-                    SettingsCard("Background sync") {
-                        ChoiceRow(
-                            title = "Check for new episodes",
-                            subtitle = "Also needs the battery not to be low",
-                            options = SYNC_INTERVALS,
-                            selected = state.syncIntervalHours,
-                        ) { onIntent(SettingsIntent.SetSyncInterval(it)) }
-                }
-                }
-                SettingsSection.Downloads -> {
-                    SettingsCard("Downloads") {
-                        downloadsLink()
-                        SwitchRow("Auto-download on Wi-Fi only", null, state.downloads.unmeteredOnly) { onIntent(SettingsIntent.SetUnmeteredOnly(it)) }
-                        SwitchRow("Auto-download only while charging", null, state.downloads.chargingOnly) { onIntent(SettingsIntent.SetChargingOnly(it)) }
-                        ChoiceRow(
-                            title = "Auto-download per podcast",
-                            subtitle = "Newest episodes fetched in one check",
-                            options = AUTO_DOWNLOAD_COUNTS,
-                            selected = state.downloads.autoDownloadPerPodcast,
-                        ) { onIntent(SettingsIntent.SetAutoDownloadCount(it)) }
-                        SwitchRow("Delete downloads once played", null, state.downloads.deleteWhenPlayed) { onIntent(SettingsIntent.SetDeleteWhenPlayed(it)) }
-                        ChoiceRow(
-                            title = "Keep per podcast",
-                            subtitle = "Older downloads are removed after the next check",
-                            options = KEEP_COUNTS,
-                            selected = state.downloads.keepPerPodcast,
-                        ) { onIntent(SettingsIntent.SetKeepPerPodcast(it)) }
-                        ChoiceRow(
-                            title = "Storage limit",
-                            subtitle = "Played episodes go first, then the oldest unplayed ones",
-                            options = STORAGE_LIMITS,
-                            selected = state.downloads.maxStorageBytes,
-                        ) { onIntent(SettingsIntent.SetMaxStorage(it)) }
-                }
-                }
-                SettingsSection.PodcastIndex -> {
-                    SettingsCard("PodcastIndex") {
-                        Text("Optional. Add your free PodcastIndex API key to search it in Discover.", style = MaterialTheme.typography.bodyMedium)
-                        OutlinedTextField(
-                            value = state.podcastIndex.apiKey,
-                            onValueChange = { onIntent(SettingsIntent.EditPodcastIndexKey(it)) },
-                            label = { Text("API key") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        OutlinedTextField(
-                            value = state.podcastIndex.apiSecret,
-                            onValueChange = { onIntent(SettingsIntent.EditPodcastIndexSecret(it)) },
-                            label = { Text("API secret") },
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Button(onClick = { onIntent(SettingsIntent.SavePodcastIndex) }, enabled = !state.podcastIndex.saved) {
-                                Text(if (state.podcastIndex.saved) "Saved" else "Save")
+                            SwitchRow("Colors from artwork", "Tint the app with the playing episode's cover", theme.preferences.artworkColors) {
+                                onThemeIntent(ThemeIntent.ToggleArtworkColors)
                             }
-                            TextButton(onClick = { onIntent(SettingsIntent.ClearPodcastIndex) }) { Text("Remove") }
-                        }
-                }
-                }
-                SettingsSection.Advanced -> {
-                    SettingsCard("Advanced") {
-                        SwitchRow(
-                            "Allow cleartext (HTTP)",
-                            "For testing against servers on your own network. Streams, feeds and sync stay HTTPS-only otherwise.",
-                            state.allowCleartext,
-                        ) { onIntent(SettingsIntent.SetAllowCleartext(it)) }
-                        if (state.restartRequired) {
-                            Text("Restart Sonora for this change to take effect.", color = MaterialTheme.colorScheme.tertiary)
-                        }
-                }
-                }
-                SettingsSection.About -> {
-                    AboutCard(versionName(context))
+                    }
+                    }
+                    SettingsSection.BackgroundSync -> {
+                        SettingsCard("Background sync") {
+                            ChoiceRow(
+                                title = "Check for new episodes",
+                                subtitle = "Also needs the battery not to be low",
+                                options = SYNC_INTERVALS,
+                                selected = state.syncIntervalHours,
+                            ) { onIntent(SettingsIntent.SetSyncInterval(it)) }
+                    }
+                    }
+                    SettingsSection.Downloads -> {
+                        SettingsCard("Downloads") {
+                            downloadsLink()
+                            SwitchRow("Auto-download on Wi-Fi only", null, state.downloads.unmeteredOnly) { onIntent(SettingsIntent.SetUnmeteredOnly(it)) }
+                            SwitchRow("Auto-download only while charging", null, state.downloads.chargingOnly) { onIntent(SettingsIntent.SetChargingOnly(it)) }
+                            ChoiceRow(
+                                title = "Auto-download per podcast",
+                                subtitle = "Newest episodes fetched in one check",
+                                options = AUTO_DOWNLOAD_COUNTS,
+                                selected = state.downloads.autoDownloadPerPodcast,
+                            ) { onIntent(SettingsIntent.SetAutoDownloadCount(it)) }
+                            SwitchRow("Delete downloads once played", null, state.downloads.deleteWhenPlayed) { onIntent(SettingsIntent.SetDeleteWhenPlayed(it)) }
+                            ChoiceRow(
+                                title = "Keep per podcast",
+                                subtitle = "Older downloads are removed after the next check",
+                                options = KEEP_COUNTS,
+                                selected = state.downloads.keepPerPodcast,
+                            ) { onIntent(SettingsIntent.SetKeepPerPodcast(it)) }
+                            ChoiceRow(
+                                title = "Storage limit",
+                                subtitle = "Played episodes go first, then the oldest unplayed ones",
+                                options = STORAGE_LIMITS,
+                                selected = state.downloads.maxStorageBytes,
+                            ) { onIntent(SettingsIntent.SetMaxStorage(it)) }
+                    }
+                    }
+                    SettingsSection.PodcastIndex -> {
+                        SettingsCard("PodcastIndex") {
+                            Text("Optional. Add your free PodcastIndex API key to search it in Discover.", style = MaterialTheme.typography.bodyMedium)
+                            OutlinedTextField(
+                                value = state.podcastIndex.apiKey,
+                                onValueChange = { onIntent(SettingsIntent.EditPodcastIndexKey(it)) },
+                                label = { Text("API key") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            OutlinedTextField(
+                                value = state.podcastIndex.apiSecret,
+                                onValueChange = { onIntent(SettingsIntent.EditPodcastIndexSecret(it)) },
+                                label = { Text("API secret") },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Button(onClick = { onIntent(SettingsIntent.SavePodcastIndex) }, enabled = !state.podcastIndex.saved) {
+                                    Text(if (state.podcastIndex.saved) "Saved" else "Save")
+                                }
+                                TextButton(onClick = { onIntent(SettingsIntent.ClearPodcastIndex) }) { Text("Remove") }
+                            }
+                    }
+                    }
+                    SettingsSection.Advanced -> {
+                        SettingsCard("Advanced") {
+                            SwitchRow(
+                                "Allow cleartext (HTTP)",
+                                "For testing against servers on your own network. Streams, feeds and sync stay HTTPS-only otherwise.",
+                                state.allowCleartext,
+                            ) { onIntent(SettingsIntent.SetAllowCleartext(it)) }
+                            if (state.restartRequired) {
+                                Text("Restart Sonora for this change to take effect.", color = MaterialTheme.colorScheme.tertiary)
+                            }
+                    }
+                    }
+                    SettingsSection.About -> {
+                        AboutCard(versionName(context))
+                    }
                 }
             }
         }
