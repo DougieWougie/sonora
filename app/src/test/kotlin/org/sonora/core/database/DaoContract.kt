@@ -155,6 +155,23 @@ abstract class DaoContract {
     }
 
     @Test
+    fun `unplayed for podcast returns every unplayed episode of that podcast including undated ones`() = runBlocking {
+        val id = podcast("https://a")
+        val other = podcast("https://b")
+        episodes.insertAll(
+            listOf(
+                episode(id, "old", published = 100),
+                episode(id, "new", published = 300),
+                episode(id, "undated", published = null),
+                episode(id, "played", published = 50, played = true),
+                episode(other, "otherUnplayed", published = 100),
+            ),
+        )
+
+        assertEquals(setOf("old", "new", "undated"), episodes.getUnplayedForPodcast(id).map { it.guid }.toSet())
+    }
+
+    @Test
     fun `episodes are selected by download state`() = runBlocking {
         val id = podcast("https://a")
         episodes.insertAll(

@@ -122,6 +122,13 @@ class EpisodeDownloadManager(
         return marked.size
     }
 
+    /** Marks every unplayed episode of the podcast played, applying the auto-delete policy to each. */
+    suspend fun markAllPlayed(podcastId: Long): Int {
+        val marked = episodeRepository.markAllPlayed(podcastId)
+        marked.forEach { onEpisodeCompleted(it) }
+        return marked.size
+    }
+
     /** Hook for playback completion: removes the local copy (and tells the server) if the policy says so. */
     suspend fun onEpisodeCompleted(episodeId: Long) {
         if (!policy().deleteWhenPlayed) return

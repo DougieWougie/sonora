@@ -73,4 +73,11 @@ class DefaultEpisodeActionsTest {
 
         assertEquals(5, actions.countOlderUnplayed(8))
     }
+
+    @Test
+    fun `marking a whole podcast played goes through the manager so the download policy applies`() = runTest {
+        coEvery { manager.markAllPlayed(4) } returns 12
+
+        assertEquals(12, actions.markAllPlayed(4))
+    }
 }

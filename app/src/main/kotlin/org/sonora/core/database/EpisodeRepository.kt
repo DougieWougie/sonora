@@ -50,6 +50,11 @@ class EpisodeRepository(
         olderUnplayed(requireEpisode(episodeId)).onEach { markPlayed(it) }.map { it.id }
     }
 
+    /** Marks every unplayed episode of the podcast played in one transaction and returns their ids. */
+    suspend fun markAllPlayed(podcastId: Long): List<Long> = transactions.run {
+        episodeDao.getUnplayedForPodcast(podcastId).onEach { markPlayed(it) }.map { it.id }
+    }
+
     /** Episodes without a publish date have no place in the order, so they are never "older". */
     private suspend fun olderUnplayed(episode: EpisodeEntity): List<EpisodeEntity> {
         val published = episode.publishedAtMillis ?: return emptyList()

@@ -2,6 +2,7 @@
 package org.sonora.feature.library
 
 import app.cash.turbine.test
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -11,9 +12,14 @@ import org.junit.jupiter.api.extension.RegisterExtension
 import org.sonora.core.database.EpisodeEntity
 import org.sonora.core.database.FakeEpisodeDao
 import org.sonora.core.database.FakePodcastDao
+import org.sonora.core.database.FakeSubscriptionChangeDao
+import org.sonora.core.database.FakeTransactionRunner
+import org.sonora.core.database.MutableClock
 import org.sonora.core.database.PodcastEntity
+import org.sonora.core.database.SubscriptionRepository
 import org.sonora.core.media.PersistentPlayQueue
 import org.sonora.core.media.FakeQueueStorage
+import org.sonora.testutil.FakeEpisodeActions
 import org.sonora.testutil.FakeLibraryPreferences
 import org.sonora.testutil.FakeSyncController
 import org.sonora.testutil.MainDispatcherExtension
@@ -30,7 +36,11 @@ class SubscriptionsViewModelTest {
 
     private val preferences = FakeLibraryPreferences()
 
-    private fun vm() = SubscriptionsViewModel(podcasts, episodes, queue, sync, preferences)
+    private val changes = FakeSubscriptionChangeDao()
+    private val subscriptions = SubscriptionRepository(podcasts, changes, FakeTransactionRunner(), MutableClock())
+    private val actions = FakeEpisodeActions()
+
+    private fun vm() = SubscriptionsViewModel(podcasts, episodes, queue, sync, preferences, subscriptions, actions)
 
     private suspend fun podcast(title: String, autoDownload: Boolean = false): Long =
         podcasts.insert(PodcastEntity(feedUrl = "https://f/$title", title = title, author = "by $title", autoDownload = autoDownload))
@@ -200,5 +210,132 @@ class SubscriptionsViewModelTest {
         }
         assertEquals(LibrarySort.UNPLAYED, preferences.sort.value)
         assertTrue(preferences.unplayedOnly.value)
+    }
+
+    // --- search ------------------------------------------------------------------------------
+
+    @Test
+    fun `searching narrows the library by title or author, ignoring case`() = runTest {
+        podcasts.insert(PodcastEntity(feedUrl = "https://f/1", title = "Space Talk", author = "Neil"))
+        podcasts.insert(PodcastEntity(feedUrl = "https://f/2", title = "Cooking", author = "Space Chef"))
+        podcasts.insert(PodcastEntity(feedUrl = "https://f/3", title = "History", author = "Ann"))
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.podcasts.size == 3 }
+
+            vm.onIntent(SubscriptionsIntent.SetQuery("  SPACE "))
+            val state = awaitUntil { it.query.isNotEmpty() }
+
+            assertEquals("  SPACE ", state.query)
+            assertEquals(listOf("Cooking", "Space Talk"), state.podcasts.map { it.title })
+        }
+    }
+
+    @Test
+    fun `clearing the search restores the library and search combines with the unplayed filter`() = runTest {
+        val a = podcast("Alpha")
+        podcast("Alpine")
+        episode(a, 1)
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.podcasts.size == 2 }
+
+            vm.onIntent(SubscriptionsIntent.SetQuery("alp"))
+            awaitUntil { it.query == "alp" }
+            vm.onIntent(SubscriptionsIntent.SetUnplayedOnly(true))
+            assertEquals(listOf("Alpha"), awaitUntil { it.unplayedOnly }.podcasts.map { it.title })
+
+            vm.onIntent(SubscriptionsIntent.SetUnplayedOnly(false))
+            vm.onIntent(SubscriptionsIntent.SetQuery(""))
+            assertEquals(2, awaitUntil { it.query.isEmpty() && !it.unplayedOnly }.podcasts.size)
+        }
+    }
+
+    // --- per-show actions --------------------------------------------------------------------
+
+    @Test
+    fun `marking a show played delegates and says how many episodes changed`() = runTest {
+        val id = podcast("Alpha")
+        actions.unplayedCounts[id] = 3
+        val vm = vm()
+        vm.events.test {
+            vm.onIntent(SubscriptionsIntent.MarkAllPlayed(id))
+            assertEquals(SubscriptionsEvent.Message("Marked 3 episodes played"), awaitItem())
+        }
+        assertEquals(listOf("all:$id"), actions.calls)
+    }
+
+    @Test
+    fun `one episode is singular`() = runTest {
+        val id = podcast("Alpha")
+        actions.unplayedCounts[id] = 1
+        val vm = vm()
+        vm.events.test {
+            vm.onIntent(SubscriptionsIntent.MarkAllPlayed(id))
+            assertEquals(SubscriptionsEvent.Message("Marked 1 episode played"), awaitItem())
+        }
+    }
+
+    @Test
+    fun `auto-download is toggled for that show only`() = runTest {
+        val a = podcast("Alpha")
+        val b = podcast("Beta")
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.podcasts.size == 2 }
+
+            vm.onIntent(SubscriptionsIntent.ToggleAutoDownload(a))
+            val on = awaitUntil { s -> s.podcasts.first { it.id == a }.autoDownload }
+            assertFalse(on.podcasts.first { it.id == b }.autoDownload)
+
+            vm.onIntent(SubscriptionsIntent.ToggleAutoDownload(a))
+            assertFalse(awaitUntil { s -> !s.podcasts.first { it.id == a }.autoDownload }.podcasts.first { it.id == a }.autoDownload)
+        }
+    }
+
+    @Test
+    fun `unsubscribing asks first and can be cancelled`() = runTest {
+        val id = podcast("Alpha")
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.podcasts.size == 1 }
+
+            vm.onIntent(SubscriptionsIntent.RequestUnsubscribe(id))
+            assertEquals("Alpha", awaitUntil { it.confirmingUnsubscribe != null }.confirmingUnsubscribe?.title)
+            assertEquals(1, podcasts.observeAll().first().size)
+
+            vm.onIntent(SubscriptionsIntent.DismissUnsubscribe)
+            assertEquals(null, awaitUntil { it.confirmingUnsubscribe == null }.confirmingUnsubscribe)
+            assertEquals(1, podcasts.observeAll().first().size)
+        }
+    }
+
+    @Test
+    fun `confirming removes the show and says so`() = runTest {
+        val id = podcast("Alpha")
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.podcasts.size == 1 }
+            vm.onIntent(SubscriptionsIntent.RequestUnsubscribe(id))
+            awaitUntil { it.confirmingUnsubscribe != null }
+
+            vm.events.test {
+                vm.onIntent(SubscriptionsIntent.ConfirmUnsubscribe)
+                assertEquals(SubscriptionsEvent.Message("Unsubscribed from Alpha"), awaitItem())
+            }
+            val state = awaitUntil { it.podcasts.isEmpty() }
+            assertEquals(null, state.confirmingUnsubscribe)
+        }
+        assertEquals(false, changes.rows.values.single().subscribed)
+    }
+
+    @Test
+    fun `requesting to unsubscribe from an unknown show does nothing`() = runTest {
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { !it.isLoading }
+            vm.onIntent(SubscriptionsIntent.RequestUnsubscribe(999))
+            expectNoEvents()
+        }
     }
 }

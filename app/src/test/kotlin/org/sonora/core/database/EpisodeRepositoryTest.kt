@@ -223,4 +223,38 @@ class EpisodeRepositoryTest {
         assertEquals(setOf("a2"), series.played())
         assertTrue(queue.getAll().isEmpty())
     }
+
+    // --- marking a whole podcast ----------------------------------------------------------------
+
+    @Test
+    fun `markAllPlayed marks every unplayed episode of the podcast, dated or not, and no other`() = runTest {
+        val series = seedSeries()
+
+        val marked = repo.markAllPlayed(series.podcastId)
+
+        assertEquals(setOf("a1", "a3", "a4", "undated"), marked.toSet().map { id -> series.ids.entries.first { it.value == id }.key }.toSet())
+        assertEquals(setOf("a1", "a2", "a3", "a4", "undated"), series.played())
+        assertEquals(600L, episodeDao.findById(series.ids.getValue("a1"))!!.playbackPositionSeconds)
+    }
+
+    @Test
+    fun `markAllPlayed queues one PLAY action per episode it changed`() = runTest {
+        val series = seedSeries()
+
+        repo.markAllPlayed(series.podcastId)
+
+        val actions = queue.getAll()
+        assertEquals(4, actions.size)
+        assertTrue(actions.all { it.type == SyncActionType.PLAY })
+    }
+
+    @Test
+    fun `markAllPlayed on a podcast with nothing unplayed changes nothing`() = runTest {
+        val series = seedSeries()
+        repo.markAllPlayed(series.podcastId)
+        queue.getAll().let { queue.deleteByIds(it.map { a -> a.id }) }
+
+        assertEquals(emptyList<Long>(), repo.markAllPlayed(series.podcastId))
+        assertTrue(queue.getAll().isEmpty())
+    }
 }

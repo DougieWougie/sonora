@@ -27,4 +27,5 @@ class DefaultEpisodeActions(
     override suspend fun markUnplayed(episodeId: Long) = repository.markNew(episodeId)
     override suspend fun countOlderUnplayed(episodeId: Long) = repository.countOlderUnplayed(episodeId)
     override suspend fun markOlderPlayed(episodeId: Long) = manager.markOlderPlayed(episodeId)
+    override suspend fun markAllPlayed(podcastId: Long) = manager.markAllPlayed(podcastId)
 }

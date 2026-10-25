@@ -555,4 +555,30 @@ class EpisodeDownloadManagerTest {
         notices.dismiss()
         assertEquals(0, notices.unplayedRemoved.value)
     }
+
+    @Test
+    fun `marking a podcast played removes its downloads and leaves other podcasts alone`() = runTest {
+        val a = downloaded("a", published = 1)
+        val b = downloaded("b", published = 2)
+        val podcastId = episodeDao.findById(a)!!.podcastId
+
+        val count = manager.markAllPlayed(podcastId)
+
+        assertEquals(2, count)
+        assertFalse(finalFile(a).exists())
+        assertFalse(finalFile(b).exists())
+        assertTrue(episodeDao.findById(a)!!.played)
+        assertTrue(episodeDao.findById(b)!!.played)
+    }
+
+    @Test
+    fun `marking a podcast played keeps files when auto-delete is disabled`() = runTest {
+        policy = DownloadPolicy(deleteWhenPlayed = false)
+        val a = downloaded("a", published = 1)
+
+        assertEquals(1, manager.markAllPlayed(episodeDao.findById(a)!!.podcastId))
+
+        assertTrue(finalFile(a).exists())
+        assertTrue(episodeDao.findById(a)!!.played)
+    }
 }
