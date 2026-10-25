@@ -63,13 +63,23 @@ class PrefsSuggestionStore(context: Context) : SuggestionStore {
     private data class Dto(val fetchedAtMillis: Long, val podcasts: List<PodcastDto>)
 
     @Serializable
-    private data class PodcastDto(val title: String, val author: String?, val feedUrl: String, val artworkUrl: String?)
+    private data class PodcastDto(
+        val title: String,
+        val author: String?,
+        val feedUrl: String,
+        val artworkUrl: String?,
+        val category: String? = null,
+        val explicit: Boolean = false,
+    )
 
     override fun load(): CachedSuggestions? {
         val text = prefs.getString(KEY, null) ?: return null
         return try {
             val dto = Json.decodeFromString<Dto>(text)
-            CachedSuggestions(dto.fetchedAtMillis, dto.podcasts.map { DirectoryPodcast(it.title, it.author, it.feedUrl, it.artworkUrl) })
+            CachedSuggestions(
+                dto.fetchedAtMillis,
+                dto.podcasts.map { DirectoryPodcast(it.title, it.author, it.feedUrl, it.artworkUrl, it.category, it.explicit) },
+            )
         } catch (_: Exception) {
             null
         }
@@ -78,7 +88,7 @@ class PrefsSuggestionStore(context: Context) : SuggestionStore {
     override fun save(suggestions: CachedSuggestions) {
         val dto = Dto(
             suggestions.fetchedAtMillis,
-            suggestions.podcasts.map { PodcastDto(it.title, it.author, it.feedUrl, it.artworkUrl) },
+            suggestions.podcasts.map { PodcastDto(it.title, it.author, it.feedUrl, it.artworkUrl, it.category, it.explicit) },
         )
         prefs.edit().putString(KEY, Json.encodeToString(dto)).apply()
     }

@@ -122,4 +122,24 @@ class PodcastIndexTest {
             DirectoryApiFactory.podcastIndex("http://api.podcastindex.org/", credentials, "ua", clock)
         }
     }
+
+    @Test
+    fun `maps the first category and the explicit flag`() = runTest {
+        server.enqueue(
+            json(
+                """{"status":"true","feeds":[
+                {"title":"A","url":"https://a/rss","explicit":true,"categories":{"102":"Technology","55":"News"}},
+                {"title":"B","url":"https://b/rss","explicit":false,"categories":null},
+                {"title":"C","url":"https://c/rss"}]}""",
+            ),
+        )
+        val provider = PodcastIndexSearchProvider(
+            DirectoryApiFactory.podcastIndex(server.url("/").toString(), credentials, "ua", clock, allowCleartext = true),
+        )
+
+        val results = provider.search("x")
+
+        assertEquals(listOf("Technology", null, null), results.map { it.category })
+        assertEquals(listOf(true, false, false), results.map { it.explicit })
+    }
 }

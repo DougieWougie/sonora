@@ -79,4 +79,20 @@ class ApplePodcastChartProviderTest {
         server.enqueue(json("<html>nope</html>"))
         assertThrows<DirectoryException> { provider.top("gb", 5) }
     }
+
+    @Test
+    fun `carries the genre and explicitness from the lookup`() = runTest {
+        server.enqueue(json("""{"feed":{"results":[{"id":"11","name":"First"}]}}"""))
+        server.enqueue(
+            json(
+                """{"results":[{"collectionId":11,"collectionName":"First","feedUrl":"https://a/feed",
+                "primaryGenreName":"News","trackExplicitness":"explicit"}]}""",
+            ),
+        )
+
+        val show = provider.top("gb", 1).single()
+
+        assertEquals("News", show.category)
+        assertTrue(show.explicit)
+    }
 }

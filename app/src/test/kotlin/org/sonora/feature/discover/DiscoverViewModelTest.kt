@@ -388,4 +388,81 @@ class DiscoverViewModelTest {
         vm.onIntent(DiscoverIntent.DismissOpmlStatus)
         assertEquals(OpmlStatus.Idle, vm.uiState.value.opml)
     }
+
+    // --- filters -----------------------------------------------------------------------------
+
+    private fun tagged(title: String, category: String?, explicit: Boolean = false) =
+        DirectoryPodcast(title, "auth", "https://f/$title", null, category, explicit)
+
+    @Test
+    fun `categories are the distinct ones among the suggestions, sorted`() = runTest {
+        suggestions.results = listOf( tagged("A", "News"), tagged("B", "History"), tagged("C", "News"), tagged("D", null))
+
+        val vm = vm()
+        runCurrent()
+
+        assertEquals(listOf("History", "News"), vm.uiState.value.categories)
+    }
+
+    @Test
+    fun `selecting a category narrows suggestions and selecting it again clears the filter`() = runTest {
+        suggestions.results = listOf( tagged("A", "News"), tagged("B", "History"))
+        val vm = vm()
+        runCurrent()
+
+        vm.onIntent(DiscoverIntent.SelectCategory("News"))
+        assertEquals("News", vm.uiState.value.category)
+        assertEquals(listOf("A"), vm.uiState.value.suggestions.map { it.podcast.title })
+        // Choices stay available so the user can switch without clearing first.
+        assertEquals(listOf("History", "News"), vm.uiState.value.categories)
+
+        vm.onIntent(DiscoverIntent.SelectCategory(null))
+        assertEquals(listOf("A", "B"), vm.uiState.value.suggestions.map { it.podcast.title })
+    }
+
+    @Test
+    fun `explicit shows are hidden by default, including cached suggestions shown before the refresh`() = runTest {
+        suggestions.cached = listOf(tagged("CachedClean", null), tagged("CachedRude", null, explicit = true))
+        suggestions.results = listOf(tagged("Clean", null), tagged("Rude", null, explicit = true))
+
+        val vm = vm()
+        assertTrue(vm.uiState.value.hideExplicit)
+        assertEquals(listOf("CachedClean"), vm.uiState.value.suggestions.map { it.podcast.title })
+
+        runCurrent()
+        assertEquals(listOf("Clean"), vm.uiState.value.suggestions.map { it.podcast.title })
+    }
+
+    @Test
+    fun `hide explicit removes explicit shows from suggestions and results`() = runTest {
+        suggestions.results = listOf( tagged("Clean", null), tagged("Rude", null, explicit = true))
+        search.results = { _, _ -> listOf( tagged("ClearHit", null), tagged("RudeHit", null, explicit = true)) }
+        val vm = vm()
+        vm.onIntent(DiscoverIntent.QueryChanged("hit"))
+        advanceTimeBy(400)
+        runCurrent()
+
+        vm.onIntent(DiscoverIntent.SetHideExplicit(false))
+        assertEquals(2, vm.uiState.value.results.size)
+        vm.onIntent(DiscoverIntent.SetHideExplicit(true))
+
+        assertTrue(vm.uiState.value.hideExplicit)
+        assertEquals(listOf("Clean"), vm.uiState.value.suggestions.map { it.podcast.title })
+        assertEquals(listOf("ClearHit"), vm.uiState.value.results.map { it.podcast.title })
+
+        vm.onIntent(DiscoverIntent.SetHideExplicit(false))
+        assertEquals(2, vm.uiState.value.results.size)
+    }
+
+    @Test
+    fun `categories follow what is on screen - results while searching`() = runTest {
+        suggestions.results = listOf( tagged("A", "News"))
+        search.results = { _, _ -> listOf( tagged("Hit", "Comedy")) }
+        val vm = vm()
+        vm.onIntent(DiscoverIntent.QueryChanged("hit"))
+        advanceTimeBy(400)
+        runCurrent()
+
+        assertEquals(listOf("Comedy"), vm.uiState.value.categories)
+    }
 }

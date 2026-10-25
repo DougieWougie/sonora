@@ -88,4 +88,22 @@ class ApplePodcastSearchProviderTest {
         server.enqueue(json("<html>nope</html>"))
         assertThrows<DirectoryException> { provider.search("q") }
     }
+
+    @Test
+    fun `maps the primary genre and explicitness`() = runTest {
+        server.enqueue(
+            json(
+                """{"results":[
+                {"collectionName":"Rude","feedUrl":"https://r/feed","primaryGenreName":"Comedy","trackExplicitness":"explicit"},
+                {"collectionName":"Polite","feedUrl":"https://p/feed","primaryGenreName":"History","trackExplicitness":"cleaned","contentAdvisoryRating":"Clean"},
+                {"collectionName":"Rated","feedUrl":"https://x/feed","contentAdvisoryRating":"Explicit"},
+                {"collectionName":"Unknown","feedUrl":"https://u/feed"}]}""",
+            ),
+        )
+
+        val results = provider.search("x")
+
+        assertEquals(listOf("Comedy", "History", null, null), results.map { it.category })
+        assertEquals(listOf(true, false, true, false), results.map { it.explicit })
+    }
 }

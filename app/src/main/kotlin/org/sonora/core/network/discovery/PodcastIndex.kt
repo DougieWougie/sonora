@@ -46,6 +46,9 @@ data class PodcastIndexFeedDto(
     val author: String? = null,
     val image: String? = null,
     val artwork: String? = null,
+    val explicit: Boolean = false,
+    /** Category id to name; null when the feed has none. */
+    val categories: Map<String, String>? = null,
 )
 
 class PodcastIndexSearchProvider(private val api: PodcastIndexApi) : PodcastDirectoryProvider {
@@ -59,6 +62,8 @@ class PodcastIndexSearchProvider(private val api: PodcastIndexApi) : PodcastDire
                 author = it.author?.takeIf(String::isNotBlank),
                 feedUrl = feed,
                 artworkUrl = it.artwork?.takeIf(String::isNotBlank) ?: it.image?.takeIf(String::isNotBlank),
+                category = it.categories?.values?.firstOrNull(String::isNotBlank),
+                explicit = it.explicit,
             )
         }
     }

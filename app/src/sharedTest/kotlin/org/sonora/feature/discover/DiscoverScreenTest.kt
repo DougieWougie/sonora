@@ -10,9 +10,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -98,7 +100,7 @@ class DiscoverScreenTest {
         composeTestRule.onNodeWithText("Suggested podcasts").assertIsDisplayed()
         composeTestRule.onNodeWithText("Space Talk").assertIsDisplayed()
         composeTestRule.onNodeWithText("Search a directory", substring = true).assertDoesNotExist()
-        composeTestRule.onNodeWithText("Subscribe").performClick()
+        composeTestRule.onNodeWithContentDescription("Subscribe to Space Talk").performClick()
 
         assertEquals(listOf<DiscoverIntent>(DiscoverIntent.Subscribe(space)), intents)
     }
@@ -108,7 +110,7 @@ class DiscoverScreenTest {
         state = state.copy(suggestions = listOf(DiscoverResult(space, subscribed = true)))
         setContent()
 
-        composeTestRule.onNodeWithText("Added").assertIsNotEnabled()
+        composeTestRule.onNodeWithContentDescription("Space Talk is subscribed").assertIsNotEnabled()
     }
 
     @Test
@@ -126,6 +128,58 @@ class DiscoverScreenTest {
         composeTestRule.onNodeWithText("Suggested podcasts").assertDoesNotExist()
     }
 
+    // --- subscribe button ----------------------------------------------------------------------
+
+    @Test
+    fun `the subscribe action is an icon with no text label`() {
+        state = state.copy(query = "space", results = listOf(DiscoverResult(space, subscribed = false)))
+        setContent()
+
+        composeTestRule.onNodeWithText("Subscribe").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("Subscribe to Space Talk").assertIsDisplayed()
+    }
+
+    // --- filters -------------------------------------------------------------------------------
+
+    @Test
+    fun `categories are offered as chips and selecting one is an intent`() {
+        state = state.copy(categories = listOf("History", "News"))
+        setContent()
+
+        composeTestRule.onNodeWithText("History").performClick()
+
+        assertEquals(listOf<DiscoverIntent>(DiscoverIntent.SelectCategory("History")), intents)
+    }
+
+    @Test
+    fun `the selected category chip is selected and tapping it again clears the filter`() {
+        state = state.copy(categories = listOf("History", "News"), category = "News")
+        setContent()
+
+        composeTestRule.onNodeWithText("News").assertIsSelected().performClick()
+        composeTestRule.onNodeWithText("History").assertIsNotSelected()
+
+        assertEquals(listOf<DiscoverIntent>(DiscoverIntent.SelectCategory(null)), intents)
+    }
+
+    @Test
+    fun `hide explicit toggles from its chip`() {
+        state = state.copy(hideExplicit = false)
+        setContent()
+
+        composeTestRule.onNodeWithText("Hide explicit").assertIsNotSelected().performClick()
+        assertEquals(listOf<DiscoverIntent>(DiscoverIntent.SetHideExplicit(true)), intents)
+    }
+
+    @Test
+    fun `hide explicit shows selected when on and turns off when tapped`() {
+        state = state.copy(hideExplicit = true)
+        setContent()
+
+        composeTestRule.onNodeWithText("Hide explicit").assertIsSelected().performClick()
+        assertEquals(listOf<DiscoverIntent>(DiscoverIntent.SetHideExplicit(false)), intents)
+    }
+
     // --- results -------------------------------------------------------------------------------
 
     @Test
@@ -135,7 +189,7 @@ class DiscoverScreenTest {
 
         composeTestRule.onNodeWithText("Space Talk").assertIsDisplayed()
         composeTestRule.onNodeWithText("Neil").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Subscribe").assertIsEnabled().performClick()
+        composeTestRule.onNodeWithContentDescription("Subscribe to Space Talk").assertIsEnabled().performClick()
 
         assertEquals(listOf<DiscoverIntent>(DiscoverIntent.Subscribe(space)), intents)
     }
@@ -145,7 +199,8 @@ class DiscoverScreenTest {
         state = state.copy(query = "space", results = listOf(DiscoverResult(space, subscribed = true)))
         setContent()
 
-        composeTestRule.onNodeWithText("Added").assertIsNotEnabled()
+        composeTestRule.onNodeWithContentDescription("Space Talk is subscribed").assertIsNotEnabled()
+        composeTestRule.onNodeWithContentDescription("Subscribe to Space Talk").assertDoesNotExist()
         composeTestRule.onNodeWithText("Subscribe").assertDoesNotExist()
     }
 

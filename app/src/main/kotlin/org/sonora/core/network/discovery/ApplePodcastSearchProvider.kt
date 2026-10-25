@@ -25,7 +25,14 @@ data class AppleResultDto(
     val feedUrl: String? = null,
     val artworkUrl600: String? = null,
     val artistName: String? = null,
+    val primaryGenreName: String? = null,
+    val trackExplicitness: String? = null,
+    val contentAdvisoryRating: String? = null,
 )
+
+internal val AppleResultDto.isExplicit: Boolean
+    get() = trackExplicitness.equals("explicit", ignoreCase = true) ||
+        contentAdvisoryRating.equals("Explicit", ignoreCase = true)
 
 class ApplePodcastSearchProvider(private val api: ApplePodcastApi) : PodcastDirectoryProvider {
     override suspend fun search(query: String): List<DirectoryPodcast> {
@@ -33,7 +40,10 @@ class ApplePodcastSearchProvider(private val api: ApplePodcastApi) : PodcastDire
         val response = directoryCall { api.search(query.trim()) }
         return response.results.mapNotNull {
             val feed = it.feedUrl?.takeIf(String::isNotBlank) ?: return@mapNotNull null
-            DirectoryPodcast(it.collectionName ?: feed, it.artistName, feed, it.artworkUrl600)
+            DirectoryPodcast(
+                it.collectionName ?: feed, it.artistName, feed, it.artworkUrl600,
+                category = it.primaryGenreName?.takeIf(String::isNotBlank), explicit = it.isExplicit,
+            )
         }
     }
 }

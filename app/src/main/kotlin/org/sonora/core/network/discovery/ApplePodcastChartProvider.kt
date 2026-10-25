@@ -53,6 +53,8 @@ class ApplePodcastChartProvider(
                 author = match.artistName ?: entry.artistName,
                 feedUrl = feed,
                 artworkUrl = match.artworkUrl600 ?: entry.artworkUrl100,
+                category = match.primaryGenreName?.takeIf(String::isNotBlank),
+                explicit = match.isExplicit,
             )
         }
     }

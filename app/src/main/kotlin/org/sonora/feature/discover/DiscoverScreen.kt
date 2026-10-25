@@ -30,7 +30,7 @@ import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -142,6 +142,26 @@ internal fun DiscoverContent(
                 AssistChip(onClick = onExportOpml, label = { Text("Export OPML") }, leadingIcon = { Icon(Icons.Rounded.FileUpload, null, Modifier.size(18.dp)) })
             }
         }
+        item {
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilterChip(
+                    selected = state.hideExplicit,
+                    onClick = { onIntent(DiscoverIntent.SetHideExplicit(!state.hideExplicit)) },
+                    label = { Text("Hide explicit") },
+                )
+                state.categories.forEach { category ->
+                    val selected = state.category == category
+                    FilterChip(
+                        selected = selected,
+                        onClick = { onIntent(DiscoverIntent.SelectCategory(if (selected) null else category)) },
+                        label = { Text(category) },
+                    )
+                }
+            }
+        }
         if (state.isSearching || state.opml == OpmlStatus.Working) {
             item { Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) { LoadingIndicator() } }
         }
@@ -182,12 +202,14 @@ private fun PodcastRow(result: DiscoverResult, onIntent: (DiscoverIntent) -> Uni
         content = { Text(result.podcast.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMediumEmphasized) },
         supportingContent = result.podcast.author?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
         trailingContent = {
-            FilledTonalButton(
+            FilledTonalIconButton(
                 onClick = { onIntent(DiscoverIntent.Subscribe(result.podcast)) },
                 enabled = !result.subscribed,
             ) {
-                Icon(if (result.subscribed) Icons.Rounded.Check else Icons.Rounded.Add, null, Modifier.size(18.dp))
-                Text(if (result.subscribed) "Added" else "Subscribe", Modifier.padding(start = 6.dp))
+                Icon(
+                    if (result.subscribed) Icons.Rounded.Check else Icons.Rounded.Add,
+                    if (result.subscribed) "${result.podcast.title} is subscribed" else "Subscribe to ${result.podcast.title}",
+                )
             }
         },
     )
