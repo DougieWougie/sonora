@@ -13,4 +13,6 @@ interface EpisodeActions {
     suspend fun markUnplayed(episodeId: Long)
     suspend fun countOlderUnplayed(episodeId: Long): Int
     suspend fun markOlderPlayed(episodeId: Long): Int
+    /** Marks every unplayed episode of the podcast played; returns how many changed. */
+    suspend fun markAllPlayed(podcastId: Long): Int
 }

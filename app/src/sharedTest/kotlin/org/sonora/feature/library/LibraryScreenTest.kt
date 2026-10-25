@@ -7,11 +7,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -115,12 +122,29 @@ class LibraryScreenTest {
     }
 
     @Test
-    fun `the sort chips mark the current sort and choose another`() {
+    fun `sort and filter live behind one button`() {
+        setContent()
+
+        composeTestRule.onNodeWithText("A–Z").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Has new").assertDoesNotExist()
+
+        composeTestRule.onNodeWithContentDescription("Sort and filter").performClick()
+
+        composeTestRule.onNodeWithText("A–Z").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Recent").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Unplayed").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Has new").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the sort menu marks the current sort and chooses another`() {
         state = state.copy(sort = LibrarySort.RECENT)
         setContent()
 
+        composeTestRule.onNodeWithContentDescription("Sort and filter").performClick()
         composeTestRule.onNodeWithText("Recent").assertIsSelected()
-        composeTestRule.onNodeWithText("A–Z").performClick()
+        composeTestRule.onNodeWithText("A–Z").assertIsNotSelected().performClick()
+        composeTestRule.onNodeWithContentDescription("Sort and filter").performClick()
         composeTestRule.onNodeWithText("Unplayed").performClick()
 
         assertEquals(
@@ -130,14 +154,165 @@ class LibraryScreenTest {
     }
 
     @Test
-    fun `the has-new chip toggles the unplayed filter`() {
+    fun `choosing a sort closes the menu`() {
         setContent()
-        composeTestRule.onNodeWithText("Has new").performClick()
+
+        composeTestRule.onNodeWithContentDescription("Sort and filter").performClick()
+        composeTestRule.onNodeWithText("Recent").performClick()
+
+        composeTestRule.onNodeWithText("Has new").assertDoesNotExist()
+    }
+
+    @Test
+    fun `has new in the menu toggles the unplayed filter`() {
+        setContent()
+        composeTestRule.onNodeWithContentDescription("Sort and filter").performClick()
+        composeTestRule.onNodeWithText("Has new").assertIsNotSelected().performClick()
         assertEquals(listOf<SubscriptionsIntent>(SubscriptionsIntent.SetUnplayedOnly(true)), intents)
 
         intents.clear()
         state = state.copy(unplayedOnly = true)
+        composeTestRule.onNodeWithContentDescription("Sort and filter").performClick()
         composeTestRule.onNodeWithText("Has new").assertIsSelected().performClick()
         assertEquals(listOf<SubscriptionsIntent>(SubscriptionsIntent.SetUnplayedOnly(false)), intents)
+    }
+
+    // --- search --------------------------------------------------------------------------------
+
+    @Test
+    fun `search is an icon until it is opened`() {
+        setContent()
+
+        composeTestRule.onNode(hasSetTextAction()).assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("Search library").performClick()
+
+        composeTestRule.onNode(hasSetTextAction()).assertIsDisplayed()
+    }
+
+    @Test
+    fun `typing reports the query`() {
+        setContent()
+        composeTestRule.onNodeWithContentDescription("Search library").performClick()
+
+        composeTestRule.onNode(hasSetTextAction()).performTextInput("sp")
+
+        assertEquals(listOf<SubscriptionsIntent>(SubscriptionsIntent.SetQuery("sp")), intents)
+    }
+
+    @Test
+    fun `a search already under way opens showing its text`() {
+        state = state.copy(query = "space", podcasts = listOf(podcast(1, "Space Talk")))
+        setContent()
+
+        composeTestRule.onNode(hasSetTextAction()).assertIsDisplayed()
+        composeTestRule.onNodeWithText("space").assertIsDisplayed()
+    }
+
+    @Test
+    fun `closing the search clears the query and puts the icon back`() {
+        state = state.copy(query = "space")
+        setContent()
+
+        composeTestRule.onNodeWithContentDescription("Close search").performClick()
+
+        assertEquals(listOf<SubscriptionsIntent>(SubscriptionsIntent.SetQuery("")), intents)
+        composeTestRule.onNode(hasSetTextAction()).assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("Search library").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a search with no matches says so`() {
+        state = state.copy(query = "zzz")
+        setContent()
+
+        composeTestRule.onNodeWithText("No shows match “zzz”.").assertIsDisplayed()
+        composeTestRule.onNodeWithText("No subscriptions yet", substring = true).assertDoesNotExist()
+    }
+
+    // --- per-show actions ----------------------------------------------------------------------
+
+    private fun longPress(title: String) =
+        composeTestRule.onNodeWithText(title).performTouchInput { longClick() }
+
+    @Test
+    fun `long-pressing a show offers its actions`() {
+        state = state.copy(podcasts = listOf(podcast(3, "Alpha", unplayed = 2)))
+        setContent()
+
+        longPress("Alpha")
+
+        composeTestRule.onNodeWithText("Mark all played").assertIsDisplayed().assertIsEnabled()
+        composeTestRule.onNodeWithText("Turn on auto-download").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Unsubscribe").assertIsDisplayed()
+        assertEquals(emptyList<Long>(), opened)
+    }
+
+    @Test
+    fun `each action reports its intent for that show`() {
+        state = state.copy(podcasts = listOf(podcast(3, "Alpha", unplayed = 2)))
+        setContent()
+
+        longPress("Alpha")
+        composeTestRule.onNodeWithText("Mark all played").performClick()
+        longPress("Alpha")
+        composeTestRule.onNodeWithText("Turn on auto-download").performClick()
+        longPress("Alpha")
+        composeTestRule.onNodeWithText("Unsubscribe").performClick()
+
+        assertEquals(
+            listOf(
+                SubscriptionsIntent.MarkAllPlayed(3),
+                SubscriptionsIntent.ToggleAutoDownload(3),
+                SubscriptionsIntent.RequestUnsubscribe(3),
+            ),
+            intents,
+        )
+    }
+
+    @Test
+    fun `marking played is unavailable when nothing is unplayed and auto-download reads as on`() {
+        state = state.copy(podcasts = listOf(podcast(3, "Alpha", unplayed = 0).copy(autoDownload = true)))
+        setContent()
+
+        longPress("Alpha")
+
+        composeTestRule.onNodeWithText("Mark all played").assertIsNotEnabled()
+        composeTestRule.onNodeWithText("Turn off auto-download").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the list layout offers the same actions`() {
+        state = state.copy(layout = LibraryLayout.LIST, podcasts = listOf(podcast(3, "Alpha", unplayed = 2)))
+        setContent()
+
+        longPress("Alpha")
+
+        composeTestRule.onNodeWithText("Unsubscribe").assertIsDisplayed()
+    }
+
+    @Test
+    fun `unsubscribing is confirmed by name`() {
+        state = state.copy(confirmingUnsubscribe = podcast(3, "Alpha"))
+        setContent()
+
+        composeTestRule.onNodeWithText("Unsubscribe from Alpha?").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Unsubscribe").performClick()
+        composeTestRule.onNodeWithText("Cancel").performClick()
+
+        assertEquals(
+            listOf<SubscriptionsIntent>(SubscriptionsIntent.ConfirmUnsubscribe, SubscriptionsIntent.DismissUnsubscribe),
+            intents,
+        )
+    }
+
+    // --- badges --------------------------------------------------------------------------------
+
+    @Test
+    fun `a very large unplayed count is capped`() {
+        state = state.copy(podcasts = listOf(podcast(1, "Alpha", unplayed = 150)))
+        setContent()
+
+        composeTestRule.onNodeWithText("99+").assertIsDisplayed()
+        composeTestRule.onNodeWithText("150").assertDoesNotExist()
     }
 }

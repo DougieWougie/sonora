@@ -93,6 +93,8 @@ class FakeEpisodeDao : EpisodeDao {
         rows.value.filter { it.downloadState == state }
     override suspend fun getOlderUnplayed(podcastId: Long, publishedBefore: Long) =
         rows.value.filter { it.podcastId == podcastId && !it.played && (it.publishedAtMillis ?: Long.MAX_VALUE) < publishedBefore }
+    override suspend fun getUnplayedForPodcast(podcastId: Long) =
+        rows.value.filter { it.podcastId == podcastId && !it.played }
     override fun observeForPodcast(podcastId: Long): Flow<List<EpisodeEntity>> =
         rows.map { all -> all.filter { it.podcastId == podcastId }.sortedByDescending { it.publishedAtMillis } }
 
