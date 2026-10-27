@@ -109,7 +109,6 @@ class FakeSettingsStore : SettingsStore {
     override var allowCleartext = false
     override var hideExplicit = true
     override var queueCollapsed = false
-    override var inboxCollapsed = false
     override var autoDownloadChargingOnly = false
     override var autoDownloadPerPodcast = 3
     override var keepPerPodcast = 0

@@ -71,7 +71,7 @@ class AppNavHostTest {
     @Test
     fun `episodes can open the downloads and back returns`() {
         setContent()
-        composeTestRule.onNodeWithText("Episodes").performClick()
+        composeTestRule.onNodeWithText("Queue").performClick()
 
         composeTestRule.onNodeWithText("Episodes: open downloads").performClick()
         composeTestRule.onNodeWithText("Downloads: back").assertIsDisplayed()

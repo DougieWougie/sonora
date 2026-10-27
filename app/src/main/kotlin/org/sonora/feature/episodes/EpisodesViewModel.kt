@@ -27,16 +27,14 @@ import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.feature.common.toItem
 import org.sonora.feature.settings.SettingsStore
 
-/** The foldable parts of the Episodes tab. */
-enum class EpisodesSection { QUEUE, INBOX }
+/** The foldable parts of the Queue tab. */
+enum class EpisodesSection { QUEUE }
 
 data class EpisodesUiState(
-    val inbox: List<EpisodeItem> = emptyList(),
     val queue: List<EpisodeItem> = emptyList(),
     val pendingMarkOlder: PendingMarkOlder? = null,
     val confirmingClear: Boolean = false,
     val queueExpanded: Boolean = true,
-    val inboxExpanded: Boolean = true,
     val isLoading: Boolean = true,
 )
 
@@ -81,7 +79,6 @@ class EpisodesViewModel @Inject constructor(
     private val pendingMarkOlder = MutableStateFlow<PendingMarkOlder?>(null)
     private val confirmingClear = MutableStateFlow(false)
     private val queueExpanded = MutableStateFlow(!settings.queueCollapsed)
-    private val inboxExpanded = MutableStateFlow(!settings.inboxCollapsed)
     private val _events = Channel<EpisodesEvent>(Channel.BUFFERED)
     val events: Flow<EpisodesEvent> = _events.receiveAsFlow()
 
@@ -90,24 +87,19 @@ class EpisodesViewModel @Inject constructor(
         val pendingMarkOlder: PendingMarkOlder?,
         val confirmingClear: Boolean,
         val queueExpanded: Boolean,
-        val inboxExpanded: Boolean,
     )
 
     val uiState: StateFlow<EpisodesUiState> = combine(
-        episodeDao.observeUnplayed(INBOX_LIMIT),
         podcastDao.observeAll(),
         queue.items,
-        combine(pendingMarkOlder, confirmingClear, queueExpanded, inboxExpanded, ::Chrome),
-    ) { unplayed, podcasts, queued, chrome ->
+        combine(pendingMarkOlder, confirmingClear, queueExpanded, ::Chrome),
+    ) { podcasts, queued, chrome ->
         val byId = podcasts.associateBy { it.id }
-        val queuedSet = queued.toSet()
         EpisodesUiState(
-            inbox = unplayed.map { it.toItem(byId[it.podcastId], it.id in queuedSet) },
             queue = queued.mapNotNull { id -> episodeDao.findById(id)?.let { it.toItem(byId[it.podcastId], true) } },
             pendingMarkOlder = chrome.pendingMarkOlder,
             confirmingClear = chrome.confirmingClear,
             queueExpanded = chrome.queueExpanded,
-            inboxExpanded = chrome.inboxExpanded,
             isLoading = false,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), EpisodesUiState())
@@ -130,10 +122,6 @@ class EpisodesViewModel @Inject constructor(
                 EpisodesSection.QUEUE -> {
                     queueExpanded.value = !queueExpanded.value
                     settings.queueCollapsed = !queueExpanded.value
-                }
-                EpisodesSection.INBOX -> {
-                    inboxExpanded.value = !inboxExpanded.value
-                    settings.inboxCollapsed = !inboxExpanded.value
                 }
             }
             EpisodesIntent.PlayQueue -> attempt { queue.items.value.firstOrNull()?.let { playback.play(it) } }
@@ -171,7 +159,6 @@ class EpisodesViewModel @Inject constructor(
     }
 
     private companion object {
-        const val INBOX_LIMIT = 100
         const val STOP_TIMEOUT_MS = 5_000L
     }
 }

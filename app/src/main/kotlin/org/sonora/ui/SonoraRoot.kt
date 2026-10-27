@@ -15,8 +15,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Explore
-import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.LibraryMusic
+import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -104,8 +104,8 @@ import org.sonora.ui.theme.ThemeViewModel
 @Serializable data class PodcastRoute(val podcastId: Long)
 
 private enum class TopLevel(val route: Any, val routeClass: KClass<*>, val label: String, val icon: ImageVector) {
-    Library(LibraryRoute, LibraryRoute::class, "Library", Icons.Rounded.LibraryMusic),
-    Episodes(EpisodesRoute, EpisodesRoute::class, "Episodes", Icons.Rounded.Inbox),
+    Library(LibraryRoute, LibraryRoute::class, "Subscriptions", Icons.Rounded.LibraryMusic),
+    Episodes(EpisodesRoute, EpisodesRoute::class, "Queue", Icons.Rounded.QueueMusic),
     Discover(DiscoverRoute, DiscoverRoute::class, "Discover", Icons.Rounded.Explore),
     Settings(SettingsRoute, SettingsRoute::class, "Settings", Icons.Rounded.Settings),
 }
@@ -391,7 +391,7 @@ private fun NavHostController.navigateTop(route: Any) = navigate(route) {
 
 @Composable
 private fun TopLevelIcon(top: TopLevel, badges: NavBadges) {
-    val label = if (top == TopLevel.Episodes) badgeLabel(badges.episodes) else null
+    val label = if (top == TopLevel.Library) badgeLabel(badges.episodes) else null
     if (label == null) {
         androidx.compose.material3.Icon(top.icon, contentDescription = null)
         return

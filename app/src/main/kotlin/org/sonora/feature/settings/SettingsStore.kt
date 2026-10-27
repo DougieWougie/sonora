@@ -22,9 +22,8 @@ interface SettingsStore {
     var allowCleartext: Boolean
     /** Discover leaves out shows their directory marks explicit. */
     var hideExplicit: Boolean
-    /** Episodes tab sections the user has folded away. */
+    /** Whether the user has folded the Queue away. */
     var queueCollapsed: Boolean
-    var inboxCollapsed: Boolean
 
     /** Only while charging; background auto-downloads only. */
     var autoDownloadChargingOnly: Boolean

@@ -9,7 +9,7 @@
 
 ## Features
 
-- Subscribe to podcasts, browse your library as a grid or list, and keep an inbox of new episodes.
+- Subscribe to podcasts, browse your library as a grid or list, and keep a queue of episodes to play.
 - Find shows through Apple's podcast directory, PodcastIndex (with your own free API key), a pasted feed address, or an OPML import.
 - Playback with variable speed, silence skipping, a sleep timer and an up-next queue, from a mini player that expands into the full player.
 - Offline downloads, with options to download on unmetered networks only and to delete episodes once played.

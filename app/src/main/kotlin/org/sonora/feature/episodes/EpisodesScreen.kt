@@ -47,7 +47,6 @@ import org.sonora.feature.downloads.DownloadsLink
 import org.sonora.ui.components.EpisodeActionsUi
 import org.sonora.ui.components.MarkOlderPlayedDialog
 import org.sonora.ui.components.QueueDragHandle
-import org.sonora.ui.components.ScreenHeading
 import org.sonora.ui.components.rememberReorderState
 import org.sonora.ui.components.SwipeableEpisodeRow
 
@@ -120,7 +119,6 @@ internal fun EpisodesContent(
     val queueKeys = if (state.queueExpanded) state.queue.map { "q${it.id}" } else emptyList()
     val reorder = rememberReorderState(listState, { queueKeys }, { from, to -> onIntent(EpisodesIntent.MoveInQueue(state.queue[from].id, to)) })
     LazyColumn(modifier.fillMaxSize(), state = listState) {
-        item { ScreenHeading("Episodes") }
         item { downloadsLink() }
         item {
             SectionHeader(
@@ -160,21 +158,6 @@ internal fun EpisodesContent(
                     }
                 }
             }
-        }
-        item {
-            SectionHeader(
-                title = "Inbox",
-                count = state.inbox.size,
-                expanded = state.inboxExpanded,
-                onToggle = { onIntent(EpisodesIntent.ToggleSection(EpisodesSection.INBOX)) },
-                modifier = Modifier.padding(top = 16.dp),
-            )
-        }
-        if (state.inboxExpanded) {
-            if (state.inbox.isEmpty()) {
-                item { Text("You're all caught up.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            }
-            items(state.inbox, key = { "i${it.id}" }) { SwipeableEpisodeRow(it, actions, Modifier.animateItem()) }
         }
     }
 }

@@ -12,7 +12,10 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -22,7 +25,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
-import org.sonora.ui.assertScreenHeading
 import org.junit.runner.RunWith
 import org.sonora.core.model.DownloadState
 import org.sonora.testutil.performCustomAction
@@ -62,32 +64,30 @@ class EpisodesScreenTest {
         state = EpisodesUiState(isLoading = true)
         setContent()
 
-        composeTestRule.onNodeWithText("Episodes").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Queue").assertDoesNotExist()
     }
 
     @Test
-    fun `empty queue and inbox explain themselves`() {
+    fun `an empty queue explains itself`() {
         setContent()
 
-        composeTestRule.assertScreenHeading("Episodes")
+        // The visible Queue header is the screen heading, so there is no separate hidden one.
+        composeTestRule.onAllNodes(isHeading() and hasText("Queue")).assertCountEquals(1)
         composeTestRule.onNodeWithText("Manage downloads").assertIsDisplayed()
         composeTestRule.onNodeWithText("Swipe an episode right to queue it.").assertIsDisplayed()
-        composeTestRule.onNodeWithText("You're all caught up.").assertIsDisplayed()
         composeTestRule.onNodeWithText("Clear").assertDoesNotExist()
     }
 
     @Test
-    fun `queued and inbox episodes are listed under their headings`() {
-        state = state.copy(queue = listOf(item(1, "Queued one")), inbox = listOf(item(2, "Inbox one")))
+    fun `queued episodes are listed under the Queue heading`() {
+        state = state.copy(queue = listOf(item(1, "Queued one")))
         setContent()
 
         composeTestRule.onNodeWithText("Queue").assertIsDisplayed()
         composeTestRule.onNodeWithText("Up next").assertDoesNotExist()
         composeTestRule.onNodeWithText("Queued one").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Inbox").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Inbox one").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Inbox").assertDoesNotExist()
         composeTestRule.onNodeWithText("Swipe an episode right to queue it.").assertDoesNotExist()
-        composeTestRule.onNodeWithText("You're all caught up.").assertDoesNotExist()
     }
 
     @Test
@@ -179,13 +179,13 @@ class EpisodesScreenTest {
 
     @Test
     fun `tapping an episode plays it`() {
-        val inbox = item(2, "Inbox one")
-        state = state.copy(inbox = listOf(inbox))
+        val queued = item(2, "Queued two")
+        state = state.copy(queue = listOf(queued))
         setContent()
 
-        composeTestRule.onNodeWithText("Inbox one").performClick()
+        composeTestRule.onNodeWithText("Queued two").performClick()
 
-        assertEquals(listOf(inbox), played)
+        assertEquals(listOf(queued), played)
     }
 
     @Test
@@ -206,34 +206,34 @@ class EpisodesScreenTest {
     // --- collapsible sections ------------------------------------------------------------------
 
     @Test
-    fun `section headers show how many episodes they hold`() {
-        state = state.copy(queue = listOf(item(1, "Q1"), item(2, "Q2")), inbox = listOf(item(3, "I1")))
+    fun `the queue header shows how many episodes it holds`() {
+        state = state.copy(queue = listOf(item(1, "Q1"), item(2, "Q2")))
         setContent()
 
         composeTestRule.onNodeWithText("2", substring = false).assertIsDisplayed()
-        composeTestRule.onNodeWithText("1", substring = false).assertIsDisplayed()
     }
 
     @Test
-    fun `an expanded section offers to collapse and a collapsed one to expand`() {
-        state = state.copy(inboxExpanded = false)
+    fun `an expanded queue offers to collapse and a collapsed one to expand`() {
         setContent()
 
         composeTestRule.onNodeWithContentDescription("Collapse Queue").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("Expand Inbox").assertIsDisplayed()
+
+        state = state.copy(queueExpanded = false)
+        composeTestRule.onNodeWithContentDescription("Expand Queue").assertIsDisplayed()
     }
 
     @Test
-    fun `the chevron and the title both toggle their section`() {
+    fun `the chevron and the title both toggle the queue`() {
         setContent()
 
         composeTestRule.onNodeWithContentDescription("Collapse Queue").performClick()
-        composeTestRule.onNodeWithText("Inbox").performClick()
+        composeTestRule.onNodeWithText("Queue").performClick()
 
         assertEquals(
             listOf<EpisodesIntent>(
                 EpisodesIntent.ToggleSection(EpisodesSection.QUEUE),
-                EpisodesIntent.ToggleSection(EpisodesSection.INBOX),
+                EpisodesIntent.ToggleSection(EpisodesSection.QUEUE),
             ),
             intents,
         )
@@ -256,21 +256,5 @@ class EpisodesScreenTest {
         setContent()
 
         composeTestRule.onNodeWithText("Swipe an episode right to queue it.").assertDoesNotExist()
-    }
-
-    @Test
-    fun `a collapsed inbox hides its episodes`() {
-        state = state.copy(inbox = listOf(item(2, "Inbox one")), inboxExpanded = false)
-        setContent()
-
-        composeTestRule.onNodeWithText("Inbox one").assertDoesNotExist()
-    }
-
-    @Test
-    fun `a collapsed empty inbox does not show its caught-up message`() {
-        state = state.copy(inboxExpanded = false)
-        setContent()
-
-        composeTestRule.onNodeWithText("You're all caught up.").assertDoesNotExist()
     }
 }
