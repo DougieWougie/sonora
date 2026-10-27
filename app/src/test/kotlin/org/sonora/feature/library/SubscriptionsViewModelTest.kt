@@ -187,6 +187,24 @@ class SubscriptionsViewModelTest {
     }
 
     @Test
+    fun `the layout button cycles grid, list, compact and back`() {
+        assertEquals(LibraryLayout.LIST, LibraryLayout.GRID.next())
+        assertEquals(LibraryLayout.COMPACT, LibraryLayout.LIST.next())
+        assertEquals(LibraryLayout.GRID, LibraryLayout.COMPACT.next())
+    }
+
+    @Test
+    fun `choosing the compact layout remembers it`() = runTest {
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { !it.isLoading }
+            vm.onIntent(SubscriptionsIntent.SetLayout(LibraryLayout.COMPACT))
+            awaitUntil { it.layout == LibraryLayout.COMPACT }
+        }
+        assertEquals(LibraryLayout.COMPACT, preferences.layout.value)
+    }
+
+    @Test
     fun `starts with the sort and filter the user last chose`() = runTest {
         preferences.setSort(LibrarySort.RECENT)
         preferences.setUnplayedOnly(true)
