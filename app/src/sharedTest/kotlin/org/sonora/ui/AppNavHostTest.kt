@@ -28,8 +28,8 @@ class AppNavHostTest {
 
     /** Each screen is a button per navigation callback it is given, so the wiring can be driven by clicks. */
     private val screens = AppScreens(
-        library = { onOpenPodcast, _ -> Button({ onOpenPodcast(42) }) { Text("Library: open podcast") } },
-        episodes = { _, onOpenDownloads -> Button(onOpenDownloads) { Text("Episodes: open downloads") } },
+        subscriptions = { onOpenPodcast, _ -> Button({ onOpenPodcast(42) }) { Text("Subscriptions: open podcast") } },
+        queue = { _, onOpenDownloads -> Button(onOpenDownloads) { Text("Queue: open downloads") } },
         discover = { Text("Discover screen") },
         settings = { onOpenDownloads -> Button(onOpenDownloads) { Text("Settings: open downloads") } },
         downloads = { onBack, _ -> Button(onBack) { Text("Downloads: back") } },
@@ -51,33 +51,33 @@ class AppNavHostTest {
     fun `it starts on the library`() {
         setContent()
 
-        composeTestRule.onNodeWithText("Library: open podcast").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Subscriptions: open podcast").assertIsDisplayed()
     }
 
     @Test
-    fun `opening a podcast from the library shows it and back returns`() {
+    fun `opening a podcast from subscriptions shows it and back returns`() {
         setContent()
 
-        composeTestRule.onNodeWithText("Library: open podcast").performClick()
+        composeTestRule.onNodeWithText("Subscriptions: open podcast").performClick()
 
         composeTestRule.onNodeWithText("Podcast: back").assertIsDisplayed()
         assertEquals(42L, navController.currentBackStackEntry!!.toRoute<PodcastRoute>().podcastId)
 
         composeTestRule.onNodeWithText("Podcast: back").performClick()
 
-        composeTestRule.onNodeWithText("Library: open podcast").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Subscriptions: open podcast").assertIsDisplayed()
     }
 
     @Test
-    fun `episodes can open the downloads and back returns`() {
+    fun `the queue can open the downloads and back returns`() {
         setContent()
         composeTestRule.onNodeWithText("Queue").performClick()
 
-        composeTestRule.onNodeWithText("Episodes: open downloads").performClick()
+        composeTestRule.onNodeWithText("Queue: open downloads").performClick()
         composeTestRule.onNodeWithText("Downloads: back").assertIsDisplayed()
 
         composeTestRule.onNodeWithText("Downloads: back").performClick()
-        composeTestRule.onNodeWithText("Episodes: open downloads").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Queue: open downloads").assertIsDisplayed()
     }
 
     @Test

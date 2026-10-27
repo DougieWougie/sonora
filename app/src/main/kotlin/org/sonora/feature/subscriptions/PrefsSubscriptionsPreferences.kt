@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.sonora.feature.library
+package org.sonora.feature.subscriptions
 
 import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-class PrefsLibraryPreferences(context: Context) : LibraryPreferences {
+class PrefsSubscriptionsPreferences(context: Context) : SubscriptionsPreferences {
     private val prefs = context.applicationContext.getSharedPreferences("library", Context.MODE_PRIVATE)
-    private val currentLayout = MutableStateFlow(readEnum(KEY_LAYOUT, LibraryLayout.GRID))
-    private val currentSort = MutableStateFlow(readEnum(KEY_SORT, LibrarySort.TITLE))
+    private val currentLayout = MutableStateFlow(readEnum(KEY_LAYOUT, SubscriptionsLayout.GRID))
+    private val currentSort = MutableStateFlow(readEnum(KEY_SORT, SubscriptionsSort.TITLE))
     private val currentUnplayedOnly = MutableStateFlow(prefs.getBoolean(KEY_UNPLAYED_ONLY, false))
 
-    override val layout: StateFlow<LibraryLayout> = currentLayout
-    override val sort: StateFlow<LibrarySort> = currentSort
+    override val layout: StateFlow<SubscriptionsLayout> = currentLayout
+    override val sort: StateFlow<SubscriptionsSort> = currentSort
     override val unplayedOnly: StateFlow<Boolean> = currentUnplayedOnly
 
-    override fun setLayout(layout: LibraryLayout) {
+    override fun setLayout(layout: SubscriptionsLayout) {
         prefs.edit().putString(KEY_LAYOUT, layout.name).apply()
         currentLayout.value = layout
     }
 
-    override fun setSort(sort: LibrarySort) {
+    override fun setSort(sort: SubscriptionsSort) {
         prefs.edit().putString(KEY_SORT, sort.name).apply()
         currentSort.value = sort
     }

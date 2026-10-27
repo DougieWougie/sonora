@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.sonora.feature.library
+package org.sonora.feature.subscriptions
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -24,13 +24,13 @@ import org.sonora.core.download.EpisodeActions
 import org.sonora.core.media.PlayQueue
 import org.sonora.core.work.SyncController
 
-enum class LibraryLayout {
+enum class SubscriptionsLayout {
     GRID, LIST, COMPACT;
 
     /** The order the layout button steps through. */
-    fun next(): LibraryLayout = entries[(ordinal + 1) % entries.size]
+    fun next(): SubscriptionsLayout = entries[(ordinal + 1) % entries.size]
 }
-enum class LibrarySort { TITLE, RECENT, UNPLAYED }
+enum class SubscriptionsSort { TITLE, RECENT, UNPLAYED }
 
 data class PodcastItem(
     val id: Long,
@@ -44,8 +44,8 @@ data class PodcastItem(
 
 data class SubscriptionsUiState(
     val podcasts: List<PodcastItem> = emptyList(),
-    val layout: LibraryLayout = LibraryLayout.GRID,
-    val sort: LibrarySort = LibrarySort.TITLE,
+    val layout: SubscriptionsLayout = SubscriptionsLayout.GRID,
+    val sort: SubscriptionsSort = SubscriptionsSort.TITLE,
     val unplayedOnly: Boolean = false,
     /** What the user has typed into the library search; empty when not searching. */
     val query: String = "",
@@ -57,8 +57,8 @@ data class SubscriptionsUiState(
 )
 
 sealed interface SubscriptionsIntent {
-    data class SetLayout(val layout: LibraryLayout) : SubscriptionsIntent
-    data class SetSort(val sort: LibrarySort) : SubscriptionsIntent
+    data class SetLayout(val layout: SubscriptionsLayout) : SubscriptionsIntent
+    data class SetSort(val sort: SubscriptionsSort) : SubscriptionsIntent
     data class SetUnplayedOnly(val enabled: Boolean) : SubscriptionsIntent
     data class SetQuery(val query: String) : SubscriptionsIntent
     data class MarkAllPlayed(val podcastId: Long) : SubscriptionsIntent
@@ -81,7 +81,7 @@ class SubscriptionsViewModel @Inject constructor(
     episodeDao: EpisodeDao,
     queue: PlayQueue,
     private val sync: SyncController,
-    private val preferences: LibraryPreferences,
+    private val preferences: SubscriptionsPreferences,
     private val subscriptions: SubscriptionRepository,
     private val actions: EpisodeActions,
 ) : ViewModel() {
@@ -90,8 +90,8 @@ class SubscriptionsViewModel @Inject constructor(
 
     /** The choices that shape the list, bundled so [uiState] stays within combine's arity. */
     private data class View(
-        val layout: LibraryLayout,
-        val sort: LibrarySort,
+        val layout: SubscriptionsLayout,
+        val sort: SubscriptionsSort,
         val unplayedOnly: Boolean,
         val query: String,
         val unsubscribeRequest: Long?,
@@ -163,12 +163,12 @@ class SubscriptionsViewModel @Inject constructor(
     private fun PodcastEntity.toItem(unplayed: Int) =
         PodcastItem(id, feedUrl, title, author, imageUrl, unplayed, autoDownload)
 
-    private fun comparatorFor(sort: LibrarySort): Comparator<Pair<PodcastItem, Long?>> {
+    private fun comparatorFor(sort: SubscriptionsSort): Comparator<Pair<PodcastItem, Long?>> {
         val byTitle = compareBy<Pair<PodcastItem, Long?>, String>(String.CASE_INSENSITIVE_ORDER) { it.first.title }
         return when (sort) {
-            LibrarySort.TITLE -> byTitle
-            LibrarySort.RECENT -> compareByDescending<Pair<PodcastItem, Long?>> { it.second ?: Long.MIN_VALUE }.then(byTitle)
-            LibrarySort.UNPLAYED -> compareByDescending<Pair<PodcastItem, Long?>> { it.first.unplayedCount }.then(byTitle)
+            SubscriptionsSort.TITLE -> byTitle
+            SubscriptionsSort.RECENT -> compareByDescending<Pair<PodcastItem, Long?>> { it.second ?: Long.MIN_VALUE }.then(byTitle)
+            SubscriptionsSort.UNPLAYED -> compareByDescending<Pair<PodcastItem, Long?>> { it.first.unplayedCount }.then(byTitle)
         }
     }
 

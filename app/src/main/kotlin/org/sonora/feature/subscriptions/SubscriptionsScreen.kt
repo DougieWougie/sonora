@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.sonora.feature.library
+package org.sonora.feature.subscriptions
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -73,7 +73,7 @@ import org.sonora.ui.components.ScreenHeading
 import org.sonora.ui.components.SonoraLogo
 
 @Composable
-fun LibraryScreen(
+fun SubscriptionsScreen(
     onOpenPodcast: (Long) -> Unit,
     snackbar: SnackbarHostState,
     modifier: Modifier = Modifier,
@@ -91,11 +91,11 @@ fun LibraryScreen(
         }
     }
 
-    LibraryContent(state, viewModel::onIntent, onOpenPodcast, modifier)
+    SubscriptionsContent(state, viewModel::onIntent, onOpenPodcast, modifier)
 }
 
 @Composable
-internal fun LibraryContent(
+internal fun SubscriptionsContent(
     state: SubscriptionsUiState,
     onIntent: (SubscriptionsIntent) -> Unit,
     onOpenPodcast: (Long) -> Unit,
@@ -112,7 +112,7 @@ internal fun LibraryContent(
     }
 
     Column(modifier.fillMaxSize()) {
-        LibraryHeader(state, onIntent)
+        SubscriptionsHeader(state, onIntent)
         PullToRefreshBox(
             isRefreshing = state.isRefreshing,
             onRefresh = { onIntent(SubscriptionsIntent.Refresh) },
@@ -123,9 +123,9 @@ internal fun LibraryContent(
                 state.podcasts.isEmpty() -> EmptyLibrary(state.unplayedOnly, state.query.trim())
                 else -> AnimatedContent(targetState = state.layout, label = "layout") { layout ->
                     when (layout) {
-                        LibraryLayout.GRID -> PodcastGrid(state.podcasts, onOpenPodcast, onIntent)
-                        LibraryLayout.COMPACT -> PodcastGrid(state.podcasts, onOpenPodcast, onIntent, compact = true)
-                        LibraryLayout.LIST -> PodcastList(state.podcasts, onOpenPodcast, onIntent)
+                        SubscriptionsLayout.GRID -> PodcastGrid(state.podcasts, onOpenPodcast, onIntent)
+                        SubscriptionsLayout.COMPACT -> PodcastGrid(state.podcasts, onOpenPodcast, onIntent, compact = true)
+                        SubscriptionsLayout.LIST -> PodcastList(state.podcasts, onOpenPodcast, onIntent)
                     }
                 }
             }
@@ -135,7 +135,7 @@ internal fun LibraryContent(
 
 /** Search, sort and filter, and layout are all icons, so the header costs one slim row. */
 @Composable
-private fun LibraryHeader(state: SubscriptionsUiState, onIntent: (SubscriptionsIntent) -> Unit) {
+private fun SubscriptionsHeader(state: SubscriptionsUiState, onIntent: (SubscriptionsIntent) -> Unit) {
     ScreenHeading("Subscriptions")
     var searching by rememberSaveable { mutableStateOf(state.query.isNotBlank()) }
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -156,9 +156,9 @@ private fun LibraryHeader(state: SubscriptionsUiState, onIntent: (SubscriptionsI
         SortAndFilterButton(state, onIntent)
         IconButton(onClick = { onIntent(SubscriptionsIntent.SetLayout(state.layout.next())) }) {
             val (icon, label) = when (state.layout) {
-                LibraryLayout.GRID -> Icons.AutoMirrored.Rounded.ViewList to "Show as list"
-                LibraryLayout.LIST -> Icons.Rounded.Apps to "Show as compact grid"
-                LibraryLayout.COMPACT -> Icons.Rounded.GridView to "Show as grid"
+                SubscriptionsLayout.GRID -> Icons.AutoMirrored.Rounded.ViewList to "Show as list"
+                SubscriptionsLayout.LIST -> Icons.Rounded.Apps to "Show as compact grid"
+                SubscriptionsLayout.COMPACT -> Icons.Rounded.GridView to "Show as grid"
             }
             Icon(icon, contentDescription = label)
         }
@@ -180,13 +180,13 @@ private fun SearchSlot(
             enter = expandHorizontally(expandFrom = Alignment.End) + fadeIn(),
             exit = shrinkHorizontally(shrinkTowards = Alignment.End) + fadeOut(),
         ) {
-            LibrarySearchField(query, onQueryChange, onClose)
+            SubscriptionsSearchField(query, onQueryChange, onClose)
         }
     }
 }
 
 @Composable
-private fun LibrarySearchField(query: String, onQueryChange: (String) -> Unit, onClose: () -> Unit) {
+private fun SubscriptionsSearchField(query: String, onQueryChange: (String) -> Unit, onClose: () -> Unit) {
     val focus = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     LaunchedEffect(Unit) { if (query.isEmpty()) focus.requestFocus() }
@@ -220,9 +220,9 @@ private fun SortAndFilterButton(state: SubscriptionsUiState, onIntent: (Subscrip
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
             )
-            LibrarySort.entries.forEach { sort ->
+            SubscriptionsSort.entries.forEach { sort ->
                 ChoiceItem(
-                    label = when (sort) { LibrarySort.TITLE -> "A–Z"; LibrarySort.RECENT -> "Recent"; LibrarySort.UNPLAYED -> "Unplayed" },
+                    label = when (sort) { SubscriptionsSort.TITLE -> "A–Z"; SubscriptionsSort.RECENT -> "Recent"; SubscriptionsSort.UNPLAYED -> "Unplayed" },
                     selected = state.sort == sort,
                 ) {
                     onIntent(SubscriptionsIntent.SetSort(sort))

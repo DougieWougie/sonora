@@ -42,14 +42,14 @@ class SonoraRootTest {
     private var primary: Color? = null
 
     private val screens = AppScreens(
-        library = { open, _ ->
+        subscriptions = { open, _ ->
             Column(Modifier.fillMaxSize()) {
                 Text("Open podcast", Modifier.clickable { open(7) })
-                Text("Library screen", Modifier.fillMaxSize())
+                Text("Subscriptions screen", Modifier.fillMaxSize())
             }
             primary = MaterialTheme.colorScheme.primary
         },
-        episodes = { _, _ -> Text("Episodes screen", Modifier.fillMaxSize()) },
+        queue = { _, _ -> Text("Queue screen", Modifier.fillMaxSize()) },
         discover = {
             val drag = rememberDraggableState { }
             Text("Discover screen", Modifier.fillMaxSize().draggable(drag, Orientation.Horizontal))
@@ -69,7 +69,7 @@ class SonoraRootTest {
     fun `it shows the library inside the app shell`() {
         setContent()
 
-        composeTestRule.onNodeWithText("Library screen").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Subscriptions screen").assertIsDisplayed()
         composeTestRule.onNodeWithText("Discover").assertIsDisplayed()
     }
 
@@ -108,20 +108,20 @@ class SonoraRootTest {
     fun `swiping left moves to the next tab and right moves back`() {
         setContent()
 
-        swipeOn("Library screen", left = true)
-        composeTestRule.onNodeWithText("Episodes screen").assertIsDisplayed()
+        swipeOn("Subscriptions screen", left = true)
+        composeTestRule.onNodeWithText("Queue screen").assertIsDisplayed()
 
-        swipeOn("Episodes screen", left = false)
-        composeTestRule.onNodeWithText("Library screen").assertIsDisplayed()
+        swipeOn("Queue screen", left = false)
+        composeTestRule.onNodeWithText("Subscriptions screen").assertIsDisplayed()
     }
 
     @Test
     fun `swiping right on the first tab stays put`() {
         setContent()
 
-        swipeOn("Library screen", left = false)
+        swipeOn("Subscriptions screen", left = false)
 
-        composeTestRule.onNodeWithText("Library screen").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Subscriptions screen").assertIsDisplayed()
     }
 
     @Test
