@@ -24,7 +24,12 @@ import org.sonora.core.download.EpisodeActions
 import org.sonora.core.media.PlayQueue
 import org.sonora.core.work.SyncController
 
-enum class LibraryLayout { GRID, LIST }
+enum class LibraryLayout {
+    GRID, LIST, COMPACT;
+
+    /** The order the layout button steps through. */
+    fun next(): LibraryLayout = entries[(ordinal + 1) % entries.size]
+}
 enum class LibrarySort { TITLE, RECENT, UNPLAYED }
 
 data class PodcastItem(

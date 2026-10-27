@@ -110,13 +110,18 @@ class LibraryScreenTest {
     // --- header controls -----------------------------------------------------------------------
 
     @Test
-    fun `the layout toggle asks for the other layout`() {
+    fun `the layout button asks for the next layout`() {
         setContent()
         composeTestRule.onNodeWithContentDescription("Show as list").performClick()
         assertEquals(listOf<SubscriptionsIntent>(SubscriptionsIntent.SetLayout(LibraryLayout.LIST)), intents)
 
         intents.clear()
         state = state.copy(layout = LibraryLayout.LIST)
+        composeTestRule.onNodeWithContentDescription("Show as compact grid").performClick()
+        assertEquals(listOf<SubscriptionsIntent>(SubscriptionsIntent.SetLayout(LibraryLayout.COMPACT)), intents)
+
+        intents.clear()
+        state = state.copy(layout = LibraryLayout.COMPACT)
         composeTestRule.onNodeWithContentDescription("Show as grid").performClick()
         assertEquals(listOf<SubscriptionsIntent>(SubscriptionsIntent.SetLayout(LibraryLayout.GRID)), intents)
     }

@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ViewList
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.GridView
@@ -41,7 +42,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
@@ -124,6 +124,7 @@ internal fun LibraryContent(
                 else -> AnimatedContent(targetState = state.layout, label = "layout") { layout ->
                     when (layout) {
                         LibraryLayout.GRID -> PodcastGrid(state.podcasts, onOpenPodcast, onIntent)
+                        LibraryLayout.COMPACT -> PodcastGrid(state.podcasts, onOpenPodcast, onIntent, compact = true)
                         LibraryLayout.LIST -> PodcastList(state.podcasts, onOpenPodcast, onIntent)
                     }
                 }
@@ -153,14 +154,13 @@ private fun LibraryHeader(state: SubscriptionsUiState, onIntent: (SubscriptionsI
             IconButton(onClick = { searching = true }) { Icon(Icons.Rounded.Search, contentDescription = "Search library") }
         }
         SortAndFilterButton(state, onIntent)
-        IconToggleButton(
-            checked = state.layout == LibraryLayout.LIST,
-            onCheckedChange = { onIntent(SubscriptionsIntent.SetLayout(if (it) LibraryLayout.LIST else LibraryLayout.GRID)) },
-        ) {
-            Icon(
-                if (state.layout == LibraryLayout.GRID) Icons.AutoMirrored.Rounded.ViewList else Icons.Rounded.GridView,
-                contentDescription = if (state.layout == LibraryLayout.GRID) "Show as list" else "Show as grid",
-            )
+        IconButton(onClick = { onIntent(SubscriptionsIntent.SetLayout(state.layout.next())) }) {
+            val (icon, label) = when (state.layout) {
+                LibraryLayout.GRID -> Icons.AutoMirrored.Rounded.ViewList to "Show as list"
+                LibraryLayout.LIST -> Icons.Rounded.Apps to "Show as compact grid"
+                LibraryLayout.COMPACT -> Icons.Rounded.GridView to "Show as grid"
+            }
+            Icon(icon, contentDescription = label)
         }
     }
 }
@@ -296,12 +296,17 @@ private fun unplayedLabel(count: Int) = if (count > 99) "99+" else count.toStrin
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PodcastGrid(podcasts: List<PodcastItem>, onOpen: (Long) -> Unit, onIntent: (SubscriptionsIntent) -> Unit) {
+private fun PodcastGrid(
+    podcasts: List<PodcastItem>,
+    onOpen: (Long) -> Unit,
+    onIntent: (SubscriptionsIntent) -> Unit,
+    compact: Boolean = false,
+) {
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(150.dp),
-        contentPadding = PaddingValues(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        columns = GridCells.Adaptive(if (compact) 88.dp else 150.dp),
+        contentPadding = PaddingValues(if (compact) 12.dp else 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 16.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 16.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
         items(podcasts, key = { it.id }) { podcast ->
@@ -317,17 +322,17 @@ private fun PodcastGrid(podcasts: List<PodcastItem>, onOpen: (Long) -> Unit, onI
                     Box {
                         ArtworkImage(podcast.imageUrl, podcast.title, Modifier.fillMaxWidth().aspectRatio(1f))
                         if (podcast.unplayedCount > 0) {
-                            Badge(Modifier.align(Alignment.TopEnd).padding(8.dp)) { Text(unplayedLabel(podcast.unplayedCount)) }
+                            Badge(Modifier.align(Alignment.TopEnd).padding(if (compact) 4.dp else 8.dp)) { Text(unplayedLabel(podcast.unplayedCount)) }
                         }
                     }
                     Text(
                         podcast.title,
-                        style = MaterialTheme.typography.titleSmallEmphasized,
-                        maxLines = 2,
+                        style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.titleSmallEmphasized,
+                        maxLines = if (compact) 1 else 2,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 8.dp),
+                        modifier = Modifier.padding(top = if (compact) 4.dp else 8.dp),
                     )
-                    podcast.author?.let { Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    if (!compact) podcast.author?.let { Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
                 PodcastActionsMenu(podcast, menu, { menu = false }, onIntent)
             }
