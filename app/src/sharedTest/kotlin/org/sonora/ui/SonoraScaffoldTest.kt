@@ -8,9 +8,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -72,7 +78,7 @@ class SonoraScaffoldTest {
     }
 
     private fun navigateBetweenTopLevelScreens() {
-        composeTestRule.onNodeWithText("Library").assertIsSelected()
+        composeTestRule.onNodeWithText("Subscriptions").assertIsSelected()
 
         composeTestRule.onNodeWithText("Discover").performClick()
         composeTestRule.onNodeWithText("Discover screen").assertIsDisplayed()
@@ -81,35 +87,39 @@ class SonoraScaffoldTest {
         composeTestRule.onNodeWithText("Settings").performClick()
         composeTestRule.onNodeWithText("Settings screen").assertIsDisplayed()
 
-        composeTestRule.onNodeWithText("Episodes").performClick()
+        composeTestRule.onNodeWithText("Queue").performClick()
         composeTestRule.onNodeWithText("Episodes screen").assertIsDisplayed()
 
-        composeTestRule.onNodeWithText("Library").performClick()
+        composeTestRule.onNodeWithText("Subscriptions").performClick()
         composeTestRule.onNodeWithText("Library screen").assertIsDisplayed()
     }
 
     // --- badges --------------------------------------------------------------------------------
 
-    private fun assertEpisodesBadgeShown(layout: NavigationLayout) {
+    private fun tabLabelled(label: String) = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab) and hasAnyDescendant(hasText(label))
+
+    private fun assertUnplayedBadgeShown(layout: NavigationLayout) {
         setContent(layout, NavBadges(episodes = 7))
 
         composeTestRule.onNodeWithTag(TestTags.NAV_BADGE_EPISODES, useUnmergedTree = true).assertIsDisplayed().assertContentDescriptionEquals("7 unplayed")
+        composeTestRule.onNode(tabLabelled("Subscriptions") and hasAnyDescendant(hasTestTag(TestTags.NAV_BADGE_EPISODES)), useUnmergedTree = true).assertExists()
+        composeTestRule.onNode(tabLabelled("Queue") and hasAnyDescendant(hasTestTag(TestTags.NAV_BADGE_EPISODES)), useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
-    fun `the episodes tab shows how many episodes are unplayed in the bottom bar`() =
-        assertEpisodesBadgeShown(NavigationLayout.BottomBar)
+    fun `the subscriptions tab shows how many episodes are unplayed in the bottom bar`() =
+        assertUnplayedBadgeShown(NavigationLayout.BottomBar)
 
     @Test
-    fun `the episodes tab shows how many episodes are unplayed in the slim bottom bar`() =
-        assertEpisodesBadgeShown(NavigationLayout.SlimBottomBar)
+    fun `the subscriptions tab shows how many episodes are unplayed in the slim bottom bar`() =
+        assertUnplayedBadgeShown(NavigationLayout.SlimBottomBar)
 
     @Test
-    fun `the episodes tab shows how many episodes are unplayed in the rail`() =
-        assertEpisodesBadgeShown(NavigationLayout.Rail)
+    fun `the subscriptions tab shows how many episodes are unplayed in the rail`() =
+        assertUnplayedBadgeShown(NavigationLayout.Rail)
 
     @Test
-    fun `the episodes badge is capped for large counts`() {
+    fun `the unplayed badge is capped for large counts`() {
         setContent(badges = NavBadges(episodes = 250))
 
         composeTestRule.onNodeWithTag(TestTags.NAV_BADGE_EPISODES, useUnmergedTree = true).assertContentDescriptionEquals("99+ unplayed")

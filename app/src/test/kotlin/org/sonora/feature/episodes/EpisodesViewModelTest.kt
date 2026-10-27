@@ -45,24 +45,14 @@ class EpisodesViewModelTest {
     }
 
     @Test
-    fun `the inbox shows unplayed episodes from every podcast, newest first`() = runTest {
-        seed()
-        vm().uiState.test {
-            val state = awaitUntil { it.inbox.isNotEmpty() }
-            assertEquals(listOf("Ep 2", "Ep 3", "Ep 1"), state.inbox.map { it.title })
-            assertEquals(listOf("Beta", "Alpha", "Alpha"), state.inbox.map { it.podcastTitle })
-        }
-    }
-
-    @Test
-    fun `the queue keeps its order and flags queued episodes in the inbox`() = runTest {
+    fun `the queue keeps its order and flags its episodes as queued`() = runTest {
         val ids = seed()
         queue.enqueue(ids[2]); queue.enqueue(ids[0])
 
         vm().uiState.test {
             val state = awaitUntil { it.queue.isNotEmpty() }
             assertEquals(listOf("Ep 3", "Ep 1"), state.queue.map { it.title })
-            assertEquals(setOf("Ep 3", "Ep 1"), state.inbox.filter { it.queued }.map { it.title }.toSet())
+            assertTrue(state.queue.all { it.queued })
         }
     }
 
@@ -71,7 +61,7 @@ class EpisodesViewModelTest {
         val ids = seed()
         val vm = vm()
         vm.uiState.test {
-            awaitUntil { it.inbox.isNotEmpty() }
+            awaitUntil { !it.isLoading }
             vm.onIntent(EpisodesIntent.Enqueue(ids[0])); vm.onIntent(EpisodesIntent.Enqueue(ids[1]))
             awaitUntil { it.queue.size == 2 }
             vm.onIntent(EpisodesIntent.Dequeue(ids[0]))
@@ -191,7 +181,7 @@ class EpisodesViewModelTest {
         val ids = seed()
         val vm = vm()
         vm.uiState.test {
-            awaitUntil { it.inbox.isNotEmpty() }
+            awaitUntil { !it.isLoading }
             vm.onIntent(EpisodesIntent.Play(ids[0]))
             vm.onIntent(EpisodesIntent.Download(ids[1]))
             vm.onIntent(EpisodesIntent.SetPlayed(ids[2], true))
@@ -207,7 +197,7 @@ class EpisodesViewModelTest {
         val ids = seed()
         val vm = vm()
         vm.uiState.test {
-            awaitUntil { it.inbox.isNotEmpty() }
+            awaitUntil { !it.isLoading }
             vm.onIntent(EpisodesIntent.DeleteDownload(ids[1]))
             testScheduler.advanceUntilIdle()
             cancelAndIgnoreRemainingEvents()
@@ -221,7 +211,7 @@ class EpisodesViewModelTest {
         actions.olderCounts[ids[2]] = 2
         val vm = vm()
         vm.uiState.test {
-            awaitUntil { it.inbox.isNotEmpty() }
+            awaitUntil { !it.isLoading }
             vm.onIntent(EpisodesIntent.RequestMarkOlderPlayed(ids[2]))
             assertEquals(
                 PendingMarkOlder(ids[2], 2),
@@ -239,7 +229,7 @@ class EpisodesViewModelTest {
         actions.olderCounts[id] = 2
         val vm = vm()
         vm.uiState.test {
-            awaitUntil { it.inbox.isNotEmpty() }
+            awaitUntil { !it.isLoading }
             vm.onIntent(EpisodesIntent.RequestMarkOlderPlayed(id))
             awaitUntil { it.pendingMarkOlder != null }
             vm.onIntent(EpisodesIntent.ConfirmMarkOlderPlayed)
@@ -257,7 +247,7 @@ class EpisodesViewModelTest {
         actions.olderCounts[id] = 2
         val vm = vm()
         vm.uiState.test {
-            awaitUntil { it.inbox.isNotEmpty() }
+            awaitUntil { !it.isLoading }
             vm.onIntent(EpisodesIntent.RequestMarkOlderPlayed(id))
             awaitUntil { it.pendingMarkOlder != null }
             vm.onIntent(EpisodesIntent.DismissMarkOlderPlayed)
@@ -273,7 +263,7 @@ class EpisodesViewModelTest {
         val ids = seed()
         val vm = vm()
         vm.uiState.test {
-            awaitUntil { it.inbox.isNotEmpty() }
+            awaitUntil { !it.isLoading }
             vm.onIntent(EpisodesIntent.RequestMarkOlderPlayed(ids[0]))
             assertEquals(0, awaitUntil { it.pendingMarkOlder != null }.pendingMarkOlder!!.count)
             vm.onIntent(EpisodesIntent.ConfirmMarkOlderPlayed)
@@ -287,45 +277,34 @@ class EpisodesViewModelTest {
     // --- collapsible sections ----------------------------------------------------------------
 
     @Test
-    fun `both sections start expanded`() = runTest {
+    fun `the queue starts expanded`() = runTest {
         vm().uiState.test {
-            val state = awaitUntil { !it.isLoading }
-            assertTrue(state.queueExpanded)
-            assertTrue(state.inboxExpanded)
+            assertTrue(awaitUntil { !it.isLoading }.queueExpanded)
         }
     }
 
     @Test
-    fun `sections start as they were left`() = runTest {
+    fun `the queue starts as it was left`() = runTest {
         settings.queueCollapsed = true
-        settings.inboxCollapsed = true
 
         vm().uiState.test {
-            val state = awaitUntil { !it.isLoading }
-            assertEquals(false, state.queueExpanded)
-            assertEquals(false, state.inboxExpanded)
+            assertEquals(false, awaitUntil { !it.isLoading }.queueExpanded)
         }
     }
 
     @Test
-    fun `toggling a section flips only that section and saves it`() = runTest {
+    fun `toggling the queue flips it and saves it`() = runTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { !it.isLoading }
 
             vm.onIntent(EpisodesIntent.ToggleSection(EpisodesSection.QUEUE))
-            val collapsed = awaitUntil { !it.queueExpanded }
-            assertTrue(collapsed.inboxExpanded)
+            awaitUntil { !it.queueExpanded }
             assertTrue(settings.queueCollapsed)
-            assertEquals(false, settings.inboxCollapsed)
 
             vm.onIntent(EpisodesIntent.ToggleSection(EpisodesSection.QUEUE))
             awaitUntil { it.queueExpanded }
             assertEquals(false, settings.queueCollapsed)
-
-            vm.onIntent(EpisodesIntent.ToggleSection(EpisodesSection.INBOX))
-            awaitUntil { !it.inboxExpanded }
-            assertTrue(settings.inboxCollapsed)
         }
     }
 

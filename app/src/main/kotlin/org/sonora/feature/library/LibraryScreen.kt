@@ -136,7 +136,7 @@ internal fun LibraryContent(
 /** Search, sort and filter, and layout are all icons, so the header costs one slim row. */
 @Composable
 private fun LibraryHeader(state: SubscriptionsUiState, onIntent: (SubscriptionsIntent) -> Unit) {
-    ScreenHeading("Library")
+    ScreenHeading("Subscriptions")
     var searching by rememberSaveable { mutableStateOf(state.query.isNotBlank()) }
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         SearchSlot(

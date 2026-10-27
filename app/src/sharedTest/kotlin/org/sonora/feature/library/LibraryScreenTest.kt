@@ -51,7 +51,7 @@ class LibraryScreenTest {
     fun `an empty library points to Discover`() {
         setContent()
 
-        composeTestRule.assertScreenHeading("Library")
+        composeTestRule.assertScreenHeading("Subscriptions")
         composeTestRule.onNodeWithText("No subscriptions yet", substring = true).assertIsDisplayed()
     }
 
@@ -69,7 +69,7 @@ class LibraryScreenTest {
         state = SubscriptionsUiState(isLoading = true)
         setContent()
 
-        composeTestRule.assertScreenHeading("Library")
+        composeTestRule.assertScreenHeading("Subscriptions")
         composeTestRule.onNodeWithText("No subscriptions yet", substring = true).assertDoesNotExist()
     }
 

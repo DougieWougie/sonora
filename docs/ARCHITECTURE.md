@@ -139,7 +139,7 @@ flowchart LR
   queue is non-empty, and the player re-announces its available commands whenever the queue changes.
 - Queue edits are plain `PlayQueue` operations: `enqueue` (add to end), `enqueueNext` (play next),
   `move`, `remove`, `replaceAll`. Undo is just `replaceAll` with the previous order, which the
-  Episodes view model hands to the screen in `EpisodesEvent.QueueChanged`. Reordering is drag on
+  Queue view model hands to the screen in `EpisodesEvent.QueueChanged`. Reordering is drag on
   `QueueDragHandle` (via `ReorderState` in `ui/components/QueueReorder.kt`) or the "Move up/down"
   accessibility actions on the same handle; clearing asks for confirmation first.
 
