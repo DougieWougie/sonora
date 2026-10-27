@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.sonora.feature.episodes
+package org.sonora.feature.queue
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.animation.core.animateFloatAsState
@@ -50,63 +50,63 @@ import org.sonora.ui.components.rememberReorderState
 import org.sonora.ui.components.SwipeableEpisodeRow
 
 @Composable
-fun EpisodesScreen(
+fun QueueScreen(
     snackbar: SnackbarHostState,
     onOpenDownloads: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: EpisodesViewModel = hiltViewModel(),
+    viewModel: QueueViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) {
         viewModel.events.collect {
             when (it) {
-                is EpisodesEvent.Message -> snackbar.showSnackbar(it.text)
-                is EpisodesEvent.QueueChanged -> {
+                is QueueEvent.Message -> snackbar.showSnackbar(it.text)
+                is QueueEvent.QueueChanged -> {
                     val result = snackbar.showSnackbar(it.text, actionLabel = "Undo", duration = SnackbarDuration.Long)
-                    if (result == SnackbarResult.ActionPerformed) viewModel.onIntent(EpisodesIntent.RestoreQueue(it.previous))
+                    if (result == SnackbarResult.ActionPerformed) viewModel.onIntent(QueueIntent.RestoreQueue(it.previous))
                 }
             }
         }
     }
     val actions = remember(viewModel) {
         EpisodeActionsUi(
-            onPlay = { viewModel.onIntent(EpisodesIntent.Play(it.id)) },
-            onPlayNext = { viewModel.onIntent(EpisodesIntent.PlayNext(it.id)) },
-            onToggleQueue = { viewModel.onIntent(if (it.queued) EpisodesIntent.Dequeue(it.id) else EpisodesIntent.Enqueue(it.id)) },
-            onDownload = { viewModel.onIntent(EpisodesIntent.Download(it.id)) },
-            onDeleteDownload = { viewModel.onIntent(EpisodesIntent.DeleteDownload(it.id)) },
-            onSetPlayed = { item, played -> viewModel.onIntent(EpisodesIntent.SetPlayed(item.id, played)) },
-            onMarkOlderPlayed = { viewModel.onIntent(EpisodesIntent.RequestMarkOlderPlayed(it.id)) },
+            onPlay = { viewModel.onIntent(QueueIntent.Play(it.id)) },
+            onPlayNext = { viewModel.onIntent(QueueIntent.PlayNext(it.id)) },
+            onToggleQueue = { viewModel.onIntent(if (it.queued) QueueIntent.Dequeue(it.id) else QueueIntent.Enqueue(it.id)) },
+            onDownload = { viewModel.onIntent(QueueIntent.Download(it.id)) },
+            onDeleteDownload = { viewModel.onIntent(QueueIntent.DeleteDownload(it.id)) },
+            onSetPlayed = { item, played -> viewModel.onIntent(QueueIntent.SetPlayed(item.id, played)) },
+            onMarkOlderPlayed = { viewModel.onIntent(QueueIntent.RequestMarkOlderPlayed(it.id)) },
         )
     }
 
-    EpisodesContent(state, actions, viewModel::onIntent, modifier, downloadsLink = { DownloadsLink(onClick = onOpenDownloads) })
+    QueueContent(state, actions, viewModel::onIntent, modifier, downloadsLink = { DownloadsLink(onClick = onOpenDownloads) })
 }
 
 @Composable
-internal fun EpisodesContent(
-    state: EpisodesUiState,
+internal fun QueueContent(
+    state: QueueUiState,
     actions: EpisodeActionsUi,
-    onIntent: (EpisodesIntent) -> Unit,
+    onIntent: (QueueIntent) -> Unit,
     modifier: Modifier = Modifier,
     downloadsLink: @Composable () -> Unit,
 ) {
     state.pendingMarkOlder?.let {
         MarkOlderPlayedDialog(
             it,
-            onConfirm = { onIntent(EpisodesIntent.ConfirmMarkOlderPlayed) },
-            onDismiss = { onIntent(EpisodesIntent.DismissMarkOlderPlayed) },
+            onConfirm = { onIntent(QueueIntent.ConfirmMarkOlderPlayed) },
+            onDismiss = { onIntent(QueueIntent.DismissMarkOlderPlayed) },
         )
     }
 
     if (state.confirmingClear) {
         val count = state.queue.size
         AlertDialog(
-            onDismissRequest = { onIntent(EpisodesIntent.DismissClearQueue) },
+            onDismissRequest = { onIntent(QueueIntent.DismissClearQueue) },
             title = { Text("Clear $count ${if (count == 1) "episode" else "episodes"} from Queue?") },
             text = { Text("They stay in your library; only the queue is emptied.") },
-            confirmButton = { TextButton(onClick = { onIntent(EpisodesIntent.ClearQueue) }) { Text("Clear queue") } },
-            dismissButton = { TextButton(onClick = { onIntent(EpisodesIntent.DismissClearQueue) }) { Text("Cancel") } },
+            confirmButton = { TextButton(onClick = { onIntent(QueueIntent.ClearQueue) }) { Text("Clear queue") } },
+            dismissButton = { TextButton(onClick = { onIntent(QueueIntent.DismissClearQueue) }) { Text("Cancel") } },
         )
     }
 
@@ -116,7 +116,7 @@ internal fun EpisodesContent(
     }
     val listState = rememberLazyListState()
     val queueKeys = if (state.queueExpanded) state.queue.map { "q${it.id}" } else emptyList()
-    val reorder = rememberReorderState(listState, { queueKeys }, { from, to -> onIntent(EpisodesIntent.MoveInQueue(state.queue[from].id, to)) })
+    val reorder = rememberReorderState(listState, { queueKeys }, { from, to -> onIntent(QueueIntent.MoveInQueue(state.queue[from].id, to)) })
     LazyColumn(modifier.fillMaxSize(), state = listState) {
         item { downloadsLink() }
         item {
@@ -124,12 +124,12 @@ internal fun EpisodesContent(
                 title = "Queue",
                 count = state.queue.size,
                 expanded = state.queueExpanded,
-                onToggle = { onIntent(EpisodesIntent.ToggleSection(EpisodesSection.QUEUE)) },
+                onToggle = { onIntent(QueueIntent.ToggleSection(QueueSection.QUEUE)) },
             ) {
                 if (state.queue.isNotEmpty()) {
-                    IconButton(onClick = { onIntent(EpisodesIntent.PlayQueue) }) { Icon(Icons.Rounded.PlayArrow, contentDescription = "Play queue") }
-                    IconButton(onClick = { onIntent(EpisodesIntent.ShuffleQueue) }) { Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle queue") }
-                    TextButton(onClick = { onIntent(EpisodesIntent.RequestClearQueue) }) { Text("Clear") }
+                    IconButton(onClick = { onIntent(QueueIntent.PlayQueue) }) { Icon(Icons.Rounded.PlayArrow, contentDescription = "Play queue") }
+                    IconButton(onClick = { onIntent(QueueIntent.ShuffleQueue) }) { Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle queue") }
+                    TextButton(onClick = { onIntent(QueueIntent.RequestClearQueue) }) { Text("Clear") }
                 }
             }
         }
@@ -150,8 +150,8 @@ internal fun EpisodesContent(
                             state = reorder,
                             canMoveUp = index > 0,
                             canMoveDown = index < state.queue.lastIndex,
-                            onMoveUp = { onIntent(EpisodesIntent.MoveInQueue(episode.id, index - 1)) },
-                            onMoveDown = { onIntent(EpisodesIntent.MoveInQueue(episode.id, index + 1)) },
+                            onMoveUp = { onIntent(QueueIntent.MoveInQueue(episode.id, index - 1)) },
+                            onMoveDown = { onIntent(QueueIntent.MoveInQueue(episode.id, index + 1)) },
                         )
                         SwipeableEpisodeRow(episode, actions, Modifier.weight(1f))
                     }

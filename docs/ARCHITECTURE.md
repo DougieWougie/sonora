@@ -139,7 +139,7 @@ flowchart LR
   queue is non-empty, and the player re-announces its available commands whenever the queue changes.
 - Queue edits are plain `PlayQueue` operations: `enqueue` (add to end), `enqueueNext` (play next),
   `move`, `remove`, `replaceAll`. Undo is just `replaceAll` with the previous order, which the
-  Queue view model hands to the screen in `EpisodesEvent.QueueChanged`. Reordering is drag on
+  Queue view model hands to the screen in `QueueEvent.QueueChanged`. Reordering is drag on
   `QueueDragHandle` (via `ReorderState` in `ui/components/QueueReorder.kt`) or the "Move up/down"
   accessibility actions on the same handle; clearing asks for confirmation first.
 
@@ -157,7 +157,7 @@ the Android Keystore.
 
 ## UI
 
-- `SonoraRoot` hosts a type-safe Navigation Compose graph (`LibraryRoute`, `EpisodesRoute`,
+- `SonoraRoot` hosts a type-safe Navigation Compose graph (`SubscriptionsRoute`, `QueueRoute`,
   `DiscoverRoute`, `DownloadsRoute`, `SettingsRoute`, `PodcastRoute(podcastId)`), adapts the
   navigation chrome to window size, and hosts the mini player, which expands into the full player.
 - Each feature follows the same shape: a `@HiltViewModel` exposes immutable UI state as a

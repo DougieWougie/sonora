@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.sonora.feature.episodes
+package org.sonora.feature.queue
 
 import app.cash.turbine.test
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -22,7 +22,7 @@ import org.sonora.testutil.FakeSettingsStore
 import org.sonora.testutil.MainDispatcherExtension
 import org.sonora.testutil.awaitUntil
 
-class EpisodesViewModelTest {
+class QueueViewModelTest {
     @JvmField @RegisterExtension
     val main = MainDispatcherExtension()
 
@@ -33,7 +33,7 @@ class EpisodesViewModelTest {
     private val playback = FakePlaybackPort()
     private val settings = FakeSettingsStore()
 
-    private fun vm() = EpisodesViewModel(episodes, podcasts, queue, actions, playback, settings)
+    private fun vm() = QueueViewModel(episodes, podcasts, queue, actions, playback, settings)
 
     private suspend fun seed(): List<Long> {
         val a = podcasts.insert(PodcastEntity(feedUrl = "https://a", title = "Alpha"))
@@ -62,11 +62,11 @@ class EpisodesViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { !it.isLoading }
-            vm.onIntent(EpisodesIntent.Enqueue(ids[0])); vm.onIntent(EpisodesIntent.Enqueue(ids[1]))
+            vm.onIntent(QueueIntent.Enqueue(ids[0])); vm.onIntent(QueueIntent.Enqueue(ids[1]))
             awaitUntil { it.queue.size == 2 }
-            vm.onIntent(EpisodesIntent.Dequeue(ids[0]))
+            vm.onIntent(QueueIntent.Dequeue(ids[0]))
             assertEquals(listOf("Ep 2"), awaitUntil { it.queue.size == 1 }.queue.map { it.title })
-            vm.onIntent(EpisodesIntent.ClearQueue)
+            vm.onIntent(QueueIntent.ClearQueue)
             assertTrue(awaitUntil { it.queue.isEmpty() }.queue.isEmpty())
         }
     }
@@ -78,7 +78,7 @@ class EpisodesViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { it.queue.size == 3 }
-            vm.onIntent(EpisodesIntent.PlayQueue)
+            vm.onIntent(QueueIntent.PlayQueue)
             testScheduler.advanceUntilIdle()
             cancelAndIgnoreRemainingEvents()
         }
@@ -93,7 +93,7 @@ class EpisodesViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { it.queue.size == 4 }
-            vm.onIntent(EpisodesIntent.ShuffleQueue)
+            vm.onIntent(QueueIntent.ShuffleQueue)
             testScheduler.advanceUntilIdle()
             cancelAndIgnoreRemainingEvents()
         }
@@ -106,7 +106,7 @@ class EpisodesViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitItem()
-            vm.onIntent(EpisodesIntent.PlayQueue); vm.onIntent(EpisodesIntent.ShuffleQueue)
+            vm.onIntent(QueueIntent.PlayQueue); vm.onIntent(QueueIntent.ShuffleQueue)
             testScheduler.advanceUntilIdle()
             cancelAndIgnoreRemainingEvents()
         }
@@ -120,7 +120,7 @@ class EpisodesViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { it.queue.size == 2 }
-            vm.onIntent(EpisodesIntent.PlayNext(ids[2]))
+            vm.onIntent(QueueIntent.PlayNext(ids[2]))
             assertEquals(listOf(ids[2], ids[0], ids[1]), awaitUntil { it.queue.size == 3 }.queue.map { it.id })
         }
     }
@@ -132,7 +132,7 @@ class EpisodesViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { it.queue.size == 3 }
-            vm.onIntent(EpisodesIntent.MoveInQueue(ids[0], 2))
+            vm.onIntent(QueueIntent.MoveInQueue(ids[0], 2))
             assertEquals(listOf(ids[1], ids[2], ids[0]), awaitUntil { s -> s.queue.first().id == ids[1] }.queue.map { it.id })
         }
     }
@@ -145,11 +145,11 @@ class EpisodesViewModelTest {
         vm.uiState.test {
             awaitUntil { it.queue.size == 3 }
             vm.events.test {
-                vm.onIntent(EpisodesIntent.Dequeue(ids[1]))
-                val event = awaitItem() as EpisodesEvent.QueueChanged
+                vm.onIntent(QueueIntent.Dequeue(ids[1]))
+                val event = awaitItem() as QueueEvent.QueueChanged
                 assertEquals(listOf(ids[0], ids[1], ids[2]), event.previous)
                 assertEquals(listOf(ids[0], ids[2]), queue.items.value)
-                vm.onIntent(EpisodesIntent.RestoreQueue(event.previous))
+                vm.onIntent(QueueIntent.RestoreQueue(event.previous))
             }
             cancelAndIgnoreRemainingEvents()
         }
@@ -163,14 +163,14 @@ class EpisodesViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { it.queue.size == 1 }
-            vm.onIntent(EpisodesIntent.RequestClearQueue)
+            vm.onIntent(QueueIntent.RequestClearQueue)
             assertEquals(true, awaitUntil { it.confirmingClear }.confirmingClear)
             assertEquals(listOf(ids[0]), queue.items.value)
-            vm.onIntent(EpisodesIntent.DismissClearQueue)
+            vm.onIntent(QueueIntent.DismissClearQueue)
             awaitUntil { !it.confirmingClear }
-            vm.onIntent(EpisodesIntent.RequestClearQueue)
+            vm.onIntent(QueueIntent.RequestClearQueue)
             awaitUntil { it.confirmingClear }
-            vm.onIntent(EpisodesIntent.ClearQueue)
+            vm.onIntent(QueueIntent.ClearQueue)
             val cleared = awaitUntil { it.queue.isEmpty() }
             assertEquals(false, cleared.confirmingClear)
         }
@@ -182,9 +182,9 @@ class EpisodesViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { !it.isLoading }
-            vm.onIntent(EpisodesIntent.Play(ids[0]))
-            vm.onIntent(EpisodesIntent.Download(ids[1]))
-            vm.onIntent(EpisodesIntent.SetPlayed(ids[2], true))
+            vm.onIntent(QueueIntent.Play(ids[0]))
+            vm.onIntent(QueueIntent.Download(ids[1]))
+            vm.onIntent(QueueIntent.SetPlayed(ids[2], true))
             testScheduler.advanceUntilIdle()
             cancelAndIgnoreRemainingEvents()
         }
@@ -198,7 +198,7 @@ class EpisodesViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { !it.isLoading }
-            vm.onIntent(EpisodesIntent.DeleteDownload(ids[1]))
+            vm.onIntent(QueueIntent.DeleteDownload(ids[1]))
             testScheduler.advanceUntilIdle()
             cancelAndIgnoreRemainingEvents()
         }
@@ -212,7 +212,7 @@ class EpisodesViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { !it.isLoading }
-            vm.onIntent(EpisodesIntent.RequestMarkOlderPlayed(ids[2]))
+            vm.onIntent(QueueIntent.RequestMarkOlderPlayed(ids[2]))
             assertEquals(
                 PendingMarkOlder(ids[2], 2),
                 awaitUntil { it.pendingMarkOlder != null }.pendingMarkOlder,
@@ -230,9 +230,9 @@ class EpisodesViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { !it.isLoading }
-            vm.onIntent(EpisodesIntent.RequestMarkOlderPlayed(id))
+            vm.onIntent(QueueIntent.RequestMarkOlderPlayed(id))
             awaitUntil { it.pendingMarkOlder != null }
-            vm.onIntent(EpisodesIntent.ConfirmMarkOlderPlayed)
+            vm.onIntent(QueueIntent.ConfirmMarkOlderPlayed)
             assertNull(awaitUntil { it.pendingMarkOlder == null }.pendingMarkOlder)
             testScheduler.advanceUntilIdle()
             cancelAndIgnoreRemainingEvents()
@@ -248,9 +248,9 @@ class EpisodesViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { !it.isLoading }
-            vm.onIntent(EpisodesIntent.RequestMarkOlderPlayed(id))
+            vm.onIntent(QueueIntent.RequestMarkOlderPlayed(id))
             awaitUntil { it.pendingMarkOlder != null }
-            vm.onIntent(EpisodesIntent.DismissMarkOlderPlayed)
+            vm.onIntent(QueueIntent.DismissMarkOlderPlayed)
             assertNull(awaitUntil { it.pendingMarkOlder == null }.pendingMarkOlder)
             testScheduler.advanceUntilIdle()
             cancelAndIgnoreRemainingEvents()
@@ -264,9 +264,9 @@ class EpisodesViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { !it.isLoading }
-            vm.onIntent(EpisodesIntent.RequestMarkOlderPlayed(ids[0]))
+            vm.onIntent(QueueIntent.RequestMarkOlderPlayed(ids[0]))
             assertEquals(0, awaitUntil { it.pendingMarkOlder != null }.pendingMarkOlder!!.count)
-            vm.onIntent(EpisodesIntent.ConfirmMarkOlderPlayed)
+            vm.onIntent(QueueIntent.ConfirmMarkOlderPlayed)
             awaitUntil { it.pendingMarkOlder == null }
             testScheduler.advanceUntilIdle()
             cancelAndIgnoreRemainingEvents()
@@ -298,11 +298,11 @@ class EpisodesViewModelTest {
         vm.uiState.test {
             awaitUntil { !it.isLoading }
 
-            vm.onIntent(EpisodesIntent.ToggleSection(EpisodesSection.QUEUE))
+            vm.onIntent(QueueIntent.ToggleSection(QueueSection.QUEUE))
             awaitUntil { !it.queueExpanded }
             assertTrue(settings.queueCollapsed)
 
-            vm.onIntent(EpisodesIntent.ToggleSection(EpisodesSection.QUEUE))
+            vm.onIntent(QueueIntent.ToggleSection(QueueSection.QUEUE))
             awaitUntil { it.queueExpanded }
             assertEquals(false, settings.queueCollapsed)
         }
@@ -314,8 +314,8 @@ class EpisodesViewModelTest {
         queue.enqueue(ids[0])
         val vm = vm()
         vm.events.test {
-            vm.onIntent(EpisodesIntent.Dequeue(ids[0]))
-            assertEquals("Removed from Queue", (awaitItem() as EpisodesEvent.QueueChanged).text)
+            vm.onIntent(QueueIntent.Dequeue(ids[0]))
+            assertEquals("Removed from Queue", (awaitItem() as QueueEvent.QueueChanged).text)
         }
     }
 }

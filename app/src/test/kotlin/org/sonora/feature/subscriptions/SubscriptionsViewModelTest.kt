@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.sonora.feature.library
+package org.sonora.feature.subscriptions
 
 import app.cash.turbine.test
 import kotlinx.coroutines.flow.first
@@ -20,7 +20,7 @@ import org.sonora.core.database.SubscriptionRepository
 import org.sonora.core.media.PersistentPlayQueue
 import org.sonora.core.media.FakeQueueStorage
 import org.sonora.testutil.FakeEpisodeActions
-import org.sonora.testutil.FakeLibraryPreferences
+import org.sonora.testutil.FakeSubscriptionsPreferences
 import org.sonora.testutil.FakeSyncController
 import org.sonora.testutil.MainDispatcherExtension
 import org.sonora.testutil.awaitUntil
@@ -34,7 +34,7 @@ class SubscriptionsViewModelTest {
     private val queue = PersistentPlayQueue(FakeQueueStorage())
     private val sync = FakeSyncController()
 
-    private val preferences = FakeLibraryPreferences()
+    private val preferences = FakeSubscriptionsPreferences()
 
     private val changes = FakeSubscriptionChangeDao()
     private val subscriptions = SubscriptionRepository(podcasts, changes, FakeTransactionRunner(), MutableClock())
@@ -59,7 +59,7 @@ class SubscriptionsViewModelTest {
             val state = awaitUntil { !it.isLoading }
             assertEquals(listOf("Alpha", "beta"), state.podcasts.map { it.title })
             assertEquals(listOf(2, 1), state.podcasts.map { it.unplayedCount })
-            assertEquals(LibraryLayout.GRID, state.layout)
+            assertEquals(SubscriptionsLayout.GRID, state.layout)
         }
     }
 
@@ -79,8 +79,8 @@ class SubscriptionsViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { !it.isLoading }
-            vm.onIntent(SubscriptionsIntent.SetSort(LibrarySort.RECENT))
-            val state = awaitUntil { it.sort == LibrarySort.RECENT && it.podcasts.isNotEmpty() }
+            vm.onIntent(SubscriptionsIntent.SetSort(SubscriptionsSort.RECENT))
+            val state = awaitUntil { it.sort == SubscriptionsSort.RECENT && it.podcasts.isNotEmpty() }
             assertEquals(listOf("Fresh", "Old", "None"), state.podcasts.map { it.title })
             assertEquals(none, state.podcasts.last().id)
         }
@@ -94,8 +94,8 @@ class SubscriptionsViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { !it.isLoading }
-            vm.onIntent(SubscriptionsIntent.SetSort(LibrarySort.UNPLAYED))
-            val state = awaitUntil { it.sort == LibrarySort.UNPLAYED && it.podcasts.isNotEmpty() }
+            vm.onIntent(SubscriptionsIntent.SetSort(SubscriptionsSort.UNPLAYED))
+            val state = awaitUntil { it.sort == SubscriptionsSort.UNPLAYED && it.podcasts.isNotEmpty() }
             assertEquals(listOf("B", "A", "C"), state.podcasts.map { it.title })
         }
     }
@@ -119,8 +119,8 @@ class SubscriptionsViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { !it.isLoading }
-            vm.onIntent(SubscriptionsIntent.SetLayout(LibraryLayout.LIST))
-            assertEquals(LibraryLayout.LIST, awaitUntil { it.layout == LibraryLayout.LIST }.layout)
+            vm.onIntent(SubscriptionsIntent.SetLayout(SubscriptionsLayout.LIST))
+            assertEquals(SubscriptionsLayout.LIST, awaitUntil { it.layout == SubscriptionsLayout.LIST }.layout)
         }
     }
 
@@ -168,10 +168,10 @@ class SubscriptionsViewModelTest {
 
     @Test
     fun `starts in the layout the user last chose`() = runTest {
-        preferences.setLayout(LibraryLayout.LIST)
+        preferences.setLayout(SubscriptionsLayout.LIST)
 
         vm().uiState.test {
-            assertEquals(LibraryLayout.LIST, awaitUntil { !it.isLoading }.layout)
+            assertEquals(SubscriptionsLayout.LIST, awaitUntil { !it.isLoading }.layout)
         }
     }
 
@@ -180,17 +180,17 @@ class SubscriptionsViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { !it.isLoading }
-            vm.onIntent(SubscriptionsIntent.SetLayout(LibraryLayout.LIST))
-            awaitUntil { it.layout == LibraryLayout.LIST }
+            vm.onIntent(SubscriptionsIntent.SetLayout(SubscriptionsLayout.LIST))
+            awaitUntil { it.layout == SubscriptionsLayout.LIST }
         }
-        assertEquals(LibraryLayout.LIST, preferences.layout.value)
+        assertEquals(SubscriptionsLayout.LIST, preferences.layout.value)
     }
 
     @Test
     fun `the layout button cycles grid, list, compact and back`() {
-        assertEquals(LibraryLayout.LIST, LibraryLayout.GRID.next())
-        assertEquals(LibraryLayout.COMPACT, LibraryLayout.LIST.next())
-        assertEquals(LibraryLayout.GRID, LibraryLayout.COMPACT.next())
+        assertEquals(SubscriptionsLayout.LIST, SubscriptionsLayout.GRID.next())
+        assertEquals(SubscriptionsLayout.COMPACT, SubscriptionsLayout.LIST.next())
+        assertEquals(SubscriptionsLayout.GRID, SubscriptionsLayout.COMPACT.next())
     }
 
     @Test
@@ -198,20 +198,20 @@ class SubscriptionsViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { !it.isLoading }
-            vm.onIntent(SubscriptionsIntent.SetLayout(LibraryLayout.COMPACT))
-            awaitUntil { it.layout == LibraryLayout.COMPACT }
+            vm.onIntent(SubscriptionsIntent.SetLayout(SubscriptionsLayout.COMPACT))
+            awaitUntil { it.layout == SubscriptionsLayout.COMPACT }
         }
-        assertEquals(LibraryLayout.COMPACT, preferences.layout.value)
+        assertEquals(SubscriptionsLayout.COMPACT, preferences.layout.value)
     }
 
     @Test
     fun `starts with the sort and filter the user last chose`() = runTest {
-        preferences.setSort(LibrarySort.RECENT)
+        preferences.setSort(SubscriptionsSort.RECENT)
         preferences.setUnplayedOnly(true)
 
         vm().uiState.test {
             val state = awaitUntil { !it.isLoading }
-            assertEquals(LibrarySort.RECENT, state.sort)
+            assertEquals(SubscriptionsSort.RECENT, state.sort)
             assertTrue(state.unplayedOnly)
         }
     }
@@ -221,12 +221,12 @@ class SubscriptionsViewModelTest {
         val vm = vm()
         vm.uiState.test {
             awaitUntil { !it.isLoading }
-            vm.onIntent(SubscriptionsIntent.SetSort(LibrarySort.UNPLAYED))
-            awaitUntil { it.sort == LibrarySort.UNPLAYED }
+            vm.onIntent(SubscriptionsIntent.SetSort(SubscriptionsSort.UNPLAYED))
+            awaitUntil { it.sort == SubscriptionsSort.UNPLAYED }
             vm.onIntent(SubscriptionsIntent.SetUnplayedOnly(true))
             awaitUntil { it.unplayedOnly }
         }
-        assertEquals(LibrarySort.UNPLAYED, preferences.sort.value)
+        assertEquals(SubscriptionsSort.UNPLAYED, preferences.sort.value)
         assertTrue(preferences.unplayedOnly.value)
     }
 

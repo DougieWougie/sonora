@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.sonora.feature.library
+package org.sonora.feature.subscriptions
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
@@ -12,7 +12,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class PrefsLibraryPreferencesTest {
+class PrefsSubscriptionsPreferencesTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Before
@@ -22,45 +22,45 @@ class PrefsLibraryPreferencesTest {
 
     @Test
     fun defaultsToTheGrid() {
-        assertEquals(LibraryLayout.GRID, PrefsLibraryPreferences(context).layout.value)
+        assertEquals(SubscriptionsLayout.GRID, PrefsSubscriptionsPreferences(context).layout.value)
     }
 
     @Test
     fun theChosenLayoutIsPublishedAndSurvivesARestart() {
-        val prefs = PrefsLibraryPreferences(context)
+        val prefs = PrefsSubscriptionsPreferences(context)
 
-        prefs.setLayout(LibraryLayout.LIST)
+        prefs.setLayout(SubscriptionsLayout.LIST)
 
-        assertEquals(LibraryLayout.LIST, prefs.layout.value)
-        assertEquals(LibraryLayout.LIST, PrefsLibraryPreferences(context).layout.value)
+        assertEquals(SubscriptionsLayout.LIST, prefs.layout.value)
+        assertEquals(SubscriptionsLayout.LIST, PrefsSubscriptionsPreferences(context).layout.value)
     }
 
     @Test
     fun anUnrecognisedStoredValueFallsBackToTheGrid() {
         context.getSharedPreferences("library", Context.MODE_PRIVATE).edit().putString("layout", "CAROUSEL").commit()
 
-        assertEquals(LibraryLayout.GRID, PrefsLibraryPreferences(context).layout.value)
+        assertEquals(SubscriptionsLayout.GRID, PrefsSubscriptionsPreferences(context).layout.value)
     }
 
     @Test
     fun sortAndFilterDefaultToTitleAndAllEpisodes() {
-        val prefs = PrefsLibraryPreferences(context)
+        val prefs = PrefsSubscriptionsPreferences(context)
 
-        assertEquals(LibrarySort.TITLE, prefs.sort.value)
+        assertEquals(SubscriptionsSort.TITLE, prefs.sort.value)
         assertFalse(prefs.unplayedOnly.value)
     }
 
     @Test
     fun theChosenSortAndFilterArePublishedAndSurviveARestart() {
-        val prefs = PrefsLibraryPreferences(context)
+        val prefs = PrefsSubscriptionsPreferences(context)
 
-        prefs.setSort(LibrarySort.UNPLAYED)
+        prefs.setSort(SubscriptionsSort.UNPLAYED)
         prefs.setUnplayedOnly(true)
 
-        assertEquals(LibrarySort.UNPLAYED, prefs.sort.value)
+        assertEquals(SubscriptionsSort.UNPLAYED, prefs.sort.value)
         assertTrue(prefs.unplayedOnly.value)
-        val restarted = PrefsLibraryPreferences(context)
-        assertEquals(LibrarySort.UNPLAYED, restarted.sort.value)
+        val restarted = PrefsSubscriptionsPreferences(context)
+        assertEquals(SubscriptionsSort.UNPLAYED, restarted.sort.value)
         assertTrue(restarted.unplayedOnly.value)
     }
 
@@ -68,6 +68,6 @@ class PrefsLibraryPreferencesTest {
     fun anUnrecognisedStoredSortFallsBackToTitle() {
         context.getSharedPreferences("library", Context.MODE_PRIVATE).edit().putString("sort", "SHUFFLE").commit()
 
-        assertEquals(LibrarySort.TITLE, PrefsLibraryPreferences(context).sort.value)
+        assertEquals(SubscriptionsSort.TITLE, PrefsSubscriptionsPreferences(context).sort.value)
     }
 }

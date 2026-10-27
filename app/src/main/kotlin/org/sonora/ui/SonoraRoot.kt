@@ -76,8 +76,8 @@ import kotlinx.serialization.Serializable
 import org.sonora.core.testing.TestTags
 import org.sonora.feature.discover.DiscoverScreen
 import org.sonora.feature.downloads.DownloadsScreen
-import org.sonora.feature.episodes.EpisodesScreen
-import org.sonora.feature.library.LibraryScreen
+import org.sonora.feature.queue.QueueScreen
+import org.sonora.feature.subscriptions.SubscriptionsScreen
 import kotlinx.coroutines.flow.Flow
 import org.sonora.feature.player.FullPlayer
 import org.sonora.feature.player.PlayerEvent
@@ -94,8 +94,8 @@ import org.sonora.ui.theme.PodcastExpressiveTheme
 import org.sonora.ui.theme.ThemeState
 import org.sonora.ui.theme.ThemeViewModel
 
-@Serializable data object LibraryRoute
-@Serializable data object EpisodesRoute
+@Serializable data object SubscriptionsRoute
+@Serializable data object QueueRoute
 @Serializable data object DiscoverRoute
 @Serializable data object SettingsRoute
 @Serializable data object DownloadsRoute
@@ -104,8 +104,8 @@ import org.sonora.ui.theme.ThemeViewModel
 @Serializable data class PodcastRoute(val podcastId: Long)
 
 private enum class TopLevel(val route: Any, val routeClass: KClass<*>, val label: String, val icon: ImageVector) {
-    Library(LibraryRoute, LibraryRoute::class, "Subscriptions", Icons.Rounded.LibraryMusic),
-    Episodes(EpisodesRoute, EpisodesRoute::class, "Queue", Icons.Rounded.QueueMusic),
+    Subscriptions(SubscriptionsRoute, SubscriptionsRoute::class, "Subscriptions", Icons.Rounded.LibraryMusic),
+    Queue(QueueRoute, QueueRoute::class, "Queue", Icons.Rounded.QueueMusic),
     Discover(DiscoverRoute, DiscoverRoute::class, "Discover", Icons.Rounded.Explore),
     Settings(SettingsRoute, SettingsRoute::class, "Settings", Icons.Rounded.Settings),
 }
@@ -248,8 +248,8 @@ internal fun SonoraScaffold(
 
 /** The screens behind each route: slots so tests can put plain content behind the real navigation graph. */
 internal class AppScreens(
-    val library: @Composable (onOpenPodcast: (Long) -> Unit, snackbar: SnackbarHostState) -> Unit,
-    val episodes: @Composable (snackbar: SnackbarHostState, onOpenDownloads: () -> Unit) -> Unit,
+    val subscriptions: @Composable (onOpenPodcast: (Long) -> Unit, snackbar: SnackbarHostState) -> Unit,
+    val queue: @Composable (snackbar: SnackbarHostState, onOpenDownloads: () -> Unit) -> Unit,
     val discover: @Composable (snackbar: SnackbarHostState) -> Unit,
     val settings: @Composable (onOpenDownloads: () -> Unit) -> Unit,
     val downloads: @Composable (onBack: () -> Unit, snackbar: SnackbarHostState) -> Unit,
@@ -257,8 +257,8 @@ internal class AppScreens(
 )
 
 internal val HiltAppScreens = AppScreens(
-    library = { onOpenPodcast, snackbar -> LibraryScreen(onOpenPodcast = onOpenPodcast, snackbar = snackbar) },
-    episodes = { snackbar, onOpenDownloads -> EpisodesScreen(snackbar, onOpenDownloads = onOpenDownloads) },
+    subscriptions = { onOpenPodcast, snackbar -> SubscriptionsScreen(onOpenPodcast = onOpenPodcast, snackbar = snackbar) },
+    queue = { snackbar, onOpenDownloads -> QueueScreen(snackbar, onOpenDownloads = onOpenDownloads) },
     discover = { snackbar -> DiscoverScreen(snackbar) },
     settings = { onOpenDownloads -> SettingsScreen(onOpenDownloads = onOpenDownloads) },
     downloads = { onBack, snackbar -> DownloadsScreen(onBack = onBack, snackbar = snackbar) },
@@ -274,17 +274,17 @@ internal fun AppNavHost(
 ) {
     NavHost(
         navController,
-        startDestination = LibraryRoute,
+        startDestination = SubscriptionsRoute,
         modifier = modifier,
         enterTransition = { tabDirection()?.let { slideIntoContainer(it) } ?: fadeIn() },
         exitTransition = { tabDirection()?.let { slideOutOfContainer(it) } ?: fadeOut() },
         popEnterTransition = { fadeIn() },
         popExitTransition = { fadeOut() },
     ) {
-        composable<LibraryRoute> {
-            screens.library({ navController.navigate(PodcastRoute(it)) }, snackbar)
+        composable<SubscriptionsRoute> {
+            screens.subscriptions({ navController.navigate(PodcastRoute(it)) }, snackbar)
         }
-        composable<EpisodesRoute> { screens.episodes(snackbar) { navController.navigate(DownloadsRoute) } }
+        composable<QueueRoute> { screens.queue(snackbar) { navController.navigate(DownloadsRoute) } }
         composable<DiscoverRoute> { screens.discover(snackbar) }
         composable<SettingsRoute> { screens.settings { navController.navigate(DownloadsRoute) } }
         composable<DownloadsRoute> { screens.downloads({ navController.popBackStack() }, snackbar) }
@@ -391,7 +391,7 @@ private fun NavHostController.navigateTop(route: Any) = navigate(route) {
 
 @Composable
 private fun TopLevelIcon(top: TopLevel, badges: NavBadges) {
-    val label = if (top == TopLevel.Library) badgeLabel(badges.episodes) else null
+    val label = if (top == TopLevel.Subscriptions) badgeLabel(badges.episodes) else null
     if (label == null) {
         androidx.compose.material3.Icon(top.icon, contentDescription = null)
         return

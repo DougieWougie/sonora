@@ -33,9 +33,9 @@ import org.sonora.core.network.LoginFlowSession
 import org.sonora.core.network.NextcloudCredentials
 import org.sonora.core.network.discovery.PodcastIndexCredentials
 import org.sonora.core.work.SyncController
-import org.sonora.feature.library.LibraryLayout
-import org.sonora.feature.library.LibraryPreferences
-import org.sonora.feature.library.LibrarySort
+import org.sonora.feature.subscriptions.SubscriptionsLayout
+import org.sonora.feature.subscriptions.SubscriptionsPreferences
+import org.sonora.feature.subscriptions.SubscriptionsSort
 import org.sonora.feature.discover.DirectorySearch
 import org.sonora.feature.discover.DirectorySuggestions
 import org.sonora.feature.discover.DirectorySource
@@ -221,14 +221,14 @@ class FakeEvictionNotices : EvictionNotices {
     override fun dismiss() { count.value = 0 }
 }
 
-class FakeLibraryPreferences(initial: LibraryLayout = LibraryLayout.GRID) : LibraryPreferences {
+class FakeSubscriptionsPreferences(initial: SubscriptionsLayout = SubscriptionsLayout.GRID) : SubscriptionsPreferences {
     private val currentLayout = MutableStateFlow(initial)
-    private val currentSort = MutableStateFlow(LibrarySort.TITLE)
+    private val currentSort = MutableStateFlow(SubscriptionsSort.TITLE)
     private val currentUnplayedOnly = MutableStateFlow(false)
-    override val layout: StateFlow<LibraryLayout> = currentLayout
-    override val sort: StateFlow<LibrarySort> = currentSort
+    override val layout: StateFlow<SubscriptionsLayout> = currentLayout
+    override val sort: StateFlow<SubscriptionsSort> = currentSort
     override val unplayedOnly: StateFlow<Boolean> = currentUnplayedOnly
-    override fun setLayout(layout: LibraryLayout) { currentLayout.value = layout }
-    override fun setSort(sort: LibrarySort) { currentSort.value = sort }
+    override fun setLayout(layout: SubscriptionsLayout) { currentLayout.value = layout }
+    override fun setSort(sort: SubscriptionsSort) { currentSort.value = sort }
     override fun setUnplayedOnly(enabled: Boolean) { currentUnplayedOnly.value = enabled }
 }

@@ -110,7 +110,7 @@ class AppModuleTest {
 
         val provided = listOf(
             module.podcastRepository(podcasts, episodeDao, tx, clock),
-            module.libraryPreferences(context),
+            module.subscriptionsPreferences(context),
             module.feedFetcher(client, settings),
             module.downloadWaits(context),
             module.syncScheduler(context),

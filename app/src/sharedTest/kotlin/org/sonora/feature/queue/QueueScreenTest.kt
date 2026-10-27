@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.sonora.feature.episodes
+package org.sonora.feature.queue
 
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialExpressiveTheme
@@ -33,12 +33,12 @@ import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.ui.components.EpisodeActionsUi
 
 @RunWith(AndroidJUnit4::class)
-class EpisodesScreenTest {
+class QueueScreenTest {
     @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val intents = mutableListOf<EpisodesIntent>()
+    private val intents = mutableListOf<QueueIntent>()
     private val played = mutableListOf<EpisodeItem>()
-    private var state by mutableStateOf(EpisodesUiState(isLoading = false))
+    private var state by mutableStateOf(QueueUiState(isLoading = false))
 
     private fun item(id: Long, title: String) = EpisodeItem(
         id = id, podcastId = 1, podcastTitle = "Show", title = title, publishedAtMillis = null,
@@ -49,7 +49,7 @@ class EpisodesScreenTest {
     private fun setContent() {
         composeTestRule.setContent {
             MaterialExpressiveTheme {
-                EpisodesContent(
+                QueueContent(
                     state,
                     EpisodeActionsUi({ played += it }, {}, {}, {}, { _, _ -> }, {}, onPlayNext = {}),
                     { intents += it },
@@ -61,7 +61,7 @@ class EpisodesScreenTest {
 
     @Test
     fun `while loading only a spinner is shown`() {
-        state = EpisodesUiState(isLoading = true)
+        state = QueueUiState(isLoading = true)
         setContent()
 
         composeTestRule.onNodeWithText("Queue").assertDoesNotExist()
@@ -97,7 +97,7 @@ class EpisodesScreenTest {
 
         composeTestRule.onNodeWithText("Clear").performClick()
 
-        assertEquals(listOf<EpisodesIntent>(EpisodesIntent.RequestClearQueue), intents)
+        assertEquals(listOf<QueueIntent>(QueueIntent.RequestClearQueue), intents)
     }
 
     @Test
@@ -109,7 +109,7 @@ class EpisodesScreenTest {
         composeTestRule.onNodeWithText("Clear queue").performClick()
         composeTestRule.onNodeWithText("Cancel").performClick()
 
-        assertEquals(listOf(EpisodesIntent.ClearQueue, EpisodesIntent.DismissClearQueue), intents)
+        assertEquals(listOf(QueueIntent.ClearQueue, QueueIntent.DismissClearQueue), intents)
     }
 
     @Test
@@ -123,7 +123,7 @@ class EpisodesScreenTest {
         custom("Reorder Second", "Move up")
         custom("Reorder Second", "Move down")
 
-        assertEquals(listOf(EpisodesIntent.MoveInQueue(2, 0), EpisodesIntent.MoveInQueue(2, 2)), intents)
+        assertEquals(listOf(QueueIntent.MoveInQueue(2, 0), QueueIntent.MoveInQueue(2, 2)), intents)
     }
 
     @Test
@@ -155,7 +155,7 @@ class EpisodesScreenTest {
             up()
         }
 
-        assertEquals(EpisodesIntent.MoveInQueue(1, 1), intents.first())
+        assertEquals(QueueIntent.MoveInQueue(1, 1), intents.first())
     }
 
     @Test
@@ -166,7 +166,7 @@ class EpisodesScreenTest {
         composeTestRule.onNodeWithContentDescription("Play queue").performClick()
         composeTestRule.onNodeWithContentDescription("Shuffle queue").performClick()
 
-        assertEquals(listOf(EpisodesIntent.PlayQueue, EpisodesIntent.ShuffleQueue), intents)
+        assertEquals(listOf(QueueIntent.PlayQueue, QueueIntent.ShuffleQueue), intents)
     }
 
     @Test
@@ -198,7 +198,7 @@ class EpisodesScreenTest {
         composeTestRule.onNodeWithText("Cancel").performClick()
 
         assertEquals(
-            listOf(EpisodesIntent.ConfirmMarkOlderPlayed, EpisodesIntent.DismissMarkOlderPlayed),
+            listOf(QueueIntent.ConfirmMarkOlderPlayed, QueueIntent.DismissMarkOlderPlayed),
             intents,
         )
     }
@@ -231,9 +231,9 @@ class EpisodesScreenTest {
         composeTestRule.onNodeWithText("Queue").performClick()
 
         assertEquals(
-            listOf<EpisodesIntent>(
-                EpisodesIntent.ToggleSection(EpisodesSection.QUEUE),
-                EpisodesIntent.ToggleSection(EpisodesSection.QUEUE),
+            listOf<QueueIntent>(
+                QueueIntent.ToggleSection(QueueSection.QUEUE),
+                QueueIntent.ToggleSection(QueueSection.QUEUE),
             ),
             intents,
         )

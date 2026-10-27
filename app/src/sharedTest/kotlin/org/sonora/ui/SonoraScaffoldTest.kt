@@ -53,9 +53,9 @@ class SonoraScaffoldTest {
         composeTestRule.setContent {
             MaterialExpressiveTheme {
                 SonoraScaffold(player, events.receiveAsFlow(), { intents += it }, layout, badges) { navController, _, modifier ->
-                    NavHost(navController, startDestination = LibraryRoute, modifier = modifier) {
-                        composable<LibraryRoute> { Text("Library screen") }
-                        composable<EpisodesRoute> { Text("Episodes screen") }
+                    NavHost(navController, startDestination = SubscriptionsRoute, modifier = modifier) {
+                        composable<SubscriptionsRoute> { Text("Subscriptions screen") }
+                        composable<QueueRoute> { Text("Queue screen") }
                         composable<DiscoverRoute> { Text("Discover screen") }
                         composable<SettingsRoute> { Text("Settings screen") }
                     }
@@ -74,7 +74,7 @@ class SonoraScaffoldTest {
     fun `the app opens on the library`() {
         setContent()
 
-        composeTestRule.onNodeWithText("Library screen").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Subscriptions screen").assertIsDisplayed()
     }
 
     private fun navigateBetweenTopLevelScreens() {
@@ -88,10 +88,10 @@ class SonoraScaffoldTest {
         composeTestRule.onNodeWithText("Settings screen").assertIsDisplayed()
 
         composeTestRule.onNodeWithText("Queue").performClick()
-        composeTestRule.onNodeWithText("Episodes screen").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Queue screen").assertIsDisplayed()
 
         composeTestRule.onNodeWithText("Subscriptions").performClick()
-        composeTestRule.onNodeWithText("Library screen").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Subscriptions screen").assertIsDisplayed()
     }
 
     // --- badges --------------------------------------------------------------------------------

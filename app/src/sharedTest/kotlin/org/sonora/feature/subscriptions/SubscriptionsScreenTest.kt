@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.sonora.feature.library
+package org.sonora.feature.subscriptions
 
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialExpressiveTheme
@@ -27,7 +27,7 @@ import org.sonora.ui.assertScreenHeading
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class LibraryScreenTest {
+class SubscriptionsScreenTest {
     @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
     private val intents = mutableListOf<SubscriptionsIntent>()
@@ -41,7 +41,7 @@ class LibraryScreenTest {
 
     private fun setContent() {
         composeTestRule.setContent {
-            MaterialExpressiveTheme { LibraryContent(state, { intents += it }, { opened += it }) }
+            MaterialExpressiveTheme { SubscriptionsContent(state, { intents += it }, { opened += it }) }
         }
     }
 
@@ -87,7 +87,7 @@ class LibraryScreenTest {
 
     @Test
     fun `the list layout shows the same podcasts`() {
-        state = state.copy(layout = LibraryLayout.LIST, podcasts = listOf(podcast(1, "Alpha", "Ann", unplayed = 2)))
+        state = state.copy(layout = SubscriptionsLayout.LIST, podcasts = listOf(podcast(1, "Alpha", "Ann", unplayed = 2)))
         setContent()
 
         composeTestRule.onNodeWithText("Alpha").assertIsDisplayed()
@@ -101,7 +101,7 @@ class LibraryScreenTest {
         setContent()
         composeTestRule.onNodeWithText("Alpha").performClick()
 
-        state = state.copy(layout = LibraryLayout.LIST)
+        state = state.copy(layout = SubscriptionsLayout.LIST)
         composeTestRule.onNodeWithText("Alpha").performClick()
 
         assertEquals(listOf(7L, 7L), opened)
@@ -113,17 +113,17 @@ class LibraryScreenTest {
     fun `the layout button asks for the next layout`() {
         setContent()
         composeTestRule.onNodeWithContentDescription("Show as list").performClick()
-        assertEquals(listOf<SubscriptionsIntent>(SubscriptionsIntent.SetLayout(LibraryLayout.LIST)), intents)
+        assertEquals(listOf<SubscriptionsIntent>(SubscriptionsIntent.SetLayout(SubscriptionsLayout.LIST)), intents)
 
         intents.clear()
-        state = state.copy(layout = LibraryLayout.LIST)
+        state = state.copy(layout = SubscriptionsLayout.LIST)
         composeTestRule.onNodeWithContentDescription("Show as compact grid").performClick()
-        assertEquals(listOf<SubscriptionsIntent>(SubscriptionsIntent.SetLayout(LibraryLayout.COMPACT)), intents)
+        assertEquals(listOf<SubscriptionsIntent>(SubscriptionsIntent.SetLayout(SubscriptionsLayout.COMPACT)), intents)
 
         intents.clear()
-        state = state.copy(layout = LibraryLayout.COMPACT)
+        state = state.copy(layout = SubscriptionsLayout.COMPACT)
         composeTestRule.onNodeWithContentDescription("Show as grid").performClick()
-        assertEquals(listOf<SubscriptionsIntent>(SubscriptionsIntent.SetLayout(LibraryLayout.GRID)), intents)
+        assertEquals(listOf<SubscriptionsIntent>(SubscriptionsIntent.SetLayout(SubscriptionsLayout.GRID)), intents)
     }
 
     @Test
@@ -143,7 +143,7 @@ class LibraryScreenTest {
 
     @Test
     fun `the sort menu marks the current sort and chooses another`() {
-        state = state.copy(sort = LibrarySort.RECENT)
+        state = state.copy(sort = SubscriptionsSort.RECENT)
         setContent()
 
         composeTestRule.onNodeWithContentDescription("Sort and filter").performClick()
@@ -153,7 +153,7 @@ class LibraryScreenTest {
         composeTestRule.onNodeWithText("Unplayed").performClick()
 
         assertEquals(
-            listOf(SubscriptionsIntent.SetSort(LibrarySort.TITLE), SubscriptionsIntent.SetSort(LibrarySort.UNPLAYED)),
+            listOf(SubscriptionsIntent.SetSort(SubscriptionsSort.TITLE), SubscriptionsIntent.SetSort(SubscriptionsSort.UNPLAYED)),
             intents,
         )
     }
@@ -287,7 +287,7 @@ class LibraryScreenTest {
 
     @Test
     fun `the list layout offers the same actions`() {
-        state = state.copy(layout = LibraryLayout.LIST, podcasts = listOf(podcast(3, "Alpha", unplayed = 2)))
+        state = state.copy(layout = SubscriptionsLayout.LIST, podcasts = listOf(podcast(3, "Alpha", unplayed = 2)))
         setContent()
 
         longPress("Alpha")

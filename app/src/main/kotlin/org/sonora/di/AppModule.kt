@@ -30,8 +30,8 @@ import org.sonora.core.download.EpisodeDownloadManager
 import org.sonora.core.download.EvictionNotices
 import org.sonora.core.download.PrefsEvictionNotices
 import org.sonora.core.network.OkHttpFeedFetcher
-import org.sonora.feature.library.LibraryPreferences
-import org.sonora.feature.library.PrefsLibraryPreferences
+import org.sonora.feature.subscriptions.SubscriptionsPreferences
+import org.sonora.feature.subscriptions.PrefsSubscriptionsPreferences
 import org.sonora.core.network.discovery.ApplePodcastChartProvider
 import org.sonora.core.network.discovery.ApplePodcastSearchProvider
 import org.sonora.core.network.discovery.DirectoryApiFactory
@@ -128,7 +128,7 @@ object AppModule {
         SubscriptionRepository(podcasts, changes, tx, clock)
 
     @Provides @Singleton
-    fun libraryPreferences(@ApplicationContext context: Context): LibraryPreferences = PrefsLibraryPreferences(context)
+    fun subscriptionsPreferences(@ApplicationContext context: Context): SubscriptionsPreferences = PrefsSubscriptionsPreferences(context)
 
     @Provides @Singleton
     fun evictionNotices(@ApplicationContext context: Context): EvictionNotices = PrefsEvictionNotices(context)
