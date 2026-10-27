@@ -83,9 +83,6 @@ interface EpisodeDao {
     @Query("SELECT * FROM episode WHERE downloadState IN (:states)")
     fun observeByDownloadStates(states: List<org.sonora.core.model.DownloadState>): Flow<List<EpisodeEntity>>
 
-    @Query("SELECT * FROM episode WHERE played = 0 ORDER BY publishedAtMillis DESC LIMIT :limit")
-    fun observeUnplayed(limit: Int): Flow<List<EpisodeEntity>>
-
     @Query("SELECT COUNT(*) FROM episode WHERE played = 0")
     fun observeUnplayedCount(): Flow<Int>
 

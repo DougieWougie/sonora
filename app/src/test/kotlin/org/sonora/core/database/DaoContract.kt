@@ -201,20 +201,6 @@ abstract class DaoContract {
     }
 
     @Test
-    fun `unplayed episodes are observed newest first up to the limit`() = runBlocking {
-        val id = podcast("https://a")
-        episodes.insertAll(
-            listOf(
-                episode(id, "e1", 100), episode(id, "e2", 200), episode(id, "e3", 300),
-                episode(id, "played", 400, played = true),
-            ),
-        )
-
-        assertEquals(listOf("e3", "e2"), episodes.observeUnplayed(limit = 2).first().map { it.guid })
-        assertEquals(listOf("e3", "e2", "e1"), episodes.observeUnplayed(limit = 10).first().map { it.guid })
-    }
-
-    @Test
     fun `unplayed episodes are counted across podcasts`() = runBlocking {
         val a = podcast("https://a")
         val b = podcast("https://b")
