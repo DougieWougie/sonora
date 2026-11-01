@@ -289,6 +289,10 @@ private fun PodcastActionsMenu(
             onClick = { onDismiss(); onIntent(SubscriptionsIntent.ToggleAutoDownload(podcast.id)) },
         )
         DropdownMenuItem(
+            text = { Text(if (podcast.notifyNewEpisodes) "Turn off notifications" else "Turn on notifications") },
+            onClick = { onDismiss(); onIntent(SubscriptionsIntent.ToggleNotifications(podcast.id)) },
+        )
+        DropdownMenuItem(
             text = { Text("Unsubscribe") },
             onClick = { onDismiss(); onIntent(SubscriptionsIntent.RequestUnsubscribe(podcast.id)) },
         )

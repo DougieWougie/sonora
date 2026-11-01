@@ -38,6 +38,9 @@ class PodcastSyncPipelineTest {
     private var inFlight = 0
     private var maxInFlight = 0
 
+    private val notified = mutableListOf<List<NewEpisodes>>()
+    private var notifier: suspend (List<NewEpisodes>) -> Unit = { notified += it }
+
     private var retention: suspend () -> Unit = { events += "retention" }
 
     private fun pipeline(concurrency: Int = 4, maxAuto: Int = 3) = PodcastSyncPipeline(
@@ -69,6 +72,7 @@ class PodcastSyncPipelineTest {
         enforceRetention = { retention() },
         maxConcurrentRefreshes = concurrency,
         maxAutoDownloadsPerPodcast = { if (maxAuto != 3) maxAuto else autoCount },
+        notifier = NewEpisodeNotifier { notifier(it) },
     )
 
     private fun episode(guid: String, published: Long) = ParsedEpisode(
@@ -77,8 +81,13 @@ class PodcastSyncPipelineTest {
 
     private fun feed(vararg episodes: ParsedEpisode) = ParsedFeed("Show", null, null, null, null, episodes.toList())
 
-    private suspend fun subscribe(url: String, autoDownload: Boolean = false, existing: List<String> = emptyList()): Long {
-        val id = podcastDao.insert(PodcastEntity(feedUrl = url, title = url, autoDownload = autoDownload))
+    private suspend fun subscribe(
+        url: String,
+        autoDownload: Boolean = false,
+        existing: List<String> = emptyList(),
+        notify: Boolean = false,
+    ): Long {
+        val id = podcastDao.insert(PodcastEntity(feedUrl = url, title = url, autoDownload = autoDownload, notifyNewEpisodes = notify))
         episodeDao.insertAll(
             existing.map { episodeEntity(id, it) },
         )
@@ -307,6 +316,73 @@ class PodcastSyncPipelineTest {
 
         assertTrue(scheduled.isEmpty())
         assertTrue("schedule" !in events)
+    }
+
+    // --- notifications -----------------------------------------------------------------------
+
+    @Test
+    fun `notifies once with the new episodes of podcasts that want notifications`() = runTest {
+        val a = subscribe("https://a", existing = listOf("old"), notify = true)
+        subscribe("https://quiet", existing = listOf("q-old"), notify = false)
+        feeds["https://a"] = { feed(episode("old", 1), episode("n1", 2), episode("n2", 3)) }
+        feeds["https://quiet"] = { feed(episode("q-old", 1), episode("q-new", 2)) }
+
+        pipeline().run()
+
+        assertEquals(listOf(listOf(NewEpisodes(a, "Show", 2, "Ep n2"))), notified)
+    }
+
+    @Test
+    fun `notification does not depend on auto-download`() = runTest {
+        subscribe("https://a", autoDownload = true, existing = listOf("old"), notify = true)
+        feeds["https://a"] = { feed(episode("old", 1), episode("new", 2)) }
+
+        pipeline().run()
+
+        assertEquals(1, notified.single().single().count)
+        assertEquals(1, scheduled.size)
+    }
+
+    @Test
+    fun `a podcast's first refresh does not announce its back catalogue`() = runTest {
+        subscribe("https://fresh", notify = true)
+        feeds["https://fresh"] = { feed(episode("a", 1), episode("b", 2)) }
+
+        pipeline().run()
+
+        assertTrue(notified.isEmpty())
+    }
+
+    @Test
+    fun `nothing new means no notification call`() = runTest {
+        subscribe("https://a", existing = listOf("old"), notify = true)
+        feeds["https://a"] = { feed(episode("old", 1)) }
+
+        pipeline().run()
+
+        assertTrue(notified.isEmpty())
+    }
+
+    @Test
+    fun `a podcast whose refresh failed does not notify`() = runTest {
+        subscribe("https://a", existing = listOf("old"), notify = true)
+        feeds["https://a"] = { throw IOException("offline") }
+
+        pipeline().run()
+
+        assertTrue(notified.isEmpty())
+    }
+
+    @Test
+    fun `a failing notifier does not fail the sync`() = runTest {
+        subscribe("https://a", existing = listOf("old"), notify = true)
+        feeds["https://a"] = { feed(episode("old", 1), episode("new", 2)) }
+        notifier = { error("notifications disabled") }
+
+        val outcome = pipeline().run()
+
+        assertEquals(WorkOutcome.SUCCESS, outcome.toWorkOutcome(attempt = 1))
+        assertEquals(1, outcome.refreshedFeeds)
     }
 
     private fun RemoteStatus.withoutCause(): RemoteStatus =

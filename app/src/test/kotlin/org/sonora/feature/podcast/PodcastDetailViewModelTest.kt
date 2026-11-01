@@ -328,6 +328,19 @@ class PodcastDetailViewModelTest {
     }
 
     @Test
+    fun `toggles new episode notifications for the podcast`() = runTest {
+        seed()
+        val vm = vm()
+        vm.uiState.test {
+            assertTrue(awaitUntil { it.podcast != null }.podcast!!.notifyNewEpisodes)
+            vm.onIntent(PodcastDetailIntent.ToggleNotifications)
+            assertFalse(awaitUntil { it.podcast?.notifyNewEpisodes == false }.podcast!!.notifyNewEpisodes)
+            vm.onIntent(PodcastDetailIntent.ToggleNotifications)
+            assertTrue(awaitUntil { it.podcast?.notifyNewEpisodes == true }.podcast!!.notifyNewEpisodes)
+        }
+    }
+
+    @Test
     fun `refresh asks for a background sync`() = runTest {
         seed()
         val vm = vm()

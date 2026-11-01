@@ -18,7 +18,14 @@ class PodcastRepository(
         val podcastId = if (existing == null) {
             podcastDao.insert(feed.toEntity(feedUrl, now))
         } else {
-            podcastDao.update(feed.toEntity(feedUrl, now).copy(id = existing.id))
+            // The feed knows nothing of the user's settings for it, and @Update replaces the whole row.
+            podcastDao.update(
+                feed.toEntity(feedUrl, now).copy(
+                    id = existing.id,
+                    autoDownload = existing.autoDownload,
+                    notifyNewEpisodes = existing.notifyNewEpisodes,
+                ),
+            )
             existing.id
         }
 
