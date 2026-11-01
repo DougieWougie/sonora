@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialExpressiveTheme
@@ -18,6 +20,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.sonora.core.work.NewEpisodeNotifications
 import org.sonora.feature.player.PlayerUiState
 
 @RunWith(AndroidJUnit4::class)
@@ -66,6 +69,20 @@ class AppNavHostTest {
         composeTestRule.onNodeWithText("Podcast: back").performClick()
 
         composeTestRule.onNodeWithText("Subscriptions: open podcast").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a notification link opens that podcast`() {
+        setContent()
+
+        composeTestRule.runOnUiThread {
+            navController.handleDeepLink(
+                Intent(Intent.ACTION_VIEW, Uri.parse(NewEpisodeNotifications.showLink(7))),
+            )
+        }
+
+        composeTestRule.onNodeWithText("Podcast: back").assertIsDisplayed()
+        assertEquals(7L, navController.currentBackStackEntry!!.toRoute<PodcastRoute>().podcastId)
     }
 
     @Test
