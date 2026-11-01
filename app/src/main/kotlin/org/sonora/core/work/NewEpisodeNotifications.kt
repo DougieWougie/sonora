@@ -155,7 +155,12 @@ class AndroidNewEpisodeNotifier(private val context: Context) : NewEpisodeNotifi
                 },
             )
         }
-        manager.notify(NewEpisodeNotifications.idFor(episodes.podcastId), builder.build())
+        try {
+            manager.notify(NewEpisodeNotifications.idFor(episodes.podcastId), builder.build())
+        } catch (e: SecurityException) {
+            // Permission revoked since the areNotificationsEnabled check in notify().
+            Log.w(TAG, "Notification permission was revoked before podcast ${episodes.podcastId} could be announced", e)
+        }
     }
 
     /** An explicit intent to this app's launcher activity carrying the podcast's link, so nothing else can claim it. */
