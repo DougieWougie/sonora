@@ -185,6 +185,80 @@ class PodcastDetailViewModelTest {
     }
 
     @Test
+    fun `selecting episodes toggles them and shows only visible ones`() = runTest {
+        seed()
+        val vm = vm()
+        val a = idOf("Cooking basics")
+        val b = idOf("Mars landing")
+        vm.uiState.test {
+            awaitUntil { it.episodes.isNotEmpty() }
+            vm.onIntent(PodcastDetailIntent.ToggleSelect(a))
+            assertEquals(setOf(a), awaitUntil { it.selectedIds.isNotEmpty() }.selectedIds)
+            vm.onIntent(PodcastDetailIntent.ToggleSelect(b))
+            assertEquals(setOf(a, b), awaitUntil { it.selectedIds.size == 2 }.selectedIds)
+            vm.onIntent(PodcastDetailIntent.ToggleSelect(a))
+            assertEquals(setOf(b), awaitUntil { it.selectedIds.size == 1 }.selectedIds)
+            // Filtering the selected episode out of view drops it from the selection.
+            vm.onIntent(PodcastDetailIntent.SetQuery("Cooking"))
+            assertEquals(emptySet<Long>(), awaitUntil { it.query == "Cooking" }.selectedIds)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `select all picks every visible episode and clear empties it`() = runTest {
+        seed()
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.episodes.isNotEmpty() }
+            vm.onIntent(PodcastDetailIntent.SetFilter(EpisodeFilter.UNPLAYED))
+            awaitUntil { it.filter == EpisodeFilter.UNPLAYED }
+            vm.onIntent(PodcastDetailIntent.SelectAll)
+            val all = awaitUntil { it.selectedIds.isNotEmpty() }
+            assertEquals(all.episodes.map { it.id }.toSet(), all.selectedIds)
+            assertEquals(2, all.selectedIds.size)
+            vm.onIntent(PodcastDetailIntent.ClearSelection)
+            assertTrue(awaitUntil { it.selectedIds.isEmpty() }.selectedIds.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `marking the selection played acts on each episode and ends selection`() = runTest {
+        seed()
+        val vm = vm()
+        val a = idOf("Cooking basics")
+        val b = idOf("Mars landing")
+        vm.uiState.test {
+            awaitUntil { it.episodes.isNotEmpty() }
+            vm.onIntent(PodcastDetailIntent.ToggleSelect(a))
+            vm.onIntent(PodcastDetailIntent.ToggleSelect(b))
+            awaitUntil { it.selectedIds.size == 2 }
+            vm.onIntent(PodcastDetailIntent.SetSelectedPlayed(true))
+            testScheduler.advanceUntilIdle()
+            assertTrue(awaitUntil { it.selectedIds.isEmpty() }.selectedIds.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(setOf("played:$a", "played:$b"), actions.calls.toSet())
+    }
+
+    @Test
+    fun `marking the selection unplayed delegates to unplayed`() = runTest {
+        seed()
+        val vm = vm()
+        val id = idOf("Intro to Space")
+        vm.uiState.test {
+            awaitUntil { it.episodes.isNotEmpty() }
+            vm.onIntent(PodcastDetailIntent.ToggleSelect(id))
+            awaitUntil { it.selectedIds.isNotEmpty() }
+            vm.onIntent(PodcastDetailIntent.SetSelectedPlayed(false))
+            testScheduler.advanceUntilIdle()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(listOf("unplayed:$id"), actions.calls)
+    }
+
+    @Test
     fun `tapping an episode plays it`() = runTest {
         seed()
         val vm = vm()

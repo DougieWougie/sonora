@@ -54,6 +54,8 @@ data class PodcastDetailUiState(
     val filter: EpisodeFilter = EpisodeFilter.ALL,
     val query: String = "",
     val pendingMarkOlder: PendingMarkOlder? = null,
+    /** Episodes picked for a bulk action; selection mode is on while this is not empty. */
+    val selectedIds: Set<Long> = emptySet(),
     val isRefreshing: Boolean = false,
     val isLoading: Boolean = true,
 )
@@ -71,6 +73,10 @@ sealed interface PodcastDetailIntent {
     data class RequestMarkOlderPlayed(val episodeId: Long) : PodcastDetailIntent
     data object ConfirmMarkOlderPlayed : PodcastDetailIntent
     data object DismissMarkOlderPlayed : PodcastDetailIntent
+    data class ToggleSelect(val episodeId: Long) : PodcastDetailIntent
+    data object SelectAll : PodcastDetailIntent
+    data object ClearSelection : PodcastDetailIntent
+    data class SetSelectedPlayed(val played: Boolean) : PodcastDetailIntent
     data object ToggleSubscription : PodcastDetailIntent
     data object ToggleAutoDownload : PodcastDetailIntent
     data object ToggleNotifications : PodcastDetailIntent
@@ -97,6 +103,7 @@ class PodcastDetailViewModel @Inject constructor(
         val filter: EpisodeFilter = EpisodeFilter.ALL,
         val query: String = "",
         val pendingMarkOlder: PendingMarkOlder? = null,
+        val selected: Set<Long> = emptySet(),
     )
 
     /** Changes when the user resubscribes: the new row gets a new id. */
@@ -127,6 +134,7 @@ class PodcastDetailViewModel @Inject constructor(
             filter = controls.filter,
             query = controls.query,
             pendingMarkOlder = controls.pendingMarkOlder,
+            selectedIds = visible.map { it.id }.filterTo(mutableSetOf()) { it in controls.selected },
             isRefreshing = syncing,
             isLoading = false,
         )
@@ -155,6 +163,18 @@ class PodcastDetailViewModel @Inject constructor(
                 if (pending != null && pending.count > 0) attempt { actions.markOlderPlayed(pending.episodeId) }
             }
             PodcastDetailIntent.DismissMarkOlderPlayed -> controls.update { it.copy(pendingMarkOlder = null) }
+            is PodcastDetailIntent.ToggleSelect -> controls.update {
+                it.copy(selected = if (intent.episodeId in it.selected) it.selected - intent.episodeId else it.selected + intent.episodeId)
+            }
+            PodcastDetailIntent.SelectAll -> controls.update { it.copy(selected = uiState.value.episodes.map { e -> e.id }.toSet()) }
+            PodcastDetailIntent.ClearSelection -> controls.update { it.copy(selected = emptySet()) }
+            is PodcastDetailIntent.SetSelectedPlayed -> {
+                val ids = uiState.value.selectedIds
+                controls.update { it.copy(selected = emptySet()) }
+                attempt {
+                    ids.forEach { if (intent.played) actions.markPlayed(it) else actions.markUnplayed(it) }
+                }
+            }
             PodcastDetailIntent.ToggleSubscription -> attempt { toggleSubscription() }
             PodcastDetailIntent.ToggleAutoDownload -> attempt {
                 podcastDao.findById(podcastId.value)?.let { podcastDao.update(it.copy(autoDownload = !it.autoDownload)) }

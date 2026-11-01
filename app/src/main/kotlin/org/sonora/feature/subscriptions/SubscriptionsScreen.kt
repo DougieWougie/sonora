@@ -25,11 +25,13 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Search
@@ -47,6 +49,7 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -328,6 +331,9 @@ private fun PodcastGrid(
                         if (podcast.unplayedCount > 0) {
                             Badge(Modifier.align(Alignment.TopEnd).padding(if (compact) 4.dp else 8.dp)) { Text(unplayedLabel(podcast.unplayedCount)) }
                         }
+                        if (podcast.autoDownload) {
+                            AutoDownloadMark(Modifier.align(Alignment.BottomEnd).padding(if (compact) 4.dp else 8.dp))
+                        }
                     }
                     Text(
                         podcast.title,
@@ -360,10 +366,28 @@ private fun PodcastList(podcasts: List<PodcastItem>, onOpen: (Long) -> Unit, onI
                     leadingContent = { ArtworkImage(podcast.imageUrl, podcast.title, Modifier.size(64.dp)) },
                     content = { Text(podcast.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMediumEmphasized) },
                     supportingContent = podcast.author?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
-                    trailingContent = { if (podcast.unplayedCount > 0) Badge { Text(unplayedLabel(podcast.unplayedCount)) } },
+                    trailingContent = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            if (podcast.autoDownload) AutoDownloadMark()
+                            if (podcast.unplayedCount > 0) Badge { Text(unplayedLabel(podcast.unplayedCount)) }
+                        }
+                    },
                 )
                 PodcastActionsMenu(podcast, menu, { menu = false }, onIntent)
             }
         }
+    }
+}
+
+/** A small download glyph on a show that fetches new episodes by itself. */
+@Composable
+private fun AutoDownloadMark(modifier: Modifier = Modifier) {
+    Surface(modifier, shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
+        Icon(
+            Icons.Rounded.Download,
+            contentDescription = "Auto-download on",
+            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.padding(4.dp).size(16.dp),
+        )
     }
 }

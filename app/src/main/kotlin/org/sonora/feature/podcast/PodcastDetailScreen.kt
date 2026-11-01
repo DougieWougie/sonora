@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.feature.podcast
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.RemoveDone
+import androidx.compose.material.icons.rounded.SelectAll
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -48,6 +54,7 @@ import org.sonora.core.testing.TestTags
 import org.sonora.ui.components.ArtworkImage
 import org.sonora.ui.components.EpisodeActionsUi
 import org.sonora.ui.components.MarkOlderPlayedDialog
+import org.sonora.ui.components.EpisodeSelection
 import org.sonora.ui.components.SwipeableEpisodeRow
 import org.sonora.ui.htmlToPlainText
 
@@ -93,9 +100,15 @@ internal fun PodcastDetailContent(
         )
     }
 
+    val selecting = state.selectedIds.isNotEmpty()
+    BackHandler(enabled = selecting) { onIntent(PodcastDetailIntent.ClearSelection) }
     Column(modifier.fillMaxSize()) {
-        // The 48dp button centres its 24dp icon 12dp in; 4dp more puts the arrow on the 16dp content edge.
-        IconButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") }
+        if (selecting) {
+            SelectionBar(state.selectedIds.size, onIntent)
+        } else {
+            // The 48dp button centres its 24dp icon 12dp in; 4dp more puts the arrow on the 16dp content edge.
+            IconButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") }
+        }
         PullToRefreshBox(
             isRefreshing = state.isRefreshing,
             onRefresh = { onIntent(PodcastDetailIntent.Refresh) },
@@ -115,7 +128,12 @@ internal fun PodcastDetailContent(
                         )
                     }
                 }
-                items(state.episodes, key = { it.id }) { SwipeableEpisodeRow(it, actions) }
+                items(state.episodes, key = { it.id }) {
+                    SwipeableEpisodeRow(
+                        it, actions,
+                        selection = EpisodeSelection(selecting, it.id in state.selectedIds) { onIntent(PodcastDetailIntent.ToggleSelect(it.id)) },
+                    )
+                }
             }
         }
     }
@@ -130,6 +148,12 @@ private fun Header(state: PodcastDetailUiState, onIntent: (PodcastDetailIntent) 
             Column(Modifier.weight(1f)) {
                 Text(podcast.title, style = MaterialTheme.typography.headlineSmallEmphasized, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 podcast.author?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                if (podcast.autoDownload && state.subscribed) {
+                    Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Download, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text("Auto-download on", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
             }
         }
         podcast.description?.let { DescriptionPreview(it) }
@@ -213,4 +237,15 @@ internal fun DescriptionPreview(html: String, modifier: Modifier = Modifier) {
         overflow = TextOverflow.Ellipsis,
         style = MaterialTheme.typography.bodyMedium,
     )
+}
+
+@Composable
+private fun SelectionBar(count: Int, onIntent: (PodcastDetailIntent) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { onIntent(PodcastDetailIntent.ClearSelection) }) { Icon(Icons.Rounded.Close, contentDescription = "Clear selection") }
+        Text("$count selected", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        IconButton(onClick = { onIntent(PodcastDetailIntent.SelectAll) }) { Icon(Icons.Rounded.SelectAll, contentDescription = "Select all") }
+        IconButton(onClick = { onIntent(PodcastDetailIntent.SetSelectedPlayed(true)) }) { Icon(Icons.Rounded.DoneAll, contentDescription = "Mark selected as played") }
+        IconButton(onClick = { onIntent(PodcastDetailIntent.SetSelectedPlayed(false)) }) { Icon(Icons.Rounded.RemoveDone, contentDescription = "Mark selected as unplayed") }
+    }
 }
