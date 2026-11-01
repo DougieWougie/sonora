@@ -2,7 +2,9 @@
 package org.sonora.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +48,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -66,12 +70,15 @@ data class EpisodeActionsUi(
     val onPlayNext: (EpisodeItem) -> Unit = {},
 )
 
+/** Bulk-selection state for one row: [active] while any row is selected, so a tap toggles instead of playing. */
+data class EpisodeSelection(val active: Boolean, val selected: Boolean, val onToggle: () -> Unit)
+
 /**
  * Swipe right to queue, left to download (or remove the download). The row snaps back: the swipe
  * is a gesture, the state change shows up in the row itself.
  */
 @Composable
-fun SwipeableEpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: Modifier = Modifier) {
+fun SwipeableEpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: Modifier = Modifier, selection: EpisodeSelection? = null) {
     val currentItem by rememberUpdatedState(item)
     val currentActions by rememberUpdatedState(actions)
     val state = rememberSwipeToDismissBoxState()
@@ -89,6 +96,8 @@ fun SwipeableEpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: 
     SwipeToDismissBox(
         state = state,
         modifier = modifier,
+        enableDismissFromStartToEnd = selection?.active != true,
+        enableDismissFromEndToStart = selection?.active != true,
         backgroundContent = {
             val style = swipeActionStyle(state.dismissDirection, item, MaterialTheme.colorScheme)
             Box(
@@ -99,7 +108,7 @@ fun SwipeableEpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: 
             }
         },
     ) {
-        EpisodeRow(item, actions)
+        EpisodeRow(item, actions, selection = selection)
     }
 }
 
@@ -127,11 +136,18 @@ internal fun swipeActionStyle(direction: SwipeToDismissBoxValue, item: EpisodeIt
     }
 
 @Composable
-fun EpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: Modifier = Modifier) {
+@OptIn(ExperimentalFoundationApi::class)
+fun EpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: Modifier = Modifier, selection: EpisodeSelection? = null) {
     var menuOpen by remember { mutableStateOf(false) }
     ListItem(
-        modifier = modifier.clickable { actions.onPlay(item) },
-        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = if (selection == null) modifier.clickable { actions.onPlay(item) } else modifier.combinedClickable(
+            onClick = { if (selection.active) selection.onToggle() else actions.onPlay(item) },
+            onLongClickLabel = "Select",
+            onLongClick = selection.onToggle,
+        ).semantics { this.selected = selection.selected },
+        colors = ListItemDefaults.colors(
+            containerColor = if (selection?.selected == true) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+        ),
         overlineContent = item.podcastTitle?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
         content = {
             Text(
@@ -144,7 +160,18 @@ fun EpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: Modifier 
             )
         },
         supportingContent = { EpisodeSubtitle(item) },
-        leadingContent = { ArtworkImage(item.artworkUrl, null, Modifier.size(56.dp)) },
+        leadingContent = {
+            Box {
+                ArtworkImage(item.artworkUrl, null, Modifier.size(56.dp))
+                if (selection?.selected == true) {
+                    Icon(
+                        Icons.Rounded.CheckCircle, "Selected",
+                        Modifier.align(Alignment.Center).size(28.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        },
         trailingContent = {
             Box {
                 IconButton(onClick = { menuOpen = true }) { Icon(Icons.Rounded.MoreVert, contentDescription = "More actions") }

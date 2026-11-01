@@ -14,7 +14,9 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
@@ -120,6 +122,61 @@ class PodcastDetailScreenTest {
         composeTestRule.onNodeWithContentDescription("Options").performClick()
 
         composeTestRule.onNodeWithText("Stop auto-downloading new episodes").assertIsDisplayed()
+    }
+
+    // --- multi-select ---------------------------------------------------------------------------
+
+    @Test
+    fun `long pressing an episode starts selecting it`() {
+        state = state.copy(episodes = listOf(episode(7, "Pilot")))
+        setContent()
+
+        composeTestRule.onNodeWithText("Pilot").performTouchInput { longClick() }
+
+        assertEquals(listOf<PodcastDetailIntent>(PodcastDetailIntent.ToggleSelect(7)), intents)
+        assertEquals(emptyList<EpisodeItem>(), played)
+    }
+
+    @Test
+    fun `while selecting a tap toggles the episode instead of playing it`() {
+        state = state.copy(episodes = listOf(episode(7, "Pilot"), episode(8, "Finale")), selectedIds = setOf(7))
+        setContent()
+
+        composeTestRule.onNodeWithText("Finale").performClick()
+
+        assertEquals(listOf<PodcastDetailIntent>(PodcastDetailIntent.ToggleSelect(8)), intents)
+        assertEquals(emptyList<EpisodeItem>(), played)
+    }
+
+    @Test
+    fun `the selection bar counts and offers bulk actions`() {
+        state = state.copy(episodes = listOf(episode(7, "Pilot"), episode(8, "Finale")), selectedIds = setOf(7, 8))
+        setContent()
+
+        composeTestRule.onNodeWithText("2 selected").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Mark selected as played").performClick()
+        composeTestRule.onNodeWithContentDescription("Mark selected as unplayed").performClick()
+        composeTestRule.onNodeWithContentDescription("Select all").performClick()
+        composeTestRule.onNodeWithContentDescription("Clear selection").performClick()
+
+        assertEquals(
+            listOf(
+                PodcastDetailIntent.SetSelectedPlayed(true),
+                PodcastDetailIntent.SetSelectedPlayed(false),
+                PodcastDetailIntent.SelectAll,
+                PodcastDetailIntent.ClearSelection,
+            ),
+            intents,
+        )
+    }
+
+    @Test
+    fun `without a selection the bar is hidden`() {
+        state = state.copy(episodes = listOf(episode(7, "Pilot")))
+        setContent()
+
+        composeTestRule.onNodeWithContentDescription("Mark selected as played").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("Back").assertIsDisplayed()
     }
 
     // --- search and filters --------------------------------------------------------------------
