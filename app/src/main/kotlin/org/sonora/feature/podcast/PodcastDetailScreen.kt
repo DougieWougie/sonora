@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.RemoveDone
 import androidx.compose.material.icons.rounded.SelectAll
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -147,6 +148,12 @@ private fun Header(state: PodcastDetailUiState, onIntent: (PodcastDetailIntent) 
             Column(Modifier.weight(1f)) {
                 Text(podcast.title, style = MaterialTheme.typography.headlineSmallEmphasized, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 podcast.author?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                if (podcast.autoDownload && state.subscribed) {
+                    Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Download, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text("Auto-download on", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
             }
         }
         podcast.description?.let { DescriptionPreview(it) }
