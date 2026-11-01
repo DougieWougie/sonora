@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.net.toUri
@@ -114,40 +115,47 @@ class AndroidNewEpisodeNotifier(private val context: Context) : NewEpisodeNotifi
         if (!manager.areNotificationsEnabled()) return
         ensureChannel()
         newEpisodes.forEach { episodes ->
-            val content = NewEpisodeNotifications.contentFor(episodes)
-            val builder = NotificationCompat.Builder(context, NewEpisodeNotifications.CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(content.title)
-                .setContentText(content.text)
-                .setNumber(episodes.count)
-                .setContentIntent(openShow(episodes.podcastId))
-                .setAutoCancel(true)
-                .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
-            content.subText?.let(builder::setSubText)
-            val picture = thumbnail(episodes.imageUrl)
-            picture?.let(builder::setLargeIcon)
-            when {
-                // Artwork opens out as a big picture with the description beneath it; the small icon is then redundant.
-                picture != null && content.lines.isEmpty() -> builder.setStyle(
-                    NotificationCompat.BigPictureStyle()
-                        .bigPicture(picture)
-                        .bigLargeIcon(null as Bitmap?)
-                        .setSummaryText(content.expandedText),
-                )
-                content.expandedText != null -> builder.setStyle(NotificationCompat.BigTextStyle().bigText(content.expandedText))
-                content.lines.isNotEmpty() -> builder.setStyle(
-                    NotificationCompat.InboxStyle().also { inbox ->
-                        content.lines.forEach(inbox::addLine)
-                        if (content.moreCount > 0) inbox.setSummaryText("+${content.moreCount} more")
-                    },
-                )
-            }
+            // One podcast's failure must neither stop the others nor vanish: the sync pipeline ignores notifier errors.
             try {
-                manager.notify(NewEpisodeNotifications.idFor(episodes.podcastId), builder.build())
-            } catch (_: SecurityException) {
-                // Permission revoked between the check and the post: nothing to tell the user about.
+                post(manager, episodes)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not post the new-episode notification for podcast ${episodes.podcastId}", e)
             }
         }
+    }
+
+    private suspend fun post(manager: NotificationManagerCompat, episodes: NewEpisodes) {
+        val content = NewEpisodeNotifications.contentFor(episodes)
+        val builder = NotificationCompat.Builder(context, NewEpisodeNotifications.CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(content.title)
+            .setContentText(content.text)
+            .setNumber(episodes.count)
+            .setContentIntent(openShow(episodes.podcastId))
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
+        content.subText?.let(builder::setSubText)
+        val picture = thumbnail(episodes.imageUrl)
+        picture?.let(builder::setLargeIcon)
+        when {
+            // Artwork opens out as a big picture with the description beneath it; the small icon is then redundant.
+            picture != null && content.lines.isEmpty() -> builder.setStyle(
+                NotificationCompat.BigPictureStyle()
+                    .bigPicture(picture)
+                    .bigLargeIcon(null as Bitmap?)
+                    .setSummaryText(content.expandedText),
+            )
+            content.expandedText != null -> builder.setStyle(NotificationCompat.BigTextStyle().bigText(content.expandedText))
+            content.lines.isNotEmpty() -> builder.setStyle(
+                NotificationCompat.InboxStyle().also { inbox ->
+                    content.lines.forEach(inbox::addLine)
+                    if (content.moreCount > 0) inbox.setSummaryText("+${content.moreCount} more")
+                },
+            )
+        }
+        manager.notify(NewEpisodeNotifications.idFor(episodes.podcastId), builder.build())
     }
 
     /** An explicit intent to this app's launcher activity carrying the podcast's link, so nothing else can claim it. */
@@ -195,9 +203,11 @@ class AndroidNewEpisodeNotifier(private val context: Context) : NewEpisodeNotifi
         }
     }
 
-    private companion object {
+    companion object {
+        const val TAG = "NewEpisodeNotifier"
+
         /** Big enough for the expanded picture; the system scales it down for the small thumbnail. */
-        const val THUMBNAIL_PX = 512
-        const val THUMBNAIL_TIMEOUT_MS = 5_000L
+        private const val THUMBNAIL_PX = 512
+        private const val THUMBNAIL_TIMEOUT_MS = 5_000L
     }
 }

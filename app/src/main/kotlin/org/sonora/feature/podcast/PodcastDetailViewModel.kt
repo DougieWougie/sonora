@@ -195,6 +195,9 @@ class PodcastDetailViewModel @Inject constructor(
                     .maxByOrNull { it.publishedAtMillis ?: Long.MIN_VALUE }
                     ?.let { episodeDao.deleteById(it.id) }
                 sync.syncNow()
+                if (podcastDao.findById(podcastId.value)?.notifyNewEpisodes == false) {
+                    _events.trySend(PodcastDetailEvent.Message("Notifications are off for this show, so it will not notify"))
+                }
             }
             PodcastDetailIntent.Refresh -> sync.syncNow()
         }
