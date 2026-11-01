@@ -122,6 +122,19 @@ class PodcastDetailScreenTest {
         composeTestRule.onNodeWithText("Stop auto-downloading new episodes").assertIsDisplayed()
     }
 
+    @Test
+    fun `the header says whether new episodes are downloaded automatically`() {
+        state = state.copy(podcast = header(autoDownload = true))
+        setContent()
+        composeTestRule.onNodeWithText("Auto-download on").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the header says nothing about auto-download when it is off`() {
+        setContent()
+        composeTestRule.onNodeWithText("Auto-download on").assertDoesNotExist()
+    }
+
     // --- search and filters --------------------------------------------------------------------
 
     @Test

@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.longClick
@@ -284,6 +286,22 @@ class SubscriptionsScreenTest {
         composeTestRule.onNodeWithText("Mark all played").assertIsNotEnabled()
         composeTestRule.onNodeWithText("Turn off auto-download").assertIsDisplayed()
     }
+
+    private fun assertAutoDownloadMarked(layout: SubscriptionsLayout) {
+        state = state.copy(layout = layout, podcasts = listOf(podcast(3, "Alpha").copy(autoDownload = true), podcast(4, "Beta")))
+        setContent()
+
+        composeTestRule.onAllNodesWithContentDescription("Auto-download on").assertCountEquals(1)
+    }
+
+    @Test
+    fun `the grid marks a show that auto-downloads`() = assertAutoDownloadMarked(SubscriptionsLayout.GRID)
+
+    @Test
+    fun `the compact grid marks a show that auto-downloads`() = assertAutoDownloadMarked(SubscriptionsLayout.COMPACT)
+
+    @Test
+    fun `the list marks a show that auto-downloads`() = assertAutoDownloadMarked(SubscriptionsLayout.LIST)
 
     @Test
     fun `the list layout offers the same actions`() {
