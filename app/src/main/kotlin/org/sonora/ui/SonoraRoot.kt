@@ -67,6 +67,7 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.navDeepLink
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -102,6 +103,9 @@ import org.sonora.ui.theme.ThemeViewModel
 
 /** Argument name must match [org.sonora.feature.podcast.PodcastDetailViewModel.ARG_PODCAST_ID]. */
 @Serializable data class PodcastRoute(val podcastId: Long)
+
+/** The link a new-episode notification opens; the id is appended as `/{podcastId}`. */
+internal const val PODCAST_LINK = "sonora://podcast"
 
 private enum class TopLevel(val route: Any, val routeClass: KClass<*>, val label: String, val icon: ImageVector) {
     Subscriptions(SubscriptionsRoute, SubscriptionsRoute::class, "Subscriptions", Icons.Rounded.LibraryMusic),
@@ -288,7 +292,7 @@ internal fun AppNavHost(
         composable<DiscoverRoute> { screens.discover(snackbar) }
         composable<SettingsRoute> { screens.settings { navController.navigate(DownloadsRoute) } }
         composable<DownloadsRoute> { screens.downloads({ navController.popBackStack() }, snackbar) }
-        composable<PodcastRoute> { screens.podcast({ navController.popBackStack() }, snackbar) }
+        composable<PodcastRoute>(deepLinks = listOf(navDeepLink<PodcastRoute>(basePath = PODCAST_LINK))) { screens.podcast({ navController.popBackStack() }, snackbar) }
     }
 }
 

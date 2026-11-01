@@ -376,6 +376,33 @@ class PodcastDetailViewModelTest {
     }
 
     @Test
+    fun `dropping the newest episode says so when the show's notifications are off`() = runTest {
+        seed()
+        podcasts.update(podcasts.findById(podcastId)!!.copy(notifyNewEpisodes = false))
+        val vm = vm()
+        vm.events.test {
+            vm.onIntent(PodcastDetailIntent.DropNewestEpisode)
+            assertEquals(
+                PodcastDetailEvent.Message("Notifications are off for this show, so it will not notify"),
+                awaitItem(),
+            )
+        }
+        assertEquals(1, sync.requests)
+    }
+
+    @Test
+    fun `dropping the newest episode is quiet when the show's notifications are on`() = runTest {
+        seed()
+        val vm = vm()
+        vm.events.test {
+            vm.onIntent(PodcastDetailIntent.DropNewestEpisode)
+            testScheduler.advanceUntilIdle()
+            expectNoEvents()
+        }
+        assertEquals(1, sync.requests)
+    }
+
+    @Test
     fun `refresh asks for a background sync`() = runTest {
         seed()
         val vm = vm()

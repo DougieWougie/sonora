@@ -75,11 +75,13 @@ class PodcastSyncPipelineTest {
         notifier = NewEpisodeNotifier { notifier(it) },
     )
 
-    private fun episode(guid: String, published: Long) = ParsedEpisode(
-        guid, "Ep $guid", null, "https://cdn/$guid.mp3", "audio/mpeg", null, 60, published, null,
+    private fun episode(guid: String, published: Long, description: String? = null, imageUrl: String? = null) = ParsedEpisode(
+        guid, "Ep $guid", description, "https://cdn/$guid.mp3", "audio/mpeg", null, 60, published, imageUrl,
     )
 
     private fun feed(vararg episodes: ParsedEpisode) = ParsedFeed("Show", null, null, null, null, episodes.toList())
+
+    private fun feedWithArt(art: String, vararg episodes: ParsedEpisode) = ParsedFeed("Show", null, null, null, art, episodes.toList())
 
     private suspend fun subscribe(
         url: String,
@@ -329,7 +331,46 @@ class PodcastSyncPipelineTest {
 
         pipeline().run()
 
-        assertEquals(listOf(listOf(NewEpisodes(a, "Show", 2, "Ep n2"))), notified)
+        assertEquals(listOf(listOf(NewEpisodes(a, "Show", listOf("Ep n2", "Ep n1")))), notified)
+    }
+
+    @Test
+    fun `the notification carries the newest episode's description and artwork`() = runTest {
+        subscribe("https://a", existing = listOf("old"), notify = true)
+        feeds["https://a"] = {
+            feedWithArt(
+                "https://cdn/show.jpg",
+                episode("old", 1),
+                episode("n1", 2, description = "<p>Older</p>", imageUrl = "https://cdn/n1.jpg"),
+                episode("n2", 3, description = "<p>Newest <b>one</b></p>", imageUrl = "https://cdn/n2.jpg"),
+            )
+        }
+
+        pipeline().run()
+
+        val announced = notified.single().single()
+        assertEquals("<p>Newest <b>one</b></p>", announced.latestDescription)
+        assertEquals("https://cdn/n2.jpg", announced.imageUrl)
+    }
+
+    @Test
+    fun `the podcast's artwork stands in when the newest episode has none`() = runTest {
+        subscribe("https://a", existing = listOf("old"), notify = true)
+        feeds["https://a"] = { feedWithArt("https://cdn/show.jpg", episode("old", 1), episode("new", 2)) }
+
+        pipeline().run()
+
+        assertEquals("https://cdn/show.jpg", notified.single().single().imageUrl)
+    }
+
+    @Test
+    fun `no artwork at all leaves the image empty`() = runTest {
+        subscribe("https://a", existing = listOf("old"), notify = true)
+        feeds["https://a"] = { feed(episode("old", 1), episode("new", 2)) }
+
+        pipeline().run()
+
+        assertEquals(null, notified.single().single().imageUrl)
     }
 
     @Test

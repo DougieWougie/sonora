@@ -37,8 +37,20 @@ fun interface DownloadCanceller {
     fun cancel(episodeId: Long)
 }
 
-/** New episodes found for one podcast in a sync run. [latestTitle] is the newest of them. */
-data class NewEpisodes(val podcastId: Long, val podcastTitle: String, val count: Int, val latestTitle: String)
+/** New episodes found for one podcast in a sync run. */
+data class NewEpisodes(
+    val podcastId: Long,
+    val podcastTitle: String,
+    /** Titles of the new episodes, newest first; never empty. */
+    val titles: List<String>,
+    /** The newest episode's description as the feed wrote it (HTML). */
+    val latestDescription: String? = null,
+    /** The newest episode's artwork, else the podcast's. */
+    val imageUrl: String? = null,
+) {
+    val count: Int get() = titles.size
+    val latestTitle: String get() = titles.first()
+}
 
 /** Tells the user about new episodes. A failure here never fails the sync. */
 fun interface NewEpisodeNotifier {
@@ -178,8 +190,15 @@ class PodcastSyncPipeline(
         } else {
             emptyList()
         }
-        val announcement = newest.firstOrNull()?.takeIf { podcast.notifyNewEpisodes }
-            ?.let { NewEpisodes(podcast.id, feed.title, newest.size, it.title) }
+        val announcement = newest.firstOrNull()?.takeIf { podcast.notifyNewEpisodes }?.let { latest ->
+            NewEpisodes(
+                podcastId = podcast.id,
+                podcastTitle = feed.title,
+                titles = newest.map { it.title },
+                latestDescription = latest.description,
+                imageUrl = latest.imageUrl ?: feed.imageUrl,
+            )
+        }
         FeedResult(podcast.feedUrl, null, fresh, announcement)
     } catch (e: CancellationException) {
         throw e
