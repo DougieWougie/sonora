@@ -201,6 +201,15 @@ class SettingsScreenTest {
         composeTestRule.onNodeWithText("Restart Sonora for this change to take effect.").assertExists()
     }
 
+    @Test
+    fun `the debug tools switch reports its new value`() {
+        setContent()
+
+        toggle("Debug tools")
+
+        assertEquals(listOf<SettingsIntent>(SettingsIntent.SetDebugTools(true)), intents)
+    }
+
     // --- Nextcloud -----------------------------------------------------------------------------
 
     @Test

@@ -56,6 +56,10 @@ interface EpisodeDao {
     @Query("UPDATE episode SET playbackPositionSeconds = :positionSeconds WHERE id = :id")
     suspend fun updatePosition(id: Long, positionSeconds: Long): Int
 
+    /** Only used by the debug "drop newest episode" action, to rehearse the new-episode path. */
+    @Query("DELETE FROM episode WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
     @Query("SELECT guid FROM episode WHERE podcastId = :podcastId")
     suspend fun getGuidsForPodcast(podcastId: Long): List<String>
 

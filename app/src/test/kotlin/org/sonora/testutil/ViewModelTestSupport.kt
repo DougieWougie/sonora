@@ -107,6 +107,7 @@ class FakeSettingsStore : SettingsStore {
     override var autoDownloadUnmeteredOnly = true
     override var deleteDownloadsWhenPlayed = true
     override var allowCleartext = false
+    override var debugTools = false
     override var hideExplicit = true
     override var queueCollapsed = false
     override var autoDownloadChargingOnly = false

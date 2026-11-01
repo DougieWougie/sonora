@@ -24,6 +24,10 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
         get() = prefs.getBoolean(ALLOW_CLEARTEXT, false)
         set(value) = prefs.edit().putBoolean(ALLOW_CLEARTEXT, value).apply()
 
+    override var debugTools: Boolean
+        get() = prefs.getBoolean(DEBUG_TOOLS, false)
+        set(value) = prefs.edit().putBoolean(DEBUG_TOOLS, value).apply()
+
     override var autoDownloadUnmeteredOnly: Boolean
         get() = prefs.getBoolean(UNMETERED_ONLY, true)
         set(value) = prefs.edit().putBoolean(UNMETERED_ONLY, value).apply()
@@ -123,6 +127,7 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
 
     private companion object {
         const val ALLOW_CLEARTEXT = "allow_cleartext"
+        const val DEBUG_TOOLS = "debug_tools"
         const val UNMETERED_ONLY = "auto_download_unmetered_only"
         const val HIDE_EXPLICIT = "hide_explicit"
         const val QUEUE_COLLAPSED = "queue_collapsed"

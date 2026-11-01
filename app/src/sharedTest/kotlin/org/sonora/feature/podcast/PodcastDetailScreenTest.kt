@@ -136,6 +136,26 @@ class PodcastDetailScreenTest {
     }
 
     @Test
+    fun `with debug tools on the options menu can drop the newest episode to test notifications`() {
+        state = state.copy(debugTools = true)
+        setContent()
+
+        composeTestRule.onNodeWithContentDescription("Options").performClick()
+        composeTestRule.onNodeWithText("Debug: drop newest episode").performClick()
+
+        assertEquals(listOf<PodcastDetailIntent>(PodcastDetailIntent.DropNewestEpisode), intents)
+    }
+
+    @Test
+    fun `without debug tools the options menu has no debug action`() {
+        setContent()
+
+        composeTestRule.onNodeWithContentDescription("Options").performClick()
+
+        composeTestRule.onNodeWithText("Debug: drop newest episode").assertDoesNotExist()
+    }
+
+    @Test
     fun `the options menu offers to stop auto-downloading when it is on`() {
         state = state.copy(podcast = header(autoDownload = true))
         setContent()
