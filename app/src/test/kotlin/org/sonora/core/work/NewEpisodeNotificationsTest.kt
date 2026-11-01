@@ -38,10 +38,54 @@ class NewEpisodeNotificationsTest {
         assertTrue(content.text.length <= NewEpisodeNotifications.COLLAPSED_CHARS + 1, content.text.length.toString())
         assertTrue(content.text.endsWith("…"))
         assertTrue(content.expandedText!!.length <= NewEpisodeNotifications.EXPANDED_CHARS + 1)
-        assertTrue(content.expandedText!!.length > content.text.length)
-        assertTrue(content.expandedText!!.endsWith("…"))
+        assertTrue(content.expandedText.length > content.text.length)
+        assertTrue(content.expandedText.endsWith("…"))
         // Cut between words, never in the middle of one.
         assertTrue(Regex("word\\d+…$").containsMatchIn(content.text), content.text)
+    }
+
+    @Test
+    fun `the expanded text is the first two sentences, the collapsed text one line of them`() {
+        val content = NewEpisodeNotifications.contentFor(
+            one("<p>We land on Mars. Then things go wrong! Nobody expected the third part.</p>"),
+        )
+
+        assertEquals("We land on Mars. Then things go wrong!", content.expandedText)
+        assertEquals("We land on Mars. Then things go wrong!", content.text)
+    }
+
+    @Test
+    fun `questions and closing quotes end a sentence too`() {
+        val content = NewEpisodeNotifications.contentFor(
+            one("Is it \"safe\"? Maybe (we think). Not at all. Really."),
+        )
+
+        assertEquals("Is it \"safe\"? Maybe (we think).", content.expandedText)
+    }
+
+    @Test
+    fun `abbreviations and decimals do not end a sentence`() {
+        val content = NewEpisodeNotifications.contentFor(
+            one("Dr. smith visits v1.5 of the lab. It is big. Extra."),
+        )
+
+        assertEquals("Dr. smith visits v1.5 of the lab. It is big.", content.expandedText)
+    }
+
+    @Test
+    fun `fewer than two sentences are shown whole`() {
+        assertEquals("Just one thing", NewEpisodeNotifications.contentFor(one("<p>Just one thing</p>")).expandedText)
+        assertEquals("One.", NewEpisodeNotifications.contentFor(one("<p>One.</p> ")).expandedText)
+    }
+
+    @Test
+    fun `two very long sentences still respect the character cap`() {
+        val sentence = (1..120).joinToString(" ") { "w$it" } + "."
+
+        val content = NewEpisodeNotifications.contentFor(one("$sentence $sentence"))
+
+        assertTrue(content.expandedText!!.length <= NewEpisodeNotifications.EXPANDED_CHARS + 1)
+        assertTrue(content.expandedText.endsWith("…"))
     }
 
     @Test

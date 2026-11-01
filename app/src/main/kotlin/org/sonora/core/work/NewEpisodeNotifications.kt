@@ -32,8 +32,11 @@ object NewEpisodeNotifications {
     /** The description shown under the title while the notification is collapsed. */
     const val COLLAPSED_CHARS = 100
 
-    /** The description shown once the notification is pulled open. */
-    const val EXPANDED_CHARS = 500
+    /** Safety cap for the pulled-open description, for text with no sentence ends. */
+    const val EXPANDED_CHARS = 300
+
+    /** Both the collapsed and pulled-open description run to this many sentences. */
+    const val EXPANDED_SENTENCES = 2
 
     /** Titles listed when several episodes arrive together; the rest are counted. */
     const val MAX_LINES = 5
@@ -61,9 +64,9 @@ object NewEpisodeNotifications {
         if (newEpisodes.count == 1) {
             Content(
                 title = newEpisodes.latestTitle,
-                text = excerpt(newEpisodes.latestDescription, COLLAPSED_CHARS) ?: newEpisodes.podcastTitle,
+                text = excerpt(newEpisodes.latestDescription, COLLAPSED_CHARS, EXPANDED_SENTENCES) ?: newEpisodes.podcastTitle,
                 subText = newEpisodes.podcastTitle,
-                expandedText = excerpt(newEpisodes.latestDescription, EXPANDED_CHARS),
+                expandedText = excerpt(newEpisodes.latestDescription, EXPANDED_CHARS, EXPANDED_SENTENCES),
                 lines = emptyList(),
                 moreCount = 0,
             )
@@ -78,12 +81,24 @@ object NewEpisodeNotifications {
             )
         }
 
-    /** Plain text of a feed's HTML, cut between words at [max] characters; null when there is nothing to show. */
-    private fun excerpt(html: String?, max: Int): String? {
+    /**
+     * Plain text of a feed's HTML: at most [sentences] sentences, then cut between words at [max]
+     * characters. Null when there is nothing to show.
+     */
+    private fun excerpt(html: String?, max: Int, sentences: Int = Int.MAX_VALUE): String? {
         val plain = html?.let(::htmlToSearchText)?.takeIf { it.isNotBlank() } ?: return null
-        if (plain.length <= max) return plain
-        val head = plain.take(max)
+        val text = firstSentences(plain, sentences)
+        if (text.length <= max) return text
+        val head = text.take(max)
         return head.substringBeforeLast(' ', head).trimEnd() + "…"
+    }
+
+    /** A sentence ends at . ! or ? (and any closing quote or bracket) before a capital, digit or opening quote. */
+    private val SENTENCE_END = Regex("""([.!?]["”')\]]*)\s+(?=["“'(\[]?[\p{Lu}\p{N}])""")
+
+    private fun firstSentences(text: String, count: Int): String {
+        val end = SENTENCE_END.findAll(text).drop(count - 1).firstOrNull() ?: return text
+        return text.substring(0, end.groups[1]!!.range.last + 1)
     }
 }
 
@@ -109,7 +124,16 @@ class AndroidNewEpisodeNotifier(private val context: Context) : NewEpisodeNotifi
                 .setAutoCancel(true)
                 .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
             content.subText?.let(builder::setSubText)
+            val picture = thumbnail(episodes.imageUrl)
+            picture?.let(builder::setLargeIcon)
             when {
+                // Artwork opens out as a big picture with the description beneath it; the small icon is then redundant.
+                picture != null && content.lines.isEmpty() -> builder.setStyle(
+                    NotificationCompat.BigPictureStyle()
+                        .bigPicture(picture)
+                        .bigLargeIcon(null as Bitmap?)
+                        .setSummaryText(content.expandedText),
+                )
                 content.expandedText != null -> builder.setStyle(NotificationCompat.BigTextStyle().bigText(content.expandedText))
                 content.lines.isNotEmpty() -> builder.setStyle(
                     NotificationCompat.InboxStyle().also { inbox ->
@@ -118,7 +142,6 @@ class AndroidNewEpisodeNotifier(private val context: Context) : NewEpisodeNotifi
                     },
                 )
             }
-            thumbnail(episodes.imageUrl)?.let(builder::setLargeIcon)
             try {
                 manager.notify(NewEpisodeNotifications.idFor(episodes.podcastId), builder.build())
             } catch (_: SecurityException) {
@@ -173,7 +196,8 @@ class AndroidNewEpisodeNotifier(private val context: Context) : NewEpisodeNotifi
     }
 
     private companion object {
-        const val THUMBNAIL_PX = 256
+        /** Big enough for the expanded picture; the system scales it down for the small thumbnail. */
+        const val THUMBNAIL_PX = 512
         const val THUMBNAIL_TIMEOUT_MS = 5_000L
     }
 }
