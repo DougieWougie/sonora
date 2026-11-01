@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 2,
-    "identityHash": "ede67e2cd738f5d937894c6e6db9e444",
+    "identityHash": "c40a42652f6b138c384ab27d8b19df07",
     "entities": [
       {
         "tableName": "podcast",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `feedUrl` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT, `link` TEXT, `author` TEXT, `imageUrl` TEXT, `lastRefreshedAtMillis` INTEGER NOT NULL, `autoDownload` INTEGER NOT NULL, `notifyNewEpisodes` INTEGER NOT NULL DEFAULT 1)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `feedUrl` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT, `link` TEXT, `author` TEXT, `imageUrl` TEXT, `lastRefreshedAtMillis` INTEGER NOT NULL, `autoDownload` INTEGER NOT NULL, `notifyNewEpisodes` INTEGER NOT NULL DEFAULT 0)",
         "fields": [
           {
             "fieldPath": "id",
@@ -63,7 +63,7 @@
             "columnName": "notifyNewEpisodes",
             "affinity": "INTEGER",
             "notNull": true,
-            "defaultValue": "1"
+            "defaultValue": "0"
           }
         ],
         "primaryKey": {
@@ -344,7 +344,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ede67e2cd738f5d937894c6e6db9e444')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c40a42652f6b138c384ab27d8b19df07')"
     ]
   }
 }

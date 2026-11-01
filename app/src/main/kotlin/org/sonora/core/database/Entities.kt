@@ -21,7 +21,8 @@ data class PodcastEntity(
     val lastRefreshedAtMillis: Long = 0,
     val autoDownload: Boolean = false,
     /** Post a notification when a refresh finds new episodes of this podcast. */
-    @ColumnInfo(defaultValue = "1") val notifyNewEpisodes: Boolean = true,
+    /** New subscriptions notify; the column default of 0 keeps rows that existed before the feature quiet. */
+    @ColumnInfo(defaultValue = "0") val notifyNewEpisodes: Boolean = true,
 )
 
 @Entity(
