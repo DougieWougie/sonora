@@ -136,6 +136,16 @@ class PodcastDetailScreenTest {
     }
 
     @Test
+    fun `debug builds can drop the newest episode to test notifications`() {
+        setContent()
+
+        composeTestRule.onNodeWithContentDescription("Options").performClick()
+        composeTestRule.onNodeWithText("Debug: drop newest episode").performClick()
+
+        assertEquals(listOf<PodcastDetailIntent>(PodcastDetailIntent.DropNewestEpisode), intents)
+    }
+
+    @Test
     fun `the options menu offers to stop auto-downloading when it is on`() {
         state = state.copy(podcast = header(autoDownload = true))
         setContent()

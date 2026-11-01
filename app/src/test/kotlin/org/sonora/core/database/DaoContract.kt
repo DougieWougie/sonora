@@ -128,6 +128,17 @@ abstract class DaoContract {
     }
 
     @Test
+    fun `deleteById removes only that episode`() = runBlocking {
+        val id = podcast("https://a")
+        episodes.insertAll(listOf(episode(id, "e1"), episode(id, "e2")))
+        val first = episodes.getForPodcast(id).first { it.guid == "e1" }
+
+        episodes.deleteById(first.id)
+
+        assertEquals(listOf("e2"), episodes.getForPodcast(id).map { it.guid })
+    }
+
+    @Test
     fun `guids for a podcast lists only that podcast's episodes`() = runBlocking {
         val id = podcast("https://a")
         val other = podcast("https://b")

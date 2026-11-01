@@ -80,6 +80,9 @@ sealed interface PodcastDetailIntent {
     data object ToggleSubscription : PodcastDetailIntent
     data object ToggleAutoDownload : PodcastDetailIntent
     data object ToggleNotifications : PodcastDetailIntent
+
+    /** Debug builds only: forget the newest episode so the next refresh finds it new again. */
+    data object DropNewestEpisode : PodcastDetailIntent
     data object Refresh : PodcastDetailIntent
 }
 
@@ -92,7 +95,7 @@ sealed interface PodcastDetailEvent {
 class PodcastDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val podcastDao: PodcastDao,
-    episodeDao: EpisodeDao,
+    private val episodeDao: EpisodeDao,
     private val queue: PlayQueue,
     private val subscriptions: SubscriptionRepository,
     private val actions: EpisodeActions,
@@ -181,6 +184,12 @@ class PodcastDetailViewModel @Inject constructor(
             }
             PodcastDetailIntent.ToggleNotifications -> attempt {
                 podcastDao.findById(podcastId.value)?.let { podcastDao.update(it.copy(notifyNewEpisodes = !it.notifyNewEpisodes)) }
+            }
+            PodcastDetailIntent.DropNewestEpisode -> attempt {
+                episodeDao.getForPodcast(podcastId.value)
+                    .maxByOrNull { it.publishedAtMillis ?: Long.MIN_VALUE }
+                    ?.let { episodeDao.deleteById(it.id) }
+                sync.syncNow()
             }
             PodcastDetailIntent.Refresh -> sync.syncNow()
         }

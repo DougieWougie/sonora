@@ -54,6 +54,7 @@ import org.sonora.core.testing.TestTags
 import org.sonora.ui.components.ArtworkImage
 import org.sonora.ui.components.EpisodeActionsUi
 import org.sonora.ui.components.MarkOlderPlayedDialog
+import org.sonora.BuildConfig
 import org.sonora.ui.components.EpisodeSelection
 import org.sonora.ui.components.SwipeableEpisodeRow
 import org.sonora.ui.htmlToPlainText
@@ -194,6 +195,12 @@ private fun SubscribeSplitButton(state: PodcastDetailUiState, onIntent: (Podcast
                 text = { Text(if (notify) "Stop notifying about new episodes" else "Notify about new episodes") },
                 onClick = { menuOpen = false; onIntent(PodcastDetailIntent.ToggleNotifications) },
             )
+            if (BuildConfig.DEBUG) {
+                DropdownMenuItem(
+                    text = { Text("Debug: drop newest episode") },
+                    onClick = { menuOpen = false; onIntent(PodcastDetailIntent.DropNewestEpisode) },
+                )
+            }
             DropdownMenuItem(
                 text = { Text("Refresh now") },
                 onClick = { menuOpen = false; onIntent(PodcastDetailIntent.Refresh) },

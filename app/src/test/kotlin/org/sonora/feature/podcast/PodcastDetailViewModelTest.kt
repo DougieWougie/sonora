@@ -341,6 +341,20 @@ class PodcastDetailViewModelTest {
     }
 
     @Test
+    fun `dropping the newest episode removes only that one and asks for a sync`() = runTest {
+        seed()
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.episodes.size == 3 }
+            vm.onIntent(PodcastDetailIntent.DropNewestEpisode)
+            testScheduler.advanceUntilIdle()
+            assertEquals(listOf("Mars landing", "Intro to Space"), awaitUntil { it.episodes.size == 2 }.episodes.map { it.title })
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(1, sync.requests)
+    }
+
+    @Test
     fun `refresh asks for a background sync`() = runTest {
         seed()
         val vm = vm()

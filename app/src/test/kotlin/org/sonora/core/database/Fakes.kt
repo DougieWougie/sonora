@@ -75,6 +75,9 @@ class FakeEpisodeDao : EpisodeDao {
     }
 
     override suspend fun updateAll(episodes: List<EpisodeEntity>) = episodes.forEach { update(it) }
+    override suspend fun deleteById(id: Long) {
+        rows.value = rows.value.filterNot { it.id == id }
+    }
     override suspend fun findById(id: Long) = rows.value.firstOrNull { it.id == id }
     override suspend fun findByEnclosureUrl(enclosureUrl: String) = rows.value.firstOrNull { it.enclosureUrl == enclosureUrl }
     override suspend fun getForPodcast(podcastId: Long): List<EpisodeEntity> {
