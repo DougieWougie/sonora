@@ -36,6 +36,25 @@ class PodcastRepositoryTest {
     }
 
     @Test
+    fun `refreshing keeps the user's per-podcast settings`() = runTest {
+        val id = repo.refresh("https://f/feed", feed("Show", ep("a")))
+        podcastDao.update(podcastDao.findById(id)!!.copy(autoDownload = true, notifyNewEpisodes = false))
+
+        repo.refresh("https://f/feed", feed("Show", ep("a"), ep("b")))
+
+        val podcast = podcastDao.findById(id)!!
+        assertEquals(true, podcast.autoDownload)
+        assertEquals(false, podcast.notifyNewEpisodes)
+    }
+
+    @Test
+    fun `a new podcast notifies about new episodes by default`() = runTest {
+        val id = repo.refresh("https://f/feed", feed("Show", ep("a")))
+
+        assertEquals(true, podcastDao.findById(id)!!.notifyNewEpisodes)
+    }
+
+    @Test
     fun `second refresh updates metadata and adds new episodes without duplicating`() = runTest {
         val id = repo.refresh("https://f/feed", feed("Old", ep("a")))
         clock.nowMillis += 5_000

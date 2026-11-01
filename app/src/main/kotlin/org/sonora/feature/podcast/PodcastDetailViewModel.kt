@@ -44,6 +44,7 @@ data class PodcastHeader(
     val description: String?,
     val imageUrl: String?,
     val autoDownload: Boolean,
+    val notifyNewEpisodes: Boolean = true,
 )
 
 data class PodcastDetailUiState(
@@ -72,6 +73,7 @@ sealed interface PodcastDetailIntent {
     data object DismissMarkOlderPlayed : PodcastDetailIntent
     data object ToggleSubscription : PodcastDetailIntent
     data object ToggleAutoDownload : PodcastDetailIntent
+    data object ToggleNotifications : PodcastDetailIntent
     data object Refresh : PodcastDetailIntent
 }
 
@@ -157,6 +159,9 @@ class PodcastDetailViewModel @Inject constructor(
             PodcastDetailIntent.ToggleAutoDownload -> attempt {
                 podcastDao.findById(podcastId.value)?.let { podcastDao.update(it.copy(autoDownload = !it.autoDownload)) }
             }
+            PodcastDetailIntent.ToggleNotifications -> attempt {
+                podcastDao.findById(podcastId.value)?.let { podcastDao.update(it.copy(notifyNewEpisodes = !it.notifyNewEpisodes)) }
+            }
             PodcastDetailIntent.Refresh -> sync.syncNow()
         }
     }
@@ -194,7 +199,7 @@ class PodcastDetailViewModel @Inject constructor(
         return filterOk && (q.isEmpty() || title.contains(q, ignoreCase = true) || description?.let { htmlToSearchText(it) }.orEmpty().contains(q, ignoreCase = true))
     }
 
-    private fun PodcastEntity.toHeader() = PodcastHeader(id, feedUrl, title, author, description, imageUrl, autoDownload)
+    private fun PodcastEntity.toHeader() = PodcastHeader(id, feedUrl, title, author, description, imageUrl, autoDownload, notifyNewEpisodes)
 
     companion object {
         const val ARG_PODCAST_ID = "podcastId"

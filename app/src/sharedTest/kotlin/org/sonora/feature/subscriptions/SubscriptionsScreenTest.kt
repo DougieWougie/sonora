@@ -286,6 +286,19 @@ class SubscriptionsScreenTest {
     }
 
     @Test
+    fun `the actions menu toggles notifications for that show`() {
+        state = state.copy(podcasts = listOf(podcast(3, "Alpha"), podcast(4, "Beta").copy(notifyNewEpisodes = false)))
+        setContent()
+
+        longPress("Alpha")
+        composeTestRule.onNodeWithText("Turn off notifications").performClick()
+        longPress("Beta")
+        composeTestRule.onNodeWithText("Turn on notifications").performClick()
+
+        assertEquals(listOf(SubscriptionsIntent.ToggleNotifications(3), SubscriptionsIntent.ToggleNotifications(4)), intents)
+    }
+
+    @Test
     fun `the list layout offers the same actions`() {
         state = state.copy(layout = SubscriptionsLayout.LIST, podcasts = listOf(podcast(3, "Alpha", unplayed = 2)))
         setContent()

@@ -40,6 +40,7 @@ data class PodcastItem(
     val imageUrl: String?,
     val unplayedCount: Int,
     val autoDownload: Boolean,
+    val notifyNewEpisodes: Boolean = true,
 )
 
 data class SubscriptionsUiState(
@@ -63,6 +64,7 @@ sealed interface SubscriptionsIntent {
     data class SetQuery(val query: String) : SubscriptionsIntent
     data class MarkAllPlayed(val podcastId: Long) : SubscriptionsIntent
     data class ToggleAutoDownload(val podcastId: Long) : SubscriptionsIntent
+    data class ToggleNotifications(val podcastId: Long) : SubscriptionsIntent
     data class RequestUnsubscribe(val podcastId: Long) : SubscriptionsIntent
     /** Unsubscribes for real; [RequestUnsubscribe] is the one that asks first. */
     data object ConfirmUnsubscribe : SubscriptionsIntent
@@ -139,6 +141,9 @@ class SubscriptionsViewModel @Inject constructor(
             is SubscriptionsIntent.ToggleAutoDownload -> viewModelScope.launch {
                 podcastDao.findById(intent.podcastId)?.let { podcastDao.update(it.copy(autoDownload = !it.autoDownload)) }
             }
+            is SubscriptionsIntent.ToggleNotifications -> viewModelScope.launch {
+                podcastDao.findById(intent.podcastId)?.let { podcastDao.update(it.copy(notifyNewEpisodes = !it.notifyNewEpisodes)) }
+            }
             is SubscriptionsIntent.RequestUnsubscribe -> unsubscribeRequest.value = intent.podcastId
             SubscriptionsIntent.DismissUnsubscribe -> unsubscribeRequest.value = null
             SubscriptionsIntent.ConfirmUnsubscribe -> viewModelScope.launch {
@@ -161,7 +166,7 @@ class SubscriptionsViewModel @Inject constructor(
         title.contains(needle, ignoreCase = true) || author?.contains(needle, ignoreCase = true) == true
 
     private fun PodcastEntity.toItem(unplayed: Int) =
-        PodcastItem(id, feedUrl, title, author, imageUrl, unplayed, autoDownload)
+        PodcastItem(id, feedUrl, title, author, imageUrl, unplayed, autoDownload, notifyNewEpisodes)
 
     private fun comparatorFor(sort: SubscriptionsSort): Comparator<Pair<PodcastItem, Long?>> {
         val byTitle = compareBy<Pair<PodcastItem, Long?>, String>(String.CASE_INSENSITIVE_ORDER) { it.first.title }

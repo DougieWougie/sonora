@@ -312,6 +312,23 @@ class SubscriptionsViewModelTest {
     }
 
     @Test
+    fun `notifications are toggled for that show only`() = runTest {
+        val a = podcast("Alpha")
+        val b = podcast("Beta")
+        val vm = vm()
+        vm.uiState.test {
+            assertTrue(awaitUntil { it.podcasts.size == 2 }.podcasts.all { it.notifyNewEpisodes })
+
+            vm.onIntent(SubscriptionsIntent.ToggleNotifications(a))
+            val off = awaitUntil { s -> !s.podcasts.first { it.id == a }.notifyNewEpisodes }
+            assertTrue(off.podcasts.first { it.id == b }.notifyNewEpisodes)
+
+            vm.onIntent(SubscriptionsIntent.ToggleNotifications(a))
+            assertTrue(awaitUntil { s -> s.podcasts.first { it.id == a }.notifyNewEpisodes }.podcasts.first { it.id == a }.notifyNewEpisodes)
+        }
+    }
+
+    @Test
     fun `unsubscribing asks first and can be cancelled`() = runTest {
         val id = podcast("Alpha")
         val vm = vm()

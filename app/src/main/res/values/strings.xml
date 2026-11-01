@@ -3,4 +3,5 @@
     <string name="app_name">Sonora</string>
     <string name="playback_channel_name">Playback</string>
     <string name="download_channel_name">Downloads</string>
+    <string name="new_episodes_channel_name">New episodes</string>
 </resources>

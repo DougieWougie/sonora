@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.core.database
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -19,6 +20,8 @@ data class PodcastEntity(
     val imageUrl: String? = null,
     val lastRefreshedAtMillis: Long = 0,
     val autoDownload: Boolean = false,
+    /** Post a notification when a refresh finds new episodes of this podcast. */
+    @ColumnInfo(defaultValue = "1") val notifyNewEpisodes: Boolean = true,
 )
 
 @Entity(

@@ -37,6 +37,14 @@ fun interface DownloadCanceller {
     fun cancel(episodeId: Long)
 }
 
+/** New episodes found for one podcast in a sync run. [latestTitle] is the newest of them. */
+data class NewEpisodes(val podcastId: Long, val podcastTitle: String, val count: Int, val latestTitle: String)
+
+/** Tells the user about new episodes. A failure here never fails the sync. */
+fun interface NewEpisodeNotifier {
+    suspend fun notify(newEpisodes: List<NewEpisodes>)
+}
+
 enum class FailureKind { TRANSIENT, PERMANENT, AUTH }
 
 sealed interface RemoteStatus {
@@ -91,6 +99,7 @@ class PodcastSyncPipeline(
     private val enforceRetention: suspend () -> Unit = {},
     private val maxConcurrentRefreshes: Int = 4,
     private val maxAutoDownloadsPerPodcast: suspend () -> Int = { 3 },
+    private val notifier: NewEpisodeNotifier = NewEpisodeNotifier {},
 ) {
     suspend fun run(): SyncOutcome {
         val remote = syncRemote()
@@ -100,6 +109,7 @@ class PodcastSyncPipeline(
         val failed = results.mapNotNull { r -> r.failure?.let { r.feedUrl to it } }.toMap()
         val toDownload = results.flatMap { it.newEpisodeIds }
 
+        announce(results.mapNotNull { it.announcement })
         if (toDownload.isNotEmpty()) downloads.schedule(toDownload, unmeteredOnlyForAutoDownload(), chargingOnly = chargingOnlyForAutoDownload())
         retain()
         return SyncOutcome(
@@ -120,6 +130,16 @@ class PodcastSyncPipeline(
         }
     }
 
+    private suspend fun announce(newEpisodes: List<NewEpisodes>) {
+        if (newEpisodes.isEmpty()) return
+        try {
+            notifier.notify(newEpisodes)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
+    }
+
     private suspend fun syncRemote(): RemoteStatus = try {
         remoteSync.sync()?.let { RemoteStatus.Synced(it) } ?: RemoteStatus.NotConfigured
     } catch (e: CancellationException) {
@@ -128,7 +148,12 @@ class PodcastSyncPipeline(
         RemoteStatus.Failed(classify(e), e)
     }
 
-    private class FeedResult(val feedUrl: String, val failure: FailureKind?, val newEpisodeIds: List<Long>)
+    private class FeedResult(
+        val feedUrl: String,
+        val failure: FailureKind?,
+        val newEpisodeIds: List<Long>,
+        val announcement: NewEpisodes? = null,
+    )
 
     private suspend fun refreshAll(podcasts: List<PodcastEntity>): List<FeedResult> = coroutineScope {
         val permits = Semaphore(maxConcurrentRefreshes)
@@ -141,16 +166,21 @@ class PodcastSyncPipeline(
         podcastRepository.refresh(podcast.feedUrl, feed)
 
         // An empty podcast is being fetched for the first time: don't pull its whole back catalogue.
-        val fresh = if (podcast.autoDownload && knownGuids.isNotEmpty()) {
+        val newest = if ((podcast.autoDownload || podcast.notifyNewEpisodes) && knownGuids.isNotEmpty()) {
             episodeDao.getForPodcast(podcast.id)
-                .filter { it.guid !in knownGuids && it.downloadState == DownloadState.NONE && !it.played }
+                .filter { it.guid !in knownGuids && !it.played }
                 .sortedByDescending { it.publishedAtMillis ?: Long.MIN_VALUE }
-                .take(maxAutoDownloadsPerPodcast())
-                .map { it.id }
         } else {
             emptyList()
         }
-        FeedResult(podcast.feedUrl, null, fresh)
+        val fresh = if (podcast.autoDownload) {
+            newest.filter { it.downloadState == DownloadState.NONE }.take(maxAutoDownloadsPerPodcast()).map { it.id }
+        } else {
+            emptyList()
+        }
+        val announcement = newest.firstOrNull()?.takeIf { podcast.notifyNewEpisodes }
+            ?.let { NewEpisodes(podcast.id, feed.title, newest.size, it.title) }
+        FeedResult(podcast.feedUrl, null, fresh, announcement)
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {

@@ -93,9 +93,11 @@ sequenceDiagram
     participant R as RemoteSync (SyncCoordinator)
     participant F as Feeds
     participant D as DownloadScheduler
+    participant N as NewEpisodeNotifier
     W->>P: run()
     P->>R: sync(): pull, resolve conflicts, push
     P->>F: refresh every feed (bounded parallelism)
+    P->>N: announce new episodes (per-podcast opt-out)
     P->>D: schedule downloads for new episodes
     P->>P: enforce retention
     P-->>W: SyncOutcome
@@ -108,6 +110,12 @@ conflict resolution works. Network calls stay outside database transactions, and
 subscriptions and episode diffs is transactional (`TransactionRunner`). `SyncOutcome.toWorkOutcome`
 decides whether to retry: flaky single feeds are tolerated, a lost server or total connectivity loss
 retries (up to a limit), and rejected credentials fail without retrying.
+
+New episodes are announced through `NewEpisodeNotifier` (implemented by `AndroidNewEpisodeNotifier`): one
+notification per podcast, only for podcasts with `notifyNewEpisodes` set and never on a podcast's first
+refresh. The launcher icon dot follows from those notifications; there is no portable badge-count API.
+A notifier failure never fails the sync. `PodcastRepository.refresh` copies the user's per-podcast
+settings (`autoDownload`, `notifyNewEpisodes`) onto the updated row because `@Update` replaces the whole row.
 
 ### Playback
 Playback is owned by a foreground Media3 service, not by any screen:

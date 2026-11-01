@@ -45,6 +45,7 @@ import org.sonora.core.sync.FeedFetcher
 import org.sonora.core.sync.NextcloudRemoteSync
 import org.sonora.core.sync.PodcastSyncPipeline
 import org.sonora.core.sync.RemoteSync
+import org.sonora.core.work.AndroidNewEpisodeNotifier
 import org.sonora.core.work.DeviceConditionsMonitor
 import org.sonora.core.work.WorkManagerDownloadScheduler
 import org.sonora.core.work.WorkManagerDownloadWaits
@@ -193,6 +194,7 @@ object AppModule {
 
     @Provides @Singleton
     fun syncPipeline(
+        @ApplicationContext context: Context,
         remote: RemoteSync,
         podcasts: PodcastDao,
         episodes: EpisodeDao,
@@ -212,6 +214,7 @@ object AppModule {
         unmeteredOnlyForAutoDownload = { settings.autoDownloadUnmeteredOnly },
         chargingOnlyForAutoDownload = { settings.autoDownloadChargingOnly },
         maxAutoDownloadsPerPodcast = { settings.autoDownloadPerPodcast },
+        notifier = AndroidNewEpisodeNotifier(context),
         enforceRetention = {
             val playing = playback.state.first().episodeId
             downloadManager.enforceRetention(inUse = setOfNotNull(playing))

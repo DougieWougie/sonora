@@ -115,7 +115,7 @@ class AppModuleTest {
             module.downloadWaits(context),
             module.syncScheduler(context),
             module.syncPipeline(
-                remote, podcasts, episodeDao, module.podcastRepository(podcasts, episodeDao, tx, clock),
+                context, remote, podcasts, episodeDao, module.podcastRepository(podcasts, episodeDao, tx, clock),
                 module.feedFetcher(client, settings), downloads, manager, module.playbackPort(hub), settings,
             ),
             module.discovery(client, settings, clock),

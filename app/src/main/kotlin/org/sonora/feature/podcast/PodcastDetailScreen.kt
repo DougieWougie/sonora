@@ -165,6 +165,11 @@ private fun SubscribeSplitButton(state: PodcastDetailUiState, onIntent: (Podcast
                 text = { Text(if (auto) "Stop auto-downloading new episodes" else "Auto-download new episodes") },
                 onClick = { menuOpen = false; onIntent(PodcastDetailIntent.ToggleAutoDownload) },
             )
+            val notify = state.podcast?.notifyNewEpisodes != false
+            DropdownMenuItem(
+                text = { Text(if (notify) "Stop notifying about new episodes" else "Notify about new episodes") },
+                onClick = { menuOpen = false; onIntent(PodcastDetailIntent.ToggleNotifications) },
+            )
             DropdownMenuItem(
                 text = { Text("Refresh now") },
                 onClick = { menuOpen = false; onIntent(PodcastDetailIntent.Refresh) },

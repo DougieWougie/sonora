@@ -113,6 +113,27 @@ class PodcastDetailScreenTest {
     }
 
     @Test
+    fun `the options menu toggles notifications and says which way`() {
+        setContent()
+
+        composeTestRule.onNodeWithContentDescription("Options").performClick()
+        composeTestRule.onNodeWithText("Notify about new episodes").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Stop notifying about new episodes").performClick()
+
+        assertEquals(listOf<PodcastDetailIntent>(PodcastDetailIntent.ToggleNotifications), intents)
+    }
+
+    @Test
+    fun `the options menu offers to turn notifications back on`() {
+        state = state.copy(podcast = header().copy(notifyNewEpisodes = false))
+        setContent()
+
+        composeTestRule.onNodeWithContentDescription("Options").performClick()
+
+        composeTestRule.onNodeWithText("Notify about new episodes").assertIsDisplayed()
+    }
+
+    @Test
     fun `the options menu offers to stop auto-downloading when it is on`() {
         state = state.copy(podcast = header(autoDownload = true))
         setContent()
