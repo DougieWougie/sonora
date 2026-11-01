@@ -32,6 +32,7 @@ import org.sonora.core.work.SyncController
 import org.sonora.feature.common.EpisodeItem
 import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.feature.common.toItem
+import org.sonora.feature.settings.SettingsStore
 import org.sonora.ui.htmlToSearchText
 
 enum class EpisodeFilter { ALL, UNPLAYED, DOWNLOADED }
@@ -54,6 +55,8 @@ data class PodcastDetailUiState(
     val filter: EpisodeFilter = EpisodeFilter.ALL,
     val query: String = "",
     val pendingMarkOlder: PendingMarkOlder? = null,
+    /** Developer actions are on in Settings → Advanced (and only exist in debug builds). */
+    val debugTools: Boolean = false,
     /** Episodes picked for a bulk action; selection mode is on while this is not empty. */
     val selectedIds: Set<Long> = emptySet(),
     val isRefreshing: Boolean = false,
@@ -101,6 +104,7 @@ class PodcastDetailViewModel @Inject constructor(
     private val actions: EpisodeActions,
     private val sync: SyncController,
     private val playback: PlaybackPort,
+    private val settings: SettingsStore,
 ) : ViewModel() {
     private data class Controls(
         val filter: EpisodeFilter = EpisodeFilter.ALL,
@@ -137,6 +141,7 @@ class PodcastDetailViewModel @Inject constructor(
             filter = controls.filter,
             query = controls.query,
             pendingMarkOlder = controls.pendingMarkOlder,
+            debugTools = settings.debugTools,
             selectedIds = visible.map { it.id }.filterTo(mutableSetOf()) { it in controls.selected },
             isRefreshing = syncing,
             isLoading = false,

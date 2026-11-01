@@ -136,13 +136,23 @@ class PodcastDetailScreenTest {
     }
 
     @Test
-    fun `debug builds can drop the newest episode to test notifications`() {
+    fun `with debug tools on the options menu can drop the newest episode to test notifications`() {
+        state = state.copy(debugTools = true)
         setContent()
 
         composeTestRule.onNodeWithContentDescription("Options").performClick()
         composeTestRule.onNodeWithText("Debug: drop newest episode").performClick()
 
         assertEquals(listOf<PodcastDetailIntent>(PodcastDetailIntent.DropNewestEpisode), intents)
+    }
+
+    @Test
+    fun `without debug tools the options menu has no debug action`() {
+        setContent()
+
+        composeTestRule.onNodeWithContentDescription("Options").performClick()
+
+        composeTestRule.onNodeWithText("Debug: drop newest episode").assertDoesNotExist()
     }
 
     @Test

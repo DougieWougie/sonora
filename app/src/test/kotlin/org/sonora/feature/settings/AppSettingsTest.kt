@@ -38,6 +38,7 @@ class AppSettingsTest {
         val s = settings()
 
         assertFalse(s.allowCleartext)
+        assertFalse(s.debugTools)
         assertTrue(s.autoDownloadUnmeteredOnly)
         assertTrue(s.deleteDownloadsWhenPlayed)
         assertTrue(s.hideExplicit)
@@ -54,6 +55,7 @@ class AppSettingsTest {
     fun `every setting survives a restart`() {
         settings().apply {
             allowCleartext = true
+            debugTools = true
             autoDownloadUnmeteredOnly = false
             deleteDownloadsWhenPlayed = false
             hideExplicit = false
@@ -68,6 +70,7 @@ class AppSettingsTest {
 
         val s = settings()
         assertTrue(s.allowCleartext)
+        assertTrue(s.debugTools)
         assertFalse(s.autoDownloadUnmeteredOnly)
         assertFalse(s.deleteDownloadsWhenPlayed)
         assertFalse(s.hideExplicit)

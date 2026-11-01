@@ -54,6 +54,7 @@ import java.text.DateFormat
 import java.util.Date
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import kotlinx.coroutines.flow.Flow
+import org.sonora.BuildConfig
 import org.sonora.core.testing.TestTags
 import org.sonora.feature.downloads.DownloadsLink
 import org.sonora.ui.components.ScreenHeading
@@ -197,6 +198,13 @@ internal fun SettingsContent(
                             ) { onIntent(SettingsIntent.SetAllowCleartext(it)) }
                             if (state.restartRequired) {
                                 Text("Restart Sonora for this change to take effect.", color = MaterialTheme.colorScheme.tertiary)
+                            }
+                            if (BuildConfig.DEBUG) {
+                                SwitchRow(
+                                    "Debug tools",
+                                    "Adds developer actions, such as dropping a show's newest episode to test notifications.",
+                                    state.debugTools,
+                                ) { onIntent(SettingsIntent.SetDebugTools(it)) }
                             }
                     }
                     }

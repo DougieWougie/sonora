@@ -24,6 +24,7 @@ import org.sonora.core.media.PersistentPlayQueue
 import org.sonora.core.model.DownloadState
 import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.testutil.FakeEpisodeActions
+import org.sonora.testutil.FakeSettingsStore
 import org.sonora.testutil.FakePlaybackPort
 import org.sonora.testutil.FakeSyncController
 import org.sonora.testutil.MainDispatcherExtension
@@ -41,6 +42,7 @@ class PodcastDetailViewModelTest {
     private val actions = FakeEpisodeActions()
     private val sync = FakeSyncController()
     private val playback = FakePlaybackPort()
+    private val settings = FakeSettingsStore()
 
     private var podcastId = 0L
 
@@ -60,7 +62,7 @@ class PodcastDetailViewModelTest {
 
     private fun vm() = PodcastDetailViewModel(
         SavedStateHandle(mapOf(PodcastDetailViewModel.ARG_PODCAST_ID to podcastId)),
-        podcasts, episodes, queue, subscriptions, actions, sync, playback,
+        podcasts, episodes, queue, subscriptions, actions, sync, playback, settings,
     )
 
     private fun idOf(title: String) = episodes.rows.value.first { it.title == title }.id
@@ -337,6 +339,25 @@ class PodcastDetailViewModelTest {
             assertFalse(awaitUntil { it.podcast?.notifyNewEpisodes == false }.podcast!!.notifyNewEpisodes)
             vm.onIntent(PodcastDetailIntent.ToggleNotifications)
             assertTrue(awaitUntil { it.podcast?.notifyNewEpisodes == true }.podcast!!.notifyNewEpisodes)
+        }
+    }
+
+    @Test
+    fun `debug tools follow the setting`() = runTest {
+        seed()
+        settings.debugTools = true
+        vm().uiState.test {
+            assertTrue(awaitUntil { it.podcast != null }.debugTools)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `debug tools are off by default`() = runTest {
+        seed()
+        vm().uiState.test {
+            assertFalse(awaitUntil { it.podcast != null }.debugTools)
+            cancelAndIgnoreRemainingEvents()
         }
     }
 

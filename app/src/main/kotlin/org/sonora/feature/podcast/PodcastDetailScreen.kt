@@ -195,7 +195,7 @@ private fun SubscribeSplitButton(state: PodcastDetailUiState, onIntent: (Podcast
                 text = { Text(if (notify) "Stop notifying about new episodes" else "Notify about new episodes") },
                 onClick = { menuOpen = false; onIntent(PodcastDetailIntent.ToggleNotifications) },
             )
-            if (BuildConfig.DEBUG) {
+            if (BuildConfig.DEBUG && state.debugTools) {
                 DropdownMenuItem(
                     text = { Text("Debug: drop newest episode") },
                     onClick = { menuOpen = false; onIntent(PodcastDetailIntent.DropNewestEpisode) },

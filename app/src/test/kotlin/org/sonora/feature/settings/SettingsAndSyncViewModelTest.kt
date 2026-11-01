@@ -422,6 +422,19 @@ class SettingsAndSyncViewModelTest {
     }
 
     @Test
+    fun `debug tools start from the saved value and the switch saves without needing a restart`() = runTest {
+        settings.debugTools = true
+        val vm = vm(); runCurrent()
+        assertTrue(vm.uiState.value.debugTools)
+
+        vm.onIntent(SettingsIntent.SetDebugTools(false)); runCurrent()
+
+        assertFalse(settings.debugTools)
+        assertFalse(vm.uiState.value.debugTools)
+        assertFalse(vm.uiState.value.restartRequired)
+    }
+
+    @Test
     fun `allowing cleartext is saved and flagged as needing a restart`() = runTest {
         val vm = vm(); runCurrent()
         assertFalse(vm.uiState.value.restartRequired)

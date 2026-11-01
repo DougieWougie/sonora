@@ -51,6 +51,7 @@ data class SettingsUiState(
     val downloads: DownloadPrefs,
     val syncIntervalHours: Long = 6,
     val allowCleartext: Boolean,
+    val debugTools: Boolean = false,
     /** Cleartext is read once at startup, so a change only takes effect after a restart. */
     val restartRequired: Boolean = false,
 )
@@ -71,6 +72,7 @@ sealed interface SettingsIntent {
     data class SetUnmeteredOnly(val enabled: Boolean) : SettingsIntent
     data class SetDeleteWhenPlayed(val enabled: Boolean) : SettingsIntent
     data class SetAllowCleartext(val enabled: Boolean) : SettingsIntent
+    data class SetDebugTools(val enabled: Boolean) : SettingsIntent
     data class SetChargingOnly(val enabled: Boolean) : SettingsIntent
     data class SetAutoDownloadCount(val count: Int) : SettingsIntent
     data class SetKeepPerPodcast(val count: Int) : SettingsIntent
@@ -104,6 +106,7 @@ class SettingsAndSyncViewModel @Inject constructor(
             ),
             syncIntervalHours = settings.syncIntervalHours,
             allowCleartext = cleartextAtStart,
+            debugTools = settings.debugTools,
         ),
     )
     val uiState: StateFlow<SettingsUiState> = _state.asStateFlow()
@@ -181,6 +184,10 @@ class SettingsAndSyncViewModel @Inject constructor(
                 settings.syncIntervalHours = intent.hours.coerceAtLeast(0)
                 sync.setPeriodicInterval(settings.syncIntervalHours)
                 _state.update { it.copy(syncIntervalHours = settings.syncIntervalHours) }
+            }
+            is SettingsIntent.SetDebugTools -> {
+                settings.debugTools = intent.enabled
+                _state.update { it.copy(debugTools = intent.enabled) }
             }
             is SettingsIntent.SetAllowCleartext -> {
                 settings.allowCleartext = intent.enabled

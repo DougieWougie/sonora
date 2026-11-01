@@ -20,6 +20,8 @@ interface SettingsStore {
     var autoDownloadUnmeteredOnly: Boolean
     var deleteDownloadsWhenPlayed: Boolean
     var allowCleartext: Boolean
+    /** Shows developer-only actions (debug builds only), such as dropping a podcast's newest episode. */
+    var debugTools: Boolean
     /** Discover leaves out shows their directory marks explicit. */
     var hideExplicit: Boolean
     /** Whether the user has folded the Queue away. */
