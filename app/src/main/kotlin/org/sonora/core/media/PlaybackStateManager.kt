@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -70,6 +71,9 @@ class PlaybackStateManager(
     /** Episodes played before the current one, oldest first. Lives as long as the service. */
     private val history = ArrayDeque<Long>()
     private var progressJob: Job? = null
+    /** Waits for the streamed episode to finish downloading so playback can move to the file. */
+    private var downloadWatch: Job? = null
+    private var loadedMetadata: PlaybackMetadata? = null
     private var sleepJob: Job? = null
 
     suspend fun play(episodeId: Long) = start(episodeId, recordHistory = true)
@@ -102,7 +106,9 @@ class PlaybackStateManager(
                 throw e
             }
             engine.prepare(uri, startSeconds * 1000, metadata)
+            loadedMetadata = metadata
             loadedSource = if (uri.startsWith("file:")) PlaybackSource.OFFLINE else PlaybackSource.STREAMING
+            watchForDownload(episodeId)
             failed = false
             sessionStartSeconds = startSeconds
             loadedId = episodeId
@@ -125,12 +131,33 @@ class PlaybackStateManager(
     suspend fun stop() {
         if (loadedId == null) return
         progressJob?.cancel()
+        downloadWatch?.cancel()
         engine.pause()
         checkpoint()
         engine.stop()
         loadedId = null
         loadedDurationMs = 0
         _state.update { it.copy(episodeId = null, isPlaying = false, source = null) }
+    }
+
+    /**
+     * While [episodeId] is streamed, waits for its download to finish and then re-prepares the player
+     * on the file at the current position, resuming only if it was playing. Does nothing once
+     * another episode is loaded.
+     */
+    private fun watchForDownload(episodeId: Long) {
+        downloadWatch?.cancel()
+        if (loadedSource != PlaybackSource.STREAMING) return
+        downloadWatch = scope.launch {
+            val episode = episodeDao.observeById(episodeId).first { it != null && fileUri(it) != null } ?: return@launch
+            if (loadedId != episodeId || loadedSource != PlaybackSource.STREAMING) return@launch
+            val metadata = loadedMetadata ?: return@launch
+            val wasPlaying = _state.value.isPlaying
+            engine.prepare(fileUri(episode) ?: return@launch, engine.positionMs, metadata)
+            if (wasPlaying) engine.play()
+            loadedSource = PlaybackSource.OFFLINE
+            _state.update { it.copy(source = PlaybackSource.OFFLINE) }
+        }
     }
 
     suspend fun seekTo(positionMs: Long) {
@@ -250,11 +277,18 @@ class PlaybackStateManager(
         _state.update { it.copy(sleepTimerRemainingMs = null) }
     }
 
-    private fun resolveUri(episode: EpisodeEntity): String {
+    /** The downloaded file as a URI, or null while the episode has no usable download. */
+    private fun fileUri(episode: EpisodeEntity): String? {
         val path = episode.downloadPath
         return if (episode.downloadState == DownloadState.DOWNLOADED && path != null && fileExists(path)) {
             File(path).toURI().let { "file://${it.rawPath}" }
         } else {
+            null
+        }
+    }
+
+    private fun resolveUri(episode: EpisodeEntity): String {
+        return fileUri(episode) ?: run {
             // Many feeds still list http:// enclosures; ask for https:// rather than refusing outright.
             val url = episode.enclosureUrl.takeIf { allowCleartext } ?: upgradedToHttps(episode.enclosureUrl) ?: episode.enclosureUrl
             if (!isTransportAllowed(url, allowCleartext)) {

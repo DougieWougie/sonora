@@ -79,6 +79,7 @@ class FakeEpisodeDao : EpisodeDao {
         rows.value = rows.value.filterNot { it.id == id }
     }
     override suspend fun findById(id: Long) = rows.value.firstOrNull { it.id == id }
+    override fun observeById(id: Long): Flow<EpisodeEntity?> = rows.map { all -> all.firstOrNull { it.id == id } }
     override suspend fun findByEnclosureUrl(enclosureUrl: String) = rows.value.firstOrNull { it.enclosureUrl == enclosureUrl }
     override suspend fun getForPodcast(podcastId: Long): List<EpisodeEntity> {
         fullLoads++

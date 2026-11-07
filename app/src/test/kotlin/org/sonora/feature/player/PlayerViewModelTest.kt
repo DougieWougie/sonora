@@ -15,11 +15,13 @@ import org.sonora.core.database.FakeEpisodeDao
 import org.sonora.core.database.FakePodcastDao
 import org.sonora.core.database.PodcastEntity
 import org.sonora.core.media.FakeQueueStorage
+import org.sonora.core.model.DownloadState
 import org.sonora.core.media.PersistentPlayQueue
 import org.sonora.core.media.PlaybackFailure
 import org.sonora.core.media.PlaybackFailureReason
 import org.sonora.core.media.PlaybackProgress
 import org.sonora.core.media.PlaybackSource
+import org.sonora.testutil.FakeEpisodeActions
 import org.sonora.testutil.FakePlaybackPort
 import org.sonora.testutil.FakeSettingsStore
 import org.sonora.testutil.MainDispatcherExtension
@@ -35,8 +37,9 @@ class PlayerViewModelTest {
     private val queue = PersistentPlayQueue(FakeQueueStorage())
 
     private val settings = FakeSettingsStore()
+    private val actions = FakeEpisodeActions()
 
-    private fun vm() = PlayerViewModel(port, episodes, podcasts, queue, settings)
+    private fun vm() = PlayerViewModel(port, episodes, podcasts, queue, settings, actions)
 
     private suspend fun seed(count: Int = 3): List<Long> {
         val podcastId = podcasts.insert(PodcastEntity(feedUrl = "https://f", title = "Show", imageUrl = "https://art/show.png"))
@@ -375,5 +378,46 @@ class PlayerViewModelTest {
             vm.onIntent(PlayerIntent.Share)
             expectNoEvents()
         }
+    }
+
+    // --- downloading the streamed episode ----------------------------------------------------
+
+    @Test
+    fun `carries the download state of the loaded episode and follows it`() = runTest {
+        val (id) = seed(1)
+        port.stateFlow.value = port.stateFlow.value.copy(episodeId = id, source = PlaybackSource.STREAMING)
+
+        vm().uiState.test {
+            assertEquals(DownloadState.NONE, awaitUntil { it.episode != null }.downloadState)
+            episodes.update(episodes.findById(id)!!.copy(downloadState = DownloadState.DOWNLOADING))
+            assertEquals(DownloadState.DOWNLOADING, awaitUntil { it.downloadState == DownloadState.DOWNLOADING }.downloadState)
+        }
+    }
+
+    @Test
+    fun `asking to download the loaded episode starts its download`() = runTest {
+        val (id) = seed(2)
+        port.stateFlow.value = port.stateFlow.value.copy(episodeId = id, source = PlaybackSource.STREAMING)
+        val vm = vm()
+
+        vm.uiState.test {
+            awaitUntil { it.episode != null }
+            vm.onIntent(PlayerIntent.DownloadCurrent)
+            cancelAndIgnoreRemainingEvents()
+        }
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(listOf("download:$id"), actions.calls)
+    }
+
+    @Test
+    fun `asking to download with nothing loaded does nothing`() = runTest {
+        val vm = vm()
+        vm.uiState.test {
+            awaitItem()
+            vm.onIntent(PlayerIntent.DownloadCurrent)
+            expectNoEvents()
+        }
+        assertTrue(actions.calls.isEmpty())
     }
 }
