@@ -42,7 +42,7 @@ class AppSettingsTest {
         assertTrue(s.autoDownloadUnmeteredOnly)
         assertTrue(s.deleteDownloadsWhenPlayed)
         assertTrue(s.hideExplicit)
-        assertFalse(s.queueCollapsed)
+        assertNull(s.episodesSegment)
         assertTrue(s.shareLink)
         assertFalse(s.autoDownloadChargingOnly)
         assertEquals(3, s.autoDownloadPerPodcast)
@@ -60,7 +60,7 @@ class AppSettingsTest {
             autoDownloadUnmeteredOnly = false
             deleteDownloadsWhenPlayed = false
             hideExplicit = false
-            queueCollapsed = true
+            episodesSegment = "NEW"
             shareLink = false
             autoDownloadChargingOnly = true
             autoDownloadPerPodcast = 7
@@ -76,7 +76,7 @@ class AppSettingsTest {
         assertFalse(s.autoDownloadUnmeteredOnly)
         assertFalse(s.deleteDownloadsWhenPlayed)
         assertFalse(s.hideExplicit)
-        assertTrue(s.queueCollapsed)
+        assertEquals("NEW", s.episodesSegment)
         assertFalse(s.shareLink)
         assertTrue(s.autoDownloadChargingOnly)
         assertEquals(7, s.autoDownloadPerPodcast)

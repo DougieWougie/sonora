@@ -32,10 +32,9 @@ class AppNavHostTest {
     /** Each screen is a button per navigation callback it is given, so the wiring can be driven by clicks. */
     private val screens = AppScreens(
         subscriptions = { onOpenPodcast, _ -> Button({ onOpenPodcast(42) }) { Text("Subscriptions: open podcast") } },
-        queue = { _, onOpenDownloads -> Button(onOpenDownloads) { Text("Queue: open downloads") } },
+        episodes = { segment, _ -> Text("Episodes screen: $segment") },
         discover = { Text("Discover screen") },
         settings = { onOpenDownloads -> Button(onOpenDownloads) { Text("Settings: open downloads") } },
-        downloads = { onBack, _ -> Button(onBack) { Text("Downloads: back") } },
         podcast = { onBack, _ -> Button(onBack) { Text("Podcast: back") } },
     )
 
@@ -86,26 +85,32 @@ class AppNavHostTest {
     }
 
     @Test
-    fun `the queue can open the downloads and back returns`() {
+    fun `the episodes tab leaves the segment to be remembered`() {
         setContent()
-        composeTestRule.onNodeWithText("Queue").performClick()
 
-        composeTestRule.onNodeWithText("Queue: open downloads").performClick()
-        composeTestRule.onNodeWithText("Downloads: back").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Episodes").performClick()
 
-        composeTestRule.onNodeWithText("Downloads: back").performClick()
-        composeTestRule.onNodeWithText("Queue: open downloads").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Episodes screen: null").assertIsDisplayed()
     }
 
     @Test
-    fun `settings can open the downloads and back returns`() {
+    fun `settings can open the downloaded episodes`() {
         setContent()
         composeTestRule.onNodeWithText("Settings").performClick()
 
         composeTestRule.onNodeWithText("Settings: open downloads").performClick()
-        composeTestRule.onNodeWithText("Downloads: back").assertIsDisplayed()
 
-        composeTestRule.onNodeWithText("Downloads: back").performClick()
+        composeTestRule.onNodeWithText("Episodes screen: DOWNLOADED").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the settings tab still opens settings after going to the downloads from it`() {
+        setContent()
+        composeTestRule.onNodeWithText("Settings").performClick()
+        composeTestRule.onNodeWithText("Settings: open downloads").performClick()
+
+        composeTestRule.onNodeWithText("Settings").performClick()
+
         composeTestRule.onNodeWithText("Settings: open downloads").assertIsDisplayed()
     }
 

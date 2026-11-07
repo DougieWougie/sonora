@@ -49,13 +49,12 @@ class SonoraRootTest {
             }
             primary = MaterialTheme.colorScheme.primary
         },
-        queue = { _, _ -> Text("Queue screen", Modifier.fillMaxSize()) },
+        episodes = { _, _ -> Text("Episodes screen", Modifier.fillMaxSize()) },
         discover = {
             val drag = rememberDraggableState { }
             Text("Discover screen", Modifier.fillMaxSize().draggable(drag, Orientation.Horizontal))
         },
         settings = { Text("Settings screen", Modifier.fillMaxSize()) },
-        downloads = { _, _ -> },
         podcast = { _, _ -> Text("Podcast screen", Modifier.fillMaxSize()) },
     )
 
@@ -109,9 +108,9 @@ class SonoraRootTest {
         setContent()
 
         swipeOn("Subscriptions screen", left = true)
-        composeTestRule.onNodeWithText("Queue screen").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Episodes screen").assertIsDisplayed()
 
-        swipeOn("Queue screen", left = false)
+        swipeOn("Episodes screen", left = false)
         composeTestRule.onNodeWithText("Subscriptions screen").assertIsDisplayed()
     }
 

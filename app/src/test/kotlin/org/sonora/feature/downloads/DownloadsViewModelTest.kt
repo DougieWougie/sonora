@@ -14,6 +14,8 @@ import org.sonora.core.database.FakeEpisodeDao
 import org.sonora.core.database.FakePodcastDao
 import org.sonora.core.database.PodcastEntity
 import org.sonora.core.download.WaitReason
+import org.sonora.core.media.FakeQueueStorage
+import org.sonora.core.media.PersistentPlayQueue
 import org.sonora.core.model.DownloadState
 import org.sonora.testutil.FakeDownloadWaits
 import org.sonora.testutil.FakeEpisodeActions
@@ -33,8 +35,9 @@ class DownloadsViewModelTest {
     private val waits = FakeDownloadWaits()
     private val settings = FakeSettingsStore()
     private val notices = org.sonora.testutil.FakeEvictionNotices()
+    private val queue = PersistentPlayQueue(FakeQueueStorage())
 
-    private fun vm() = DownloadsViewModel(episodes, podcasts, actions, playback, waits, settings, notices)
+    private fun vm() = DownloadsViewModel(episodes, podcasts, actions, playback, waits, settings, notices, queue)
 
     private suspend fun show(title: String) = podcasts.insert(PodcastEntity(feedUrl = "https://$title", title = title))
 
@@ -57,6 +60,39 @@ class DownloadsViewModelTest {
             ),
         )
         return episodes.rows.value.last().id
+    }
+
+    // --- queueing ----------------------------------------------------------------------------
+
+    @Test
+    fun `downloaded episodes know whether they are queued`() = runTest {
+        val s = show("Alpha")
+        val inQueue = add(s, "in queue", DownloadState.DOWNLOADED, bytes = 10, published = 2)
+        add(s, "not queued", DownloadState.DOWNLOADED, bytes = 10, published = 1)
+        queue.enqueue(inQueue)
+
+        vm().uiState.test {
+            val state = awaitUntil { it.downloaded.isNotEmpty() }
+            assertEquals(listOf(true, false), state.downloaded.map { it.queued })
+        }
+    }
+
+    @Test
+    fun `toggling the queue adds an episode that is not queued and removes one that is`() = runTest {
+        val s = show("Alpha")
+        val id = add(s, "done", DownloadState.DOWNLOADED, bytes = 10)
+        val vm = vm()
+
+        vm.uiState.test {
+            awaitUntil { it.downloaded.isNotEmpty() }
+            vm.onIntent(DownloadsIntent.ToggleQueue(id))
+            assertEquals(true, awaitUntil { it.downloaded.single().queued }.downloaded.single().queued)
+            assertEquals(listOf(id), queue.items.value)
+
+            vm.onIntent(DownloadsIntent.ToggleQueue(id))
+            awaitUntil { !it.downloaded.single().queued }
+            assertEquals(emptyList<Long>(), queue.items.value)
+        }
     }
 
     // --- sections ----------------------------------------------------------------------------

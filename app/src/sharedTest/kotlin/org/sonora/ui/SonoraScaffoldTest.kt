@@ -55,7 +55,7 @@ class SonoraScaffoldTest {
                 SonoraScaffold(player, events.receiveAsFlow(), { intents += it }, layout, badges) { navController, _, modifier ->
                     NavHost(navController, startDestination = SubscriptionsRoute, modifier = modifier) {
                         composable<SubscriptionsRoute> { Text("Subscriptions screen") }
-                        composable<QueueRoute> { Text("Queue screen") }
+                        composable<EpisodesRoute> { Text("Episodes screen") }
                         composable<DiscoverRoute> { Text("Discover screen") }
                         composable<SettingsRoute> { Text("Settings screen") }
                     }
@@ -87,8 +87,8 @@ class SonoraScaffoldTest {
         composeTestRule.onNodeWithText("Settings").performClick()
         composeTestRule.onNodeWithText("Settings screen").assertIsDisplayed()
 
-        composeTestRule.onNodeWithText("Queue").performClick()
-        composeTestRule.onNodeWithText("Queue screen").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Episodes").performClick()
+        composeTestRule.onNodeWithText("Episodes screen").assertIsDisplayed()
 
         composeTestRule.onNodeWithText("Subscriptions").performClick()
         composeTestRule.onNodeWithText("Subscriptions screen").assertIsDisplayed()
@@ -103,7 +103,7 @@ class SonoraScaffoldTest {
 
         composeTestRule.onNodeWithTag(TestTags.NAV_BADGE_EPISODES, useUnmergedTree = true).assertIsDisplayed().assertContentDescriptionEquals("7 unplayed")
         composeTestRule.onNode(tabLabelled("Subscriptions") and hasAnyDescendant(hasTestTag(TestTags.NAV_BADGE_EPISODES)), useUnmergedTree = true).assertExists()
-        composeTestRule.onNode(tabLabelled("Queue") and hasAnyDescendant(hasTestTag(TestTags.NAV_BADGE_EPISODES)), useUnmergedTree = true).assertDoesNotExist()
+        composeTestRule.onNode(tabLabelled("Episodes") and hasAnyDescendant(hasTestTag(TestTags.NAV_BADGE_EPISODES)), useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
