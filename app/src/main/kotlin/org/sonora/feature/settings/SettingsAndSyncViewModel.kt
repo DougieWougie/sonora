@@ -52,6 +52,7 @@ data class SettingsUiState(
     val syncIntervalHours: Long = 6,
     val allowCleartext: Boolean,
     val debugTools: Boolean = false,
+    val shareLink: Boolean = true,
     /** Cleartext is read once at startup, so a change only takes effect after a restart. */
     val restartRequired: Boolean = false,
 )
@@ -73,6 +74,7 @@ sealed interface SettingsIntent {
     data class SetDeleteWhenPlayed(val enabled: Boolean) : SettingsIntent
     data class SetAllowCleartext(val enabled: Boolean) : SettingsIntent
     data class SetDebugTools(val enabled: Boolean) : SettingsIntent
+    data class SetShareLink(val enabled: Boolean) : SettingsIntent
     data class SetChargingOnly(val enabled: Boolean) : SettingsIntent
     data class SetAutoDownloadCount(val count: Int) : SettingsIntent
     data class SetKeepPerPodcast(val count: Int) : SettingsIntent
@@ -107,6 +109,7 @@ class SettingsAndSyncViewModel @Inject constructor(
             syncIntervalHours = settings.syncIntervalHours,
             allowCleartext = cleartextAtStart,
             debugTools = settings.debugTools,
+            shareLink = settings.shareLink,
         ),
     )
     val uiState: StateFlow<SettingsUiState> = _state.asStateFlow()
@@ -184,6 +187,10 @@ class SettingsAndSyncViewModel @Inject constructor(
                 settings.syncIntervalHours = intent.hours.coerceAtLeast(0)
                 sync.setPeriodicInterval(settings.syncIntervalHours)
                 _state.update { it.copy(syncIntervalHours = settings.syncIntervalHours) }
+            }
+            is SettingsIntent.SetShareLink -> {
+                settings.shareLink = intent.enabled
+                _state.update { it.copy(shareLink = intent.enabled) }
             }
             is SettingsIntent.SetDebugTools -> {
                 settings.debugTools = intent.enabled

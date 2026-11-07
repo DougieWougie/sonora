@@ -36,6 +36,16 @@ class PodcastRepositoryTest {
     }
 
     @Test
+    fun `stores the episode link and refreshes it when the feed changes it`() = runTest {
+        val id = repo.refresh("https://f/feed", feed("Show", ep("a").copy(link = "https://site/a")))
+        assertEquals("https://site/a", episodeDao.getForPodcast(id).single().link)
+
+        repo.refresh("https://f/feed", feed("Show", ep("a").copy(link = "https://site/a-moved")))
+
+        assertEquals("https://site/a-moved", episodeDao.getForPodcast(id).single().link)
+    }
+
+    @Test
     fun `refreshing keeps the user's per-podcast settings`() = runTest {
         val id = repo.refresh("https://f/feed", feed("Show", ep("a")))
         podcastDao.update(podcastDao.findById(id)!!.copy(autoDownload = true, notifyNewEpisodes = false))

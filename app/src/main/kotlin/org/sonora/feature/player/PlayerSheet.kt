@@ -421,10 +421,10 @@ private fun QueueSheet(state: PlayerUiState, onIntent: (PlayerIntent) -> Unit, o
     }
 }
 
-/** A plain-text share of what is playing; feeds carry no stable episode URL here, so the title and show are shared. */
-fun shareIntent(episode: PlayerEpisode): android.content.Intent =
+/** A plain-text share; [shareText] has already decided whether a link goes along. */
+fun shareIntent(share: PlayerEvent.Share): android.content.Intent =
     android.content.Intent(android.content.Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(android.content.Intent.EXTRA_SUBJECT, episode.title)
-        putExtra(android.content.Intent.EXTRA_TEXT, listOfNotNull(episode.title, episode.podcastTitle).joinToString(" — "))
+        putExtra(android.content.Intent.EXTRA_SUBJECT, share.subject)
+        putExtra(android.content.Intent.EXTRA_TEXT, share.text)
     }

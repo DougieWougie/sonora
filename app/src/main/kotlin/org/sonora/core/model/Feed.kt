@@ -20,6 +20,8 @@ data class ParsedEpisode(
     val durationSeconds: Long?,
     val publishedAtMillis: Long?,
     val imageUrl: String?,
+    /** The episode's web page, when the feed gives one. */
+    val link: String? = null,
 )
 
 data class OpmlEntry(

@@ -6,7 +6,10 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlin.math.roundToInt
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -20,8 +23,9 @@ import org.sonora.core.media.PlaybackFailure
 import org.sonora.core.media.PlaybackPort
 import org.sonora.core.media.PlaybackSource
 import org.sonora.core.media.PlaybackStateManager
+import org.sonora.feature.settings.SettingsStore
 
-data class PlayerEpisode(val id: Long, val title: String, val podcastTitle: String?, val artworkUrl: String?, val showNotes: String? = null)
+data class PlayerEpisode(val id: Long, val title: String, val podcastTitle: String?, val artworkUrl: String?, val showNotes: String? = null, val link: String? = null)
 
 data class PlayerUiState(
     val episode: PlayerEpisode? = null,
@@ -54,10 +58,13 @@ sealed interface PlayerIntent {
     data class PlayQueued(val episodeId: Long) : PlayerIntent
     data class RemoveFromQueue(val episodeId: Long) : PlayerIntent
     data class MoveInQueue(val episodeId: Long, val toIndex: Int) : PlayerIntent
+    /** Share what is playing; whether a link goes with it is the user's setting at the moment of the tap. */
+    data object Share : PlayerIntent
 }
 
 sealed interface PlayerEvent {
     data class PlaybackFailed(val failure: PlaybackFailure) : PlayerEvent
+    data class Share(val subject: String, val text: String) : PlayerEvent
 }
 
 @HiltViewModel
@@ -66,6 +73,7 @@ class PlayerViewModel @Inject constructor(
     private val episodeDao: EpisodeDao,
     private val podcastDao: PodcastDao,
     private val queue: PlayQueue,
+    private val settings: SettingsStore,
 ) : ViewModel() {
     private val episodeCache = HashMap<Long, PlayerEpisode>()
 
@@ -87,7 +95,8 @@ class PlayerViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), PlayerUiState())
 
     /** Playback problems to tell the listener about, from whichever screen started playback. */
-    val events: Flow<PlayerEvent> = port.errors.map { PlayerEvent.PlaybackFailed(it) }
+    private val shares = Channel<PlayerEvent.Share>(Channel.BUFFERED)
+    val events: Flow<PlayerEvent> = merge(port.errors.map { PlayerEvent.PlaybackFailed(it) }, shares.receiveAsFlow())
 
     fun onIntent(intent: PlayerIntent) {
         val state = uiState.value
@@ -112,6 +121,9 @@ class PlayerViewModel @Inject constructor(
             is PlayerIntent.PlayQueued -> launch { port.play(intent.episodeId) }
             is PlayerIntent.RemoveFromQueue -> queue.remove(intent.episodeId)
             is PlayerIntent.MoveInQueue -> queue.move(intent.episodeId, intent.toIndex)
+            PlayerIntent.Share -> state.episode?.let {
+                shares.trySend(PlayerEvent.Share(it.title, shareText(it, settings.shareLink)))
+            }
         }
     }
 
@@ -133,7 +145,7 @@ class PlayerViewModel @Inject constructor(
     private suspend fun resolve(id: Long): PlayerEpisode? = episodeCache[id] ?: run {
         val episode = episodeDao.findById(id) ?: return null
         val podcast = podcastDao.findById(episode.podcastId)
-        PlayerEpisode(id, episode.title, podcast?.title, episode.imageUrl ?: podcast?.imageUrl, episode.description).also { episodeCache[id] = it }
+        PlayerEpisode(id, episode.title, podcast?.title, episode.imageUrl ?: podcast?.imageUrl, episode.description, episode.link ?: podcast?.link).also { episodeCache[id] = it }
     }
 
     private companion object {

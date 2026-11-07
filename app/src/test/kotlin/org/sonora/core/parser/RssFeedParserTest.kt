@@ -44,6 +44,16 @@ class RssFeedParserTest {
     }
 
     @Test
+    fun `parses the episode page link`() {
+        assertEquals("https://example.org/show/episodes/3", fixture("podcast.xml").episodes[0].link)
+    }
+
+    @Test
+    fun `episode link is null when the item has none`() {
+        assertNull(fixture("podcast.xml").episodes[1].link)
+    }
+
+    @Test
     fun `parses full episode`() {
         val ep = fixture("podcast.xml").episodes[0]
         assertEquals("ep-3-guid", ep.guid)

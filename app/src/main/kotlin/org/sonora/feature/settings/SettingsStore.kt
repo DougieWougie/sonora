@@ -26,6 +26,8 @@ interface SettingsStore {
     var hideExplicit: Boolean
     /** Whether the user has folded the Queue away. */
     var queueCollapsed: Boolean
+    /** Whether sharing an episode adds a link to it (or its show). */
+    var shareLink: Boolean
 
     /** Only while charging; background auto-downloads only. */
     var autoDownloadChargingOnly: Boolean

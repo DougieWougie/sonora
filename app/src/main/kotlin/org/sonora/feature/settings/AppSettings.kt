@@ -44,6 +44,10 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
         get() = prefs.getBoolean(QUEUE_COLLAPSED, false)
         set(value) = prefs.edit().putBoolean(QUEUE_COLLAPSED, value).apply()
 
+    override var shareLink: Boolean
+        get() = prefs.getBoolean(SHARE_LINK, true)
+        set(value) = prefs.edit().putBoolean(SHARE_LINK, value).apply()
+
     override var autoDownloadChargingOnly: Boolean
         get() = prefs.getBoolean(CHARGING_ONLY, false)
         set(value) = prefs.edit().putBoolean(CHARGING_ONLY, value).apply()
@@ -131,6 +135,7 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
         const val UNMETERED_ONLY = "auto_download_unmetered_only"
         const val HIDE_EXPLICIT = "hide_explicit"
         const val QUEUE_COLLAPSED = "queue_collapsed"
+        const val SHARE_LINK = "share_link"
         const val DELETE_PLAYED = "delete_downloads_when_played"
         const val MAX_STORAGE = "max_storage_bytes"
         const val CHARGING_ONLY = "auto_download_charging_only"
