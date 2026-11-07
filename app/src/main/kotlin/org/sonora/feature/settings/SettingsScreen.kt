@@ -124,6 +124,9 @@ internal fun SettingsContent(
                             SwitchRow("Colors from artwork", "Tint the app with the playing episode's cover", theme.preferences.artworkColors) {
                                 onThemeIntent(ThemeIntent.ToggleArtworkColors)
                             }
+                            SwitchRow("Include link when sharing", "Adds the episode's page, or the show's website, to what you share", state.shareLink) {
+                                onIntent(SettingsIntent.SetShareLink(it))
+                            }
                     }
                     }
                     SettingsSection.BackgroundSync -> {

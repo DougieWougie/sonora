@@ -57,6 +57,8 @@ data class EpisodeEntity(
     val downloadState: DownloadState = DownloadState.NONE,
     val downloadPath: String? = null,
     val downloadedBytes: Long = 0,
+    /** The episode's web page from the feed, when it gave one. */
+    val link: String? = null,
 )
 
 /** A local change that has not yet been pushed to the sync server. Timestamps are UTC epoch millis. */

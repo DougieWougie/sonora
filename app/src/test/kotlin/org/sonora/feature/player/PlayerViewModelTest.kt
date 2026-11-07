@@ -21,6 +21,7 @@ import org.sonora.core.media.PlaybackFailureReason
 import org.sonora.core.media.PlaybackProgress
 import org.sonora.core.media.PlaybackSource
 import org.sonora.testutil.FakePlaybackPort
+import org.sonora.testutil.FakeSettingsStore
 import org.sonora.testutil.MainDispatcherExtension
 import org.sonora.testutil.awaitUntil
 
@@ -33,7 +34,9 @@ class PlayerViewModelTest {
     private val podcasts = FakePodcastDao()
     private val queue = PersistentPlayQueue(FakeQueueStorage())
 
-    private fun vm() = PlayerViewModel(port, episodes, podcasts, queue)
+    private val settings = FakeSettingsStore()
+
+    private fun vm() = PlayerViewModel(port, episodes, podcasts, queue, settings)
 
     private suspend fun seed(count: Int = 3): List<Long> {
         val podcastId = podcasts.insert(PodcastEntity(feedUrl = "https://f", title = "Show", imageUrl = "https://art/show.png"))
@@ -321,5 +324,56 @@ class PlayerViewModelTest {
         }
         assertEquals(listOf("play:${ids[2]}"), port.calls)
         assertEquals(listOf(ids[2]), queue.items.value)
+    }
+
+    // --- sharing -----------------------------------------------------------------------------
+
+    private suspend fun seedLinked(episodeLink: String?, showLink: String?): Long {
+        val podcastId = podcasts.insert(PodcastEntity(feedUrl = "https://f", title = "Show", link = showLink))
+        episodes.insertAll(listOf(EpisodeEntity(podcastId = podcastId, guid = "s", title = "Shared", enclosureUrl = "https://e/s", link = episodeLink)))
+        return episodes.getForPodcast(podcastId).single().id
+    }
+
+    private suspend fun shared(vm: PlayerViewModel, id: Long): PlayerEvent.Share {
+        port.stateFlow.value = port.stateFlow.value.copy(episodeId = id)
+        var event: PlayerEvent? = null
+        vm.uiState.test {
+            awaitUntil { it.episode != null }
+            vm.events.test {
+                vm.onIntent(PlayerIntent.Share)
+                event = awaitItem()
+                cancelAndIgnoreRemainingEvents()
+            }
+            cancelAndIgnoreRemainingEvents()
+        }
+        return event as PlayerEvent.Share
+    }
+
+    @Test
+    fun `sharing includes the episode link by default`() = runTest {
+        val id = seedLinked(episodeLink = "https://site/ep", showLink = "https://site")
+        assertEquals("Shared — Show\nhttps://site/ep", shared(vm(), id).text)
+    }
+
+    @Test
+    fun `sharing falls back to the show website when the episode has no link`() = runTest {
+        val id = seedLinked(episodeLink = null, showLink = "https://site")
+        assertEquals("Shared — Show\nhttps://site", shared(vm(), id).text)
+    }
+
+    @Test
+    fun `sharing leaves the link out when the setting is off`() = runTest {
+        val id = seedLinked(episodeLink = "https://site/ep", showLink = "https://site")
+        settings.shareLink = false
+        assertEquals("Shared — Show", shared(vm(), id).text)
+    }
+
+    @Test
+    fun `sharing with nothing loaded does nothing`() = runTest {
+        val vm = vm()
+        vm.events.test {
+            vm.onIntent(PlayerIntent.Share)
+            expectNoEvents()
+        }
     }
 }

@@ -353,6 +353,18 @@ class SettingsAndSyncViewModelTest {
     }
 
     @Test
+    fun `the share link option is shown and saved`() = runTest {
+        val vm = vm()
+        assertTrue(vm.uiState.value.shareLink)
+
+        vm.onIntent(SettingsIntent.SetShareLink(false))
+        runCurrent()
+
+        assertFalse(settings.shareLink)
+        assertFalse(vm.uiState.value.shareLink)
+    }
+
+    @Test
     fun `shows the stored schedule, auto-download and retention preferences`() = runTest {
         settings.syncIntervalHours = 12
         settings.autoDownloadChargingOnly = true

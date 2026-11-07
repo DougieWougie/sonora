@@ -88,6 +88,7 @@ class RssFeedParser(private val factory: XmlPullParserFactory) {
         var duration: Long? = null
         var published: Long? = null
         var image: String? = null
+        var link: String? = null
 
         while (p.next() != XmlPullParser.END_TAG) {
             if (p.eventType == XmlPullParser.END_DOCUMENT) throw notRss(p)
@@ -95,6 +96,7 @@ class RssFeedParser(private val factory: XmlPullParserFactory) {
             when {
                 p.name == "guid" -> guid = p.readText().ifEmpty { null }
                 p.name == "title" && p.namespace.isEmpty() -> title = p.readText()
+                p.name == "link" && p.namespace.isEmpty() -> link = p.readText().trim().ifEmpty { null }
                 p.name == "description" -> description = p.readText().ifEmpty { null }
                 p.name == "summary" && p.namespace == ITUNES_NS -> {
                     val summary = p.readText().ifEmpty { null }
@@ -117,7 +119,7 @@ class RssFeedParser(private val factory: XmlPullParserFactory) {
             }
         }
         val url = enclosureUrl ?: return null
-        return ParsedEpisode(guid ?: url, title, showNotes ?: description, url, mimeType, size, duration, published, image)
+        return ParsedEpisode(guid ?: url, title, showNotes ?: description, url, mimeType, size, duration, published, image, link)
     }
 
     internal companion object {

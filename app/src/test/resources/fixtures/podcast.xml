@@ -8,6 +8,7 @@
     <itunes:image href="https://example.org/art/show.jpg"/>
     <item>
       <title>Episode 3: Full</title>
+      <link>https://example.org/show/episodes/3</link>
       <description>Third episode</description>
       <guid isPermaLink="false">ep-3-guid</guid>
       <pubDate>Tue, 03 Jun 2025 10:30:00 +0200</pubDate>

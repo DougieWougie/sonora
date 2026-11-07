@@ -187,12 +187,17 @@ internal fun SonoraScaffold(
     val navController = rememberNavController()
     val snackbar = remember { SnackbarHostState() }
     // The full player covers the scaffold, so while it is open errors are shown above it instead.
+    val context = LocalContext.current
     val fullPlayerSnackbar = remember { SnackbarHostState() }
     var expanded by rememberSaveable { mutableStateOf(false) }
     val currentExpanded by rememberUpdatedState(expanded)
     val currentOnPlayerIntent by rememberUpdatedState(onPlayerIntent)
     LaunchedEffect(playerEvents) {
         playerEvents.collect { event ->
+            if (event is PlayerEvent.Share) {
+                context.startActivity(Intent.createChooser(shareIntent(event), null))
+                return@collect
+            }
             if (event !is PlayerEvent.PlaybackFailed) return@collect
             val host = if (currentExpanded) fullPlayerSnackbar else snackbar
             val result = host.showSnackbar(
@@ -237,10 +242,7 @@ internal fun SonoraScaffold(
                 }
             }
             AnimatedVisibility(visible = hasEpisode && expanded, enter = fadeIn(), exit = fadeOut()) {
-                val context = LocalContext.current
-                FullPlayer(player, this, onPlayerIntent, onCollapse = { expanded = false }, onShare = {
-                    player.episode?.let { context.startActivity(Intent.createChooser(shareIntent(it), null)) }
-                })
+                FullPlayer(player, this, onPlayerIntent, onCollapse = { expanded = false }, onShare = { onPlayerIntent(PlayerIntent.Share) })
             }
             SnackbarHost(
                 fullPlayerSnackbar,

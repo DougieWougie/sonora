@@ -201,12 +201,23 @@ class SonoraScaffoldTest {
     }
 
     @Test
-    fun `sharing opens a chooser for the episode`() {
+    fun `the share button asks the player to share`() {
         playing()
         setContent()
         composeTestRule.onNodeWithTag(TestTags.MINI_PLAYER_BAR).performClick()
 
         composeTestRule.onNodeWithTag(TestTags.PLAYER_SHARE_BUTTON).performClick()
+
+        assertEquals(listOf<PlayerIntent>(PlayerIntent.Share), intents)
+    }
+
+    @Test
+    fun `a share event opens a chooser`() {
+        playing()
+        setContent()
+
+        events.trySend(PlayerEvent.Share("The Episode", "The Episode — The Podcast\nhttps://example.org/ep"))
+        composeTestRule.waitForIdle()
 
         val started = org.robolectric.Shadows.shadowOf(composeTestRule.activity).nextStartedActivity
         assertNotNull(started)

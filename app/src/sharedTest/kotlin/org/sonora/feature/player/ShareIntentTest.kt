@@ -10,16 +10,12 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class ShareIntentTest {
     @Test
-    fun sharesTheEpisodeAndShowAsPlainText() {
-        val intent = shareIntent(PlayerEpisode(1, "The Episode", "The Podcast", null))
+    fun sendsTheTextAsPlainTextWithTheTitleAsSubject() {
+        val intent = shareIntent(PlayerEvent.Share("The Episode", "The Episode — The Podcast\nhttps://example.org/ep"))
 
         assertEquals(Intent.ACTION_SEND, intent.action)
         assertEquals("text/plain", intent.type)
-        assertEquals("The Episode — The Podcast", intent.getStringExtra(Intent.EXTRA_TEXT))
-    }
-
-    @Test
-    fun sharesJustTheTitleWhenTheShowIsUnknown() {
-        assertEquals("The Episode", shareIntent(PlayerEpisode(1, "The Episode", null, null)).getStringExtra(Intent.EXTRA_TEXT))
+        assertEquals("The Episode", intent.getStringExtra(Intent.EXTRA_SUBJECT))
+        assertEquals("The Episode — The Podcast\nhttps://example.org/ep", intent.getStringExtra(Intent.EXTRA_TEXT))
     }
 }

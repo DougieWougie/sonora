@@ -61,6 +61,7 @@ class PodcastRepository(
         durationSeconds = durationSeconds,
         publishedAtMillis = publishedAtMillis,
         imageUrl = imageUrl,
+        link = link,
     )
 
     /** Copies feed-owned fields onto the stored row; playback and download state stay untouched. */
@@ -73,5 +74,6 @@ class PodcastRepository(
         durationSeconds = durationSeconds,
         publishedAtMillis = publishedAtMillis,
         imageUrl = imageUrl,
+        link = link,
     )
 }

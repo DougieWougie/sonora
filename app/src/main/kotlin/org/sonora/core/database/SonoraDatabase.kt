@@ -13,8 +13,8 @@ import androidx.room.RoomDatabase
         SyncStateEntity::class,
         SubscriptionChangeEntity::class,
     ],
-    version = 2,
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    version = 3,
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
     exportSchema = true,
 )
 abstract class SonoraDatabase : RoomDatabase() {
