@@ -57,7 +57,11 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
         // JUnit 5 for the plain tests; the vintage engine runs the JUnit 4 Compose/Robolectric ones.
-        unitTests.all { it.useJUnitPlatform() }
+        unitTests.all {
+            it.useJUnitPlatform()
+            // Robolectric and the JaCoCo agent append to the boot classpath, which makes the JVM warn that class-data sharing is off anyway.
+            it.jvmArgs("-Xshare:off")
+        }
     }
 
     // Compose UI tests live in one place and run both on the JVM (Robolectric) and on a device.
@@ -170,7 +174,7 @@ val generatedClass = Regex(
     "_Impl|/Hilt_|_HiltModules|_GeneratedInjector|_Factory|_MembersInjector|^dagger/|hilt_aggregated_deps|/BuildConfig|ComposableSingletons",
 )
 
-val verifyCoverage by tasks.registering {
+val verifyCoverage = tasks.register("verifyCoverage") {
     group = "verification"
     description = "Fails if debug unit-test line coverage of hand-written code is below $minimumLineCoverage%."
     dependsOn("createDebugUnitTestCoverageReport")

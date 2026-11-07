@@ -44,6 +44,7 @@ class AppModuleTest {
     fun tearDown() {
         server.close()
         db.close()
+        WorkManagerTestInitHelper.closeWorkDatabase()
         FakeAndroidKeyStore.uninstall()
     }
 
