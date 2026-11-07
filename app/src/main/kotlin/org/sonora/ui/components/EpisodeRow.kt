@@ -79,16 +79,41 @@ data class EpisodeSelection(val active: Boolean, val selected: Boolean, val onTo
  */
 @Composable
 fun SwipeableEpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: Modifier = Modifier, selection: EpisodeSelection? = null) {
+    SwipeActionRow(
+        item = item,
+        onSwipeRight = { actions.onToggleQueue(it) },
+        onSwipeLeft = { if (it.downloadState == DownloadState.DOWNLOADED) actions.onDeleteDownload(it) else actions.onDownload(it) },
+        modifier = modifier,
+        enabled = selection?.active != true,
+    ) {
+        EpisodeRow(item, actions, selection = selection)
+    }
+}
+
+/**
+ * The swipe behaviour on its own, for lists that draw their own rows: [onSwipeRight] and
+ * [onSwipeLeft] get the item as it is when the swipe lands, and the backdrop, drawn by [style], shows
+ * what they do. A null [onSwipeRight] turns that direction off.
+ */
+@Composable
+fun SwipeActionRow(
+    item: EpisodeItem,
+    onSwipeRight: ((EpisodeItem) -> Unit)?,
+    onSwipeLeft: (EpisodeItem) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    style: (SwipeToDismissBoxValue, EpisodeItem, ColorScheme) -> SwipeActionStyle = ::swipeActionStyle,
+    content: @Composable () -> Unit,
+) {
     val currentItem by rememberUpdatedState(item)
-    val currentActions by rememberUpdatedState(actions)
+    val currentRight by rememberUpdatedState(onSwipeRight)
+    val currentLeft by rememberUpdatedState(onSwipeLeft)
     val state = rememberSwipeToDismissBoxState()
     // Act once per swipe, then animate back to rest: the state change shows up in the row itself.
     LaunchedEffect(state.currentValue) {
         when (state.currentValue) {
-            SwipeToDismissBoxValue.StartToEnd -> currentActions.onToggleQueue(currentItem)
-            SwipeToDismissBoxValue.EndToStart ->
-                if (currentItem.downloadState == DownloadState.DOWNLOADED) currentActions.onDeleteDownload(currentItem)
-                else currentActions.onDownload(currentItem)
+            SwipeToDismissBoxValue.StartToEnd -> currentRight?.invoke(currentItem)
+            SwipeToDismissBoxValue.EndToStart -> currentLeft(currentItem)
             SwipeToDismissBoxValue.Settled -> return@LaunchedEffect
         }
         state.snapTo(SwipeToDismissBoxValue.Settled)
@@ -96,10 +121,10 @@ fun SwipeableEpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: 
     SwipeToDismissBox(
         state = state,
         modifier = modifier,
-        enableDismissFromStartToEnd = selection?.active != true,
-        enableDismissFromEndToStart = selection?.active != true,
+        enableDismissFromStartToEnd = enabled && onSwipeRight != null,
+        enableDismissFromEndToStart = enabled,
         backgroundContent = {
-            val style = swipeActionStyle(state.dismissDirection, item, MaterialTheme.colorScheme)
+            val style = style(state.dismissDirection, item, MaterialTheme.colorScheme)
             Box(
                 Modifier.fillMaxSize().background(style.container).padding(horizontal = 24.dp),
                 contentAlignment = style.alignment,
@@ -108,11 +133,11 @@ fun SwipeableEpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: 
             }
         },
     ) {
-        EpisodeRow(item, actions, selection = selection)
+        content()
     }
 }
 
-internal data class SwipeActionStyle(
+data class SwipeActionStyle(
     val icon: ImageVector?,
     val alignment: Alignment,
     val container: Color,
@@ -120,7 +145,7 @@ internal data class SwipeActionStyle(
 )
 
 /** Queue is primary, download is tertiary and deleting a download is error, so each swipe reads at a glance. */
-internal fun swipeActionStyle(direction: SwipeToDismissBoxValue, item: EpisodeItem, scheme: ColorScheme): SwipeActionStyle =
+fun swipeActionStyle(direction: SwipeToDismissBoxValue, item: EpisodeItem, scheme: ColorScheme): SwipeActionStyle =
     when (direction) {
         SwipeToDismissBoxValue.StartToEnd -> SwipeActionStyle(
             if (item.queued) Icons.Rounded.PlaylistRemove else Icons.AutoMirrored.Rounded.PlaylistAdd,

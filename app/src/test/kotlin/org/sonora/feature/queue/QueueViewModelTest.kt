@@ -18,7 +18,6 @@ import org.sonora.core.media.PersistentPlayQueue
 import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.testutil.FakeEpisodeActions
 import org.sonora.testutil.FakePlaybackPort
-import org.sonora.testutil.FakeSettingsStore
 import org.sonora.testutil.MainDispatcherExtension
 import org.sonora.testutil.awaitUntil
 
@@ -31,9 +30,8 @@ class QueueViewModelTest {
     private val queue = PersistentPlayQueue(FakeQueueStorage())
     private val actions = FakeEpisodeActions()
     private val playback = FakePlaybackPort()
-    private val settings = FakeSettingsStore()
 
-    private fun vm() = QueueViewModel(episodes, podcasts, queue, actions, playback, settings)
+    private fun vm() = QueueViewModel(episodes, podcasts, queue, actions, playback)
 
     private suspend fun seed(): List<Long> {
         val a = podcasts.insert(PodcastEntity(feedUrl = "https://a", title = "Alpha"))
@@ -53,6 +51,47 @@ class QueueViewModelTest {
             val state = awaitUntil { it.queue.isNotEmpty() }
             assertEquals(listOf("Ep 3", "Ep 1"), state.queue.map { it.title })
             assertTrue(state.queue.all { it.queued })
+        }
+    }
+
+    @Test
+    fun `new lists unplayed episodes from every podcast, newest first`() = runTest {
+        seed()
+
+        vm().uiState.test {
+            val state = awaitUntil { it.new.isNotEmpty() }
+            assertEquals(listOf("Ep 2", "Ep 3", "Ep 1"), state.new.map { it.title })
+            assertEquals(listOf("Beta", "Alpha", "Alpha"), state.new.map { it.podcastTitle })
+        }
+    }
+
+    @Test
+    fun `new flags episodes that are already queued and drops ones that get played`() = runTest {
+        val ids = seed()
+        queue.enqueue(ids[1])
+        val vm = vm()
+
+        vm.uiState.test {
+            val state = awaitUntil { it.new.isNotEmpty() }
+            assertEquals(listOf(true, false, false), state.new.map { it.queued })
+            episodes.update(episodes.rows.value.first { it.id == ids[1] }.copy(played = true))
+            assertEquals(listOf("Ep 3", "Ep 1"), awaitUntil { it.new.size == 2 }.new.map { it.title })
+        }
+    }
+
+    @Test
+    fun `new is capped so a big backlog stays cheap to show`() = runTest {
+        val p = podcasts.insert(PodcastEntity(feedUrl = "https://a", title = "Alpha"))
+        episodes.insertAll(
+            (1..NEW_EPISODES_LIMIT + 5).map {
+                EpisodeEntity(podcastId = p, guid = "g$it", title = "Ep $it", enclosureUrl = "https://e/$it", publishedAtMillis = it.toLong())
+            },
+        )
+
+        vm().uiState.test {
+            val state = awaitUntil { it.new.isNotEmpty() }
+            assertEquals(NEW_EPISODES_LIMIT, state.new.size)
+            assertEquals("Ep ${NEW_EPISODES_LIMIT + 5}", state.new.first().title)
         }
     }
 
@@ -272,40 +311,6 @@ class QueueViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(emptyList<String>(), actions.calls)
-    }
-
-    // --- collapsible sections ----------------------------------------------------------------
-
-    @Test
-    fun `the queue starts expanded`() = runTest {
-        vm().uiState.test {
-            assertTrue(awaitUntil { !it.isLoading }.queueExpanded)
-        }
-    }
-
-    @Test
-    fun `the queue starts as it was left`() = runTest {
-        settings.queueCollapsed = true
-
-        vm().uiState.test {
-            assertEquals(false, awaitUntil { !it.isLoading }.queueExpanded)
-        }
-    }
-
-    @Test
-    fun `toggling the queue flips it and saves it`() = runTest {
-        val vm = vm()
-        vm.uiState.test {
-            awaitUntil { !it.isLoading }
-
-            vm.onIntent(QueueIntent.ToggleSection(QueueSection.QUEUE))
-            awaitUntil { !it.queueExpanded }
-            assertTrue(settings.queueCollapsed)
-
-            vm.onIntent(QueueIntent.ToggleSection(QueueSection.QUEUE))
-            awaitUntil { it.queueExpanded }
-            assertEquals(false, settings.queueCollapsed)
-        }
     }
 
     @Test

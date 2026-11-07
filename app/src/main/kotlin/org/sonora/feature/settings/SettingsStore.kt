@@ -24,8 +24,8 @@ interface SettingsStore {
     var debugTools: Boolean
     /** Discover leaves out shows their directory marks explicit. */
     var hideExplicit: Boolean
-    /** Whether the user has folded the Queue away. */
-    var queueCollapsed: Boolean
+    /** Name of the Episodes segment the user last chose; null until they choose one. */
+    var episodesSegment: String?
     /** Whether sharing an episode adds a link to it (or its show). */
     var shareLink: Boolean
 

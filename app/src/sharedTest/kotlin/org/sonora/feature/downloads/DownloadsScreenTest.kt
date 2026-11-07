@@ -12,6 +12,9 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.test.swipeLeft
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -29,7 +32,6 @@ class DownloadsScreenTest {
 
     private val intents = mutableListOf<DownloadsIntent>()
     private var state by mutableStateOf(DownloadsUiState(isLoading = false))
-    private var backs = 0
 
     private fun item(id: Long, state: DownloadState, played: Boolean = false, bytes: Long = 0, total: Long? = null) = EpisodeItem(
         id = id, podcastId = 1, podcastTitle = "Show", title = "Episode $id", publishedAtMillis = null,
@@ -40,7 +42,7 @@ class DownloadsScreenTest {
     private fun setContent() {
         composeTestRule.setContent {
             MaterialExpressiveTheme {
-                DownloadsContent(state, onBack = { backs++ }, onIntent = { intents += it })
+                DownloadsContent(state, onIntent = { intents += it })
             }
         }
     }
@@ -68,16 +70,67 @@ class DownloadsScreenTest {
     }
 
     @Test
-    fun backIsReachable() {
+    fun itIsAnEmbeddedSegmentWithNoBackButton() {
         setContent()
 
-        composeTestRule.assertScreenHeading("Downloads")
-        composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_BACK).performClick()
+        composeTestRule.onNodeWithTag(TestTags.DOWNLOADS_BACK).assertDoesNotExist()
+    }
 
-        assertEquals(1, backs)
+    // --- swiping -----------------------------------------------------------------------------
+
+    @Test
+    fun swipingADownloadedEpisodeRightQueuesIt() {
+        state = DownloadsUiState(isLoading = false, downloaded = listOf(item(4, DownloadState.DOWNLOADED, bytes = 1_000)))
+        setContent()
+
+        composeTestRule.onNodeWithText("Episode 4").performTouchInput { swipeRight() }
+        composeTestRule.waitForIdle()
+
+        assertEquals(listOf<DownloadsIntent>(DownloadsIntent.ToggleQueue(4)), intents)
+    }
+
+    @Test
+    fun swipingADownloadedEpisodeLeftDeletesTheDownload() {
+        state = DownloadsUiState(isLoading = false, downloaded = listOf(item(4, DownloadState.DOWNLOADED, bytes = 1_000)))
+        setContent()
+
+        composeTestRule.onNodeWithText("Episode 4").performTouchInput { swipeLeft() }
+        composeTestRule.waitForIdle()
+
+        assertEquals(listOf<DownloadsIntent>(DownloadsIntent.Delete(4)), intents)
     }
 
     // --- active downloads --------------------------------------------------------------------
+
+    @Test
+    fun swipingAnActiveDownloadLeftCancelsIt() {
+        state = DownloadsUiState(
+            isLoading = false,
+            active = listOf(
+                ActiveDownload(item(1, DownloadState.DOWNLOADING, bytes = 100, total = 1_000), null),
+                ActiveDownload(item(2, DownloadState.QUEUED), WaitReason.WIFI),
+            ),
+        )
+        setContent()
+
+        composeTestRule.onNodeWithText("Episode 1").performTouchInput { swipeLeft() }
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Episode 2").performTouchInput { swipeLeft() }
+        composeTestRule.waitForIdle()
+
+        assertEquals(listOf<DownloadsIntent>(DownloadsIntent.Cancel(1), DownloadsIntent.Cancel(2)), intents)
+    }
+
+    @Test
+    fun swipingAnActiveDownloadRightDoesNothing() {
+        state = DownloadsUiState(isLoading = false, active = listOf(ActiveDownload(item(1, DownloadState.QUEUED), null)))
+        setContent()
+
+        composeTestRule.onNodeWithText("Episode 1").performTouchInput { swipeRight() }
+        composeTestRule.waitForIdle()
+
+        assertEquals(emptyList<DownloadsIntent>(), intents)
+    }
 
     @Test
     fun waitingDownloadsSayWhy() {
