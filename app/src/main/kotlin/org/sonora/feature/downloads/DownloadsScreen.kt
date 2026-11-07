@@ -25,7 +25,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -57,6 +59,8 @@ import org.sonora.feature.common.EpisodeItem
 import org.sonora.ui.components.ArtworkImage
 import org.sonora.ui.components.ScreenHeading
 import org.sonora.ui.components.SwipeActionRow
+import org.sonora.ui.components.SwipeActionStyle
+import org.sonora.ui.components.swipeActionStyle
 import org.sonora.ui.formatBytes
 import org.sonora.ui.formatUsageSummary
 
@@ -228,6 +232,26 @@ private fun SortChips(selected: DownloadSort, onIntent: (DownloadsIntent) -> Uni
 
 @Composable
 private fun ActiveRow(active: ActiveDownload, onIntent: (DownloadsIntent) -> Unit) {
+    SwipeActionRow(
+        item = active.item,
+        onSwipeRight = null,
+        onSwipeLeft = { onIntent(DownloadsIntent.Cancel(it.id)) },
+        style = ::cancelSwipeStyle,
+    ) {
+        ActiveListItem(active, onIntent)
+    }
+}
+
+/** Swiping an active download away cancels it, so the backdrop says so rather than offering a download. */
+private fun cancelSwipeStyle(direction: SwipeToDismissBoxValue, item: EpisodeItem, scheme: ColorScheme) =
+    if (direction == SwipeToDismissBoxValue.EndToStart) {
+        SwipeActionStyle(Icons.Rounded.Close, Alignment.CenterEnd, scheme.errorContainer, scheme.onErrorContainer)
+    } else {
+        swipeActionStyle(direction, item, scheme)
+    }
+
+@Composable
+private fun ActiveListItem(active: ActiveDownload, onIntent: (DownloadsIntent) -> Unit) {
     val item = active.item
     DownloadListItem(
         item = item,

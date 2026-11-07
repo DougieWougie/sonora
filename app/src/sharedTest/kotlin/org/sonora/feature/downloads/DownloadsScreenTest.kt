@@ -103,6 +103,36 @@ class DownloadsScreenTest {
     // --- active downloads --------------------------------------------------------------------
 
     @Test
+    fun swipingAnActiveDownloadLeftCancelsIt() {
+        state = DownloadsUiState(
+            isLoading = false,
+            active = listOf(
+                ActiveDownload(item(1, DownloadState.DOWNLOADING, bytes = 100, total = 1_000), null),
+                ActiveDownload(item(2, DownloadState.QUEUED), WaitReason.WIFI),
+            ),
+        )
+        setContent()
+
+        composeTestRule.onNodeWithText("Episode 1").performTouchInput { swipeLeft() }
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Episode 2").performTouchInput { swipeLeft() }
+        composeTestRule.waitForIdle()
+
+        assertEquals(listOf<DownloadsIntent>(DownloadsIntent.Cancel(1), DownloadsIntent.Cancel(2)), intents)
+    }
+
+    @Test
+    fun swipingAnActiveDownloadRightDoesNothing() {
+        state = DownloadsUiState(isLoading = false, active = listOf(ActiveDownload(item(1, DownloadState.QUEUED), null)))
+        setContent()
+
+        composeTestRule.onNodeWithText("Episode 1").performTouchInput { swipeRight() }
+        composeTestRule.waitForIdle()
+
+        assertEquals(emptyList<DownloadsIntent>(), intents)
+    }
+
+    @Test
     fun waitingDownloadsSayWhy() {
         state = DownloadsUiState(
             isLoading = false,
