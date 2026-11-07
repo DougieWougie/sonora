@@ -42,6 +42,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.sonora.core.model.DownloadState
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -332,6 +333,36 @@ class ExpressivePlayerSheetTest {
 
         state = state.copy(episode = episode.copy(showNotes = "<p> </p>"))
         composeTestRule.onNodeWithTag(TestTags.SHOW_NOTES).assertDoesNotExist()
+    }
+
+    @Test
+    fun tappingTheStreamingChipAsksToDownload() {
+        state = state.copy(source = PlaybackSource.STREAMING)
+        setContent(expanded = true)
+
+        composeTestRule.onNodeWithTag(TestTags.SOURCE_CHIP).performClick()
+
+        assertEquals(listOf<PlayerIntent>(PlayerIntent.DownloadCurrent), intents)
+    }
+
+    @Test
+    fun theStreamingChipShowsProgressAndIsInertWhileTheDownloadRuns() {
+        state = state.copy(source = PlaybackSource.STREAMING, downloadState = DownloadState.DOWNLOADING)
+        setContent(expanded = true)
+
+        composeTestRule.onNodeWithTag(TestTags.SOURCE_CHIP).assertTextEquals("Downloading…")
+        composeTestRule.onNodeWithTag(TestTags.SOURCE_CHIP).performClick()
+        assertTrue(intents.isEmpty())
+    }
+
+    @Test
+    fun theOfflineChipCannotBeTapped() {
+        state = state.copy(source = PlaybackSource.OFFLINE, downloadState = DownloadState.DOWNLOADED)
+        setContent(expanded = true)
+
+        composeTestRule.onNodeWithTag(TestTags.SOURCE_CHIP).performClick()
+
+        assertTrue(intents.isEmpty())
     }
 
     @Test

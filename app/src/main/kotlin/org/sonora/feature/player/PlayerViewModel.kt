@@ -10,6 +10,10 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -17,6 +21,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.sonora.core.database.EpisodeDao
+import org.sonora.core.download.EpisodeActions
+import org.sonora.core.model.DownloadState
 import org.sonora.core.database.PodcastDao
 import org.sonora.core.media.PlayQueue
 import org.sonora.core.media.PlaybackFailure
@@ -38,6 +44,8 @@ data class PlayerUiState(
     val sleepTimerRemainingMs: Long? = null,
     val source: PlaybackSource? = null,
     val upNext: List<PlayerEpisode> = emptyList(),
+    /** Where the loaded episode's download stands, for the chip that offers to fetch a streamed one. */
+    val downloadState: DownloadState = DownloadState.NONE,
 ) {
     val hasNext: Boolean get() = upNext.isNotEmpty()
 }
@@ -60,6 +68,8 @@ sealed interface PlayerIntent {
     data class MoveInQueue(val episodeId: Long, val toIndex: Int) : PlayerIntent
     /** Share what is playing; whether a link goes with it is the user's setting at the moment of the tap. */
     data object Share : PlayerIntent
+    /** Download what is playing; playback moves onto the file when it lands. */
+    data object DownloadCurrent : PlayerIntent
 }
 
 sealed interface PlayerEvent {
@@ -67,6 +77,9 @@ sealed interface PlayerEvent {
     data class Share(val subject: String, val text: String) : PlayerEvent
 }
 
+private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val port: PlaybackPort,
@@ -74,11 +87,17 @@ class PlayerViewModel @Inject constructor(
     private val podcastDao: PodcastDao,
     private val queue: PlayQueue,
     private val settings: SettingsStore,
+    private val actions: EpisodeActions,
 ) : ViewModel() {
     private val episodeCache = HashMap<Long, PlayerEpisode>()
 
-    val uiState: StateFlow<PlayerUiState> = combine(port.state, port.progress(), queue.items, ::Triple)
-        .map { (playback, progress, queued) ->
+    private val downloadState: Flow<DownloadState> = port.state.map { it.episodeId }.distinctUntilChanged()
+        .flatMapLatest { id ->
+            if (id == null) flowOf(DownloadState.NONE) else episodeDao.observeById(id).map { it?.downloadState ?: DownloadState.NONE }
+        }
+
+    val uiState: StateFlow<PlayerUiState> = combine(port.state, port.progress(), queue.items, downloadState, ::Quad)
+        .map { (playback, progress, queued, download) ->
             PlayerUiState(
                 episode = playback.episodeId?.let { resolve(it) },
                 isPlaying = playback.isPlaying,
@@ -90,6 +109,7 @@ class PlayerViewModel @Inject constructor(
                 sleepTimerRemainingMs = playback.sleepTimerRemainingMs,
                 source = playback.source,
                 upNext = queued.filter { it != playback.episodeId }.mapNotNull { resolve(it) },
+                downloadState = download,
             )
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), PlayerUiState())
@@ -124,6 +144,7 @@ class PlayerViewModel @Inject constructor(
             PlayerIntent.Share -> state.episode?.let {
                 shares.trySend(PlayerEvent.Share(it.title, shareText(it, settings.shareLink)))
             }
+            PlayerIntent.DownloadCurrent -> state.episode?.let { launch { actions.download(it.id) } }
         }
     }
 

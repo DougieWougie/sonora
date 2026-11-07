@@ -52,6 +52,10 @@ interface EpisodeDao {
     @Query("SELECT * FROM episode WHERE id = :id")
     suspend fun findById(id: Long): EpisodeEntity?
 
+    /** Emits the row again whenever it changes; null once it is gone. */
+    @Query("SELECT * FROM episode WHERE id = :id")
+    fun observeById(id: Long): Flow<EpisodeEntity?>
+
     /** Writes the playback position alone, so the periodic checkpoint need not read and rewrite the whole row. */
     @Query("UPDATE episode SET playbackPositionSeconds = :positionSeconds WHERE id = :id")
     suspend fun updatePosition(id: Long, positionSeconds: Long): Int

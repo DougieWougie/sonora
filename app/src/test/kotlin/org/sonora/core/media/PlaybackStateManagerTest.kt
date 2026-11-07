@@ -7,6 +7,7 @@ import app.cash.turbine.test
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -261,6 +262,154 @@ class PlaybackStateManagerTest {
         m.play(id)
 
         assertEquals(PlaybackSource.OFFLINE, m.state.value.source)
+    }
+
+    // --- switching from the stream to the download ---------------------------------------------
+
+    /** What the download manager does on completion: the row flips to DOWNLOADED and the file exists. */
+    private suspend fun finishDownload(id: Long, path: String = "/data/ep/g1.mp3") {
+        existingFiles = existingFiles + path
+        episodeDao.update(episodeDao.findById(id)!!.copy(downloadState = DownloadState.DOWNLOADED, downloadPath = path))
+    }
+
+    @Test
+    fun `switches to the downloaded file at the same position the moment it finishes`() = runTest {
+        val id = seed(position = 10)
+        val m = manager()
+        m.play(id)
+        engine.positionMs = 95_000
+        engine.calls.clear()
+
+        finishDownload(id)
+        runCurrent()
+
+        assertEquals("file:///data/ep/g1.mp3", engine.preparedUri)
+        assertEquals(95_000, engine.preparedStartMs)
+        assertEquals(listOf("prepare", "play"), engine.calls)
+        assertEquals(PlaybackSource.OFFLINE, m.state.value.source)
+        assertEquals(true, m.state.value.isPlaying)
+        assertEquals(id, m.state.value.episodeId)
+    }
+
+    @Test
+    fun `switching keeps the metadata of the episode`() = runTest {
+        val id = seed()
+        val m = manager()
+        m.play(id)
+        val before = engine.preparedMetadata
+
+        finishDownload(id)
+        runCurrent()
+
+        assertEquals(before, engine.preparedMetadata)
+    }
+
+    @Test
+    fun `switching while paused stays paused`() = runTest {
+        val id = seed()
+        val m = manager()
+        m.play(id)
+        m.pause()
+        engine.positionMs = 42_000
+        engine.calls.clear()
+
+        finishDownload(id)
+        runCurrent()
+
+        assertEquals(listOf("prepare"), engine.calls)
+        assertEquals(42_000, engine.preparedStartMs)
+        assertEquals(PlaybackSource.OFFLINE, m.state.value.source)
+        assertEquals(false, m.state.value.isPlaying)
+    }
+
+    @Test
+    fun `a download of another episode does not disturb playback`() = runTest {
+        val playing = seed(guid = "g1")
+        val other = seed(guid = "g2")
+        val m = manager()
+        m.play(playing)
+        engine.calls.clear()
+
+        finishDownload(other, "/data/ep/g2.mp3")
+        runCurrent()
+
+        assertTrue(engine.calls.isEmpty())
+        assertEquals(PlaybackSource.STREAMING, m.state.value.source)
+    }
+
+    @Test
+    fun `a download that finishes after switching episodes does not interrupt the new one`() = runTest {
+        val first = seed(guid = "g1")
+        val second = seed(guid = "g2")
+        val m = manager()
+        m.play(first)
+        m.play(second)
+        engine.calls.clear()
+
+        finishDownload(first)
+        runCurrent()
+
+        assertTrue(engine.calls.isEmpty())
+        assertEquals(second, m.state.value.episodeId)
+        assertEquals(PlaybackSource.STREAMING, m.state.value.source)
+    }
+
+    @Test
+    fun `a failed or in-progress download leaves the stream alone`() = runTest {
+        val id = seed()
+        val m = manager()
+        m.play(id)
+        engine.calls.clear()
+
+        for (state in listOf(DownloadState.QUEUED, DownloadState.DOWNLOADING, DownloadState.FAILED)) {
+            episodeDao.update(episodeDao.findById(id)!!.copy(downloadState = state))
+            runCurrent()
+        }
+
+        assertTrue(engine.calls.isEmpty())
+        assertEquals(PlaybackSource.STREAMING, m.state.value.source)
+    }
+
+    @Test
+    fun `stays on the stream when the finished file is missing`() = runTest {
+        val id = seed()
+        val m = manager()
+        m.play(id)
+        engine.calls.clear()
+
+        episodeDao.update(episodeDao.findById(id)!!.copy(downloadState = DownloadState.DOWNLOADED, downloadPath = "/gone.mp3"))
+        runCurrent()
+
+        assertTrue(engine.calls.isEmpty())
+        assertEquals(PlaybackSource.STREAMING, m.state.value.source)
+    }
+
+    @Test
+    fun `no switch happens after playback is stopped`() = runTest {
+        val id = seed()
+        val m = manager()
+        m.play(id)
+        m.stop()
+        engine.calls.clear()
+
+        finishDownload(id)
+        runCurrent()
+
+        assertTrue(engine.calls.isEmpty())
+    }
+
+    @Test
+    fun `playing an already downloaded episode does not switch again`() = runTest {
+        val id = seed(state = DownloadState.DOWNLOADED, path = "/data/ep/g1.mp3")
+        existingFiles = setOf("/data/ep/g1.mp3")
+        val m = manager()
+        m.play(id)
+        engine.calls.clear()
+
+        episodeDao.update(episodeDao.findById(id)!!.copy(played = true))
+        runCurrent()
+
+        assertTrue(engine.calls.isEmpty())
     }
 
     @Test

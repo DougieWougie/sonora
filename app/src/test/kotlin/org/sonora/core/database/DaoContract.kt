@@ -201,6 +201,18 @@ abstract class DaoContract {
     }
 
     @Test
+    fun `one episode is observed as it changes`() = runBlocking {
+        val id = podcast("https://a")
+        episodes.insertAll(listOf(episode(id, "e1", 100), episode(id, "e2", 200)))
+        val e1 = episodes.getForPodcast(id).first { it.guid == "e1" }
+
+        assertEquals(DownloadState.NONE, episodes.observeById(e1.id).first()!!.downloadState)
+        episodes.update(e1.copy(downloadState = DownloadState.DOWNLOADED))
+        assertEquals(DownloadState.DOWNLOADED, episodes.observeById(e1.id).first()!!.downloadState)
+        assertNull(episodes.observeById(9_999).first())
+    }
+
+    @Test
     fun `a podcast's episodes are observed newest first`() = runBlocking {
         val id = podcast("https://a")
         val other = podcast("https://b")

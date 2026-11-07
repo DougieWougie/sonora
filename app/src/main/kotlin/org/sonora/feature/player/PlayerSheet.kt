@@ -242,7 +242,7 @@ private fun SharedTransitionScope.PlayerDock(
         modifier = Modifier.fillMaxWidth().testTag(TestTags.PLAYER_DOCK),
     ) {
         Column(Modifier.navigationBarsPadding().padding(horizontal = 24.dp).padding(top = 8.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            state.source?.let { PlaybackSourceChip(it) }
+            state.source?.let { PlaybackSourceChip(it, downloadState = state.downloadState, onDownload = { onIntent(PlayerIntent.DownloadCurrent) }) }
             ExpressiveScrubber(
                 positionMs = state.positionMs,
                 durationMs = state.durationMs,

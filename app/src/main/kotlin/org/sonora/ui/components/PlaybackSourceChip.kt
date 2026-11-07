@@ -7,13 +7,16 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudQueue
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.DownloadDone
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -21,10 +24,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import org.sonora.core.media.PlaybackSource
+import org.sonora.core.model.DownloadState
 import org.sonora.core.testing.TestTags
 
 internal val PlaybackSource.label: String
@@ -43,10 +50,20 @@ internal val PlaybackSource.icon: ImageVector
  * A pill saying whether the audio is being streamed or played from the downloaded file. Streaming is
  * tonal-tertiary (it depends on the network); offline is secondary. The icon and label cross-morph
  * with spring motion when the source changes.
+ *
+ * While streaming, tapping it calls [onDownload]; once a download is queued or running it shows
+ * progress instead and ignores taps.
  */
 @Composable
-fun PlaybackSourceChip(source: PlaybackSource, modifier: Modifier = Modifier) {
+fun PlaybackSourceChip(
+    source: PlaybackSource,
+    modifier: Modifier = Modifier,
+    downloadState: DownloadState = DownloadState.NONE,
+    onDownload: (() -> Unit)? = null,
+) {
     val streaming = source == PlaybackSource.STREAMING
+    val busy = streaming && (downloadState == DownloadState.QUEUED || downloadState == DownloadState.DOWNLOADING)
+    val tappable = streaming && !busy && onDownload != null
     val enterEffects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     val exitEffects = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
     val spatial = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
@@ -54,23 +71,35 @@ fun PlaybackSourceChip(source: PlaybackSource, modifier: Modifier = Modifier) {
         shape = CircleShape,
         color = if (streaming) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer,
         contentColor = if (streaming) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSecondaryContainer,
-        modifier = modifier,
+        modifier = modifier
+            .testTag(TestTags.SOURCE_CHIP)
+            .semantics(mergeDescendants = true) {}
+            .then(
+                if (tappable) Modifier.clip(CircleShape).clickable(onClickLabel = "Download episode", role = Role.Button) { onDownload?.invoke() } else Modifier,
+            ),
     ) {
         AnimatedContent(
-            targetState = source,
+            targetState = source to busy,
             transitionSpec = {
                 (fadeIn(enterEffects) + scaleIn(spatial, initialScale = 0.8f)) togetherWith
                     (fadeOut(exitEffects) + scaleOut(spatial, targetScale = 0.8f))
             },
             label = "playbackSource",
-        ) { shown ->
+        ) { (shown, downloading) ->
             Row(
                 Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
             ) {
-                Icon(shown.icon, contentDescription = null, Modifier.size(18.dp))
-                Text(shown.label, Modifier.testTag(TestTags.SOURCE_CHIP), style = MaterialTheme.typography.labelLargeEmphasized)
+                if (downloading) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(shown.icon, contentDescription = null, Modifier.size(18.dp))
+                }
+                Text(if (downloading) "Downloading…" else shown.label, style = MaterialTheme.typography.labelLargeEmphasized)
+                if (tappable && shown == PlaybackSource.STREAMING) {
+                    Icon(Icons.Rounded.Download, contentDescription = null, Modifier.size(18.dp))
+                }
             }
         }
     }
