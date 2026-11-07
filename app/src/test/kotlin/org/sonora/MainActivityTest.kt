@@ -45,7 +45,10 @@ class MainActivityTest {
     }
 
     @After
-    fun tearDown() = FakeAndroidKeyStore.uninstall()
+    fun tearDown() {
+        WorkManagerTestInitHelper.closeWorkDatabase()
+        FakeAndroidKeyStore.uninstall()
+    }
 
     @Test
     fun `the activity starts, connects a media controller and stops it again`() {

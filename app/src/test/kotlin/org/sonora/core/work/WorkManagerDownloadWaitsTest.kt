@@ -13,6 +13,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,6 +39,9 @@ class WorkManagerDownloadWaitsTest {
 
     private suspend fun schedule(vararg ids: Long, unmeteredOnly: Boolean = false, chargingOnly: Boolean = false) =
         WorkManagerDownloadScheduler(context, manager).schedule(ids.toList(), unmeteredOnly, chargingOnly)
+
+    @After
+    fun closeWorkDatabase() = WorkManagerTestInitHelper.closeWorkDatabase()
 
     @Test
     fun `nothing is waiting when nothing is queued`() = runBlocking {

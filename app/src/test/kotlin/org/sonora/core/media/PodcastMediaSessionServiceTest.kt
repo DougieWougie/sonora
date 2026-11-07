@@ -66,6 +66,7 @@ class PodcastMediaSessionServiceTest {
     fun tearDown() {
         connected.forEach { it.release() }
         controller.destroy()
+        WorkManagerTestInitHelper.closeWorkDatabase()
         FakeAndroidKeyStore.uninstall()
     }
 
