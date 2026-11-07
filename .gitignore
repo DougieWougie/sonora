@@ -12,3 +12,6 @@ build/
 *.jks
 *.keystore
 .kotlin/
+
+# Local device screenshots (contain personal data)
+docs/screenshots/
