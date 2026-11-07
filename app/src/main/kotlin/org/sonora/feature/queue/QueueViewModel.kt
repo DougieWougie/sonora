@@ -24,16 +24,16 @@ import org.sonora.core.media.PlaybackPort
 import org.sonora.feature.common.EpisodeItem
 import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.feature.common.toItem
-import org.sonora.feature.settings.SettingsStore
 
-/** The foldable parts of the Queue tab. */
-enum class QueueSection { QUEUE }
+/** How many unplayed episodes the New segment shows at most. */
+const val NEW_EPISODES_LIMIT = 100
 
 data class QueueUiState(
     val queue: List<EpisodeItem> = emptyList(),
+    /** Unplayed episodes from every subscription, newest first. */
+    val new: List<EpisodeItem> = emptyList(),
     val pendingMarkOlder: PendingMarkOlder? = null,
     val confirmingClear: Boolean = false,
-    val queueExpanded: Boolean = true,
     val isLoading: Boolean = true,
 )
 
@@ -51,7 +51,6 @@ sealed interface QueueIntent {
     data object ClearQueue : QueueIntent
     data object PlayQueue : QueueIntent
     data object ShuffleQueue : QueueIntent
-    data class ToggleSection(val section: QueueSection) : QueueIntent
     data class Download(val episodeId: Long) : QueueIntent
     data class DeleteDownload(val episodeId: Long) : QueueIntent
     data class SetPlayed(val episodeId: Long, val played: Boolean) : QueueIntent
@@ -73,11 +72,9 @@ class QueueViewModel @Inject constructor(
     private val queue: PlayQueue,
     private val actions: EpisodeActions,
     private val playback: PlaybackPort,
-    private val settings: SettingsStore,
 ) : ViewModel() {
     private val pendingMarkOlder = MutableStateFlow<PendingMarkOlder?>(null)
     private val confirmingClear = MutableStateFlow(false)
-    private val queueExpanded = MutableStateFlow(!settings.queueCollapsed)
     private val _events = Channel<QueueEvent>(Channel.BUFFERED)
     val events: Flow<QueueEvent> = _events.receiveAsFlow()
 
@@ -85,20 +82,21 @@ class QueueViewModel @Inject constructor(
     private data class Chrome(
         val pendingMarkOlder: PendingMarkOlder?,
         val confirmingClear: Boolean,
-        val queueExpanded: Boolean,
     )
 
     val uiState: StateFlow<QueueUiState> = combine(
         podcastDao.observeAll(),
         queue.items,
-        combine(pendingMarkOlder, confirmingClear, queueExpanded, ::Chrome),
-    ) { podcasts, queued, chrome ->
+        episodeDao.observeUnplayed(NEW_EPISODES_LIMIT),
+        combine(pendingMarkOlder, confirmingClear, ::Chrome),
+    ) { podcasts, queued, unplayed, chrome ->
         val byId = podcasts.associateBy { it.id }
+        val queuedIds = queued.toSet()
         QueueUiState(
             queue = queued.mapNotNull { id -> episodeDao.findById(id)?.let { it.toItem(byId[it.podcastId], true) } },
+            new = unplayed.map { it.toItem(byId[it.podcastId], it.id in queuedIds) },
             pendingMarkOlder = chrome.pendingMarkOlder,
             confirmingClear = chrome.confirmingClear,
-            queueExpanded = chrome.queueExpanded,
             isLoading = false,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), QueueUiState())
@@ -117,12 +115,6 @@ class QueueViewModel @Inject constructor(
             QueueIntent.RequestClearQueue -> confirmingClear.value = queue.items.value.isNotEmpty()
             QueueIntent.DismissClearQueue -> confirmingClear.value = false
             QueueIntent.ClearQueue -> { confirmingClear.value = false; queue.clear() }
-            is QueueIntent.ToggleSection -> when (intent.section) {
-                QueueSection.QUEUE -> {
-                    queueExpanded.value = !queueExpanded.value
-                    settings.queueCollapsed = !queueExpanded.value
-                }
-            }
             QueueIntent.PlayQueue -> attempt { queue.items.value.firstOrNull()?.let { playback.play(it) } }
             QueueIntent.ShuffleQueue -> attempt {
                 queue.replaceAll(queue.items.value.shuffled())

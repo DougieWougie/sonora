@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.LibraryMusic
-import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -64,6 +64,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.toRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -76,8 +77,8 @@ import kotlin.reflect.KClass
 import kotlinx.serialization.Serializable
 import org.sonora.core.testing.TestTags
 import org.sonora.feature.discover.DiscoverScreen
-import org.sonora.feature.downloads.DownloadsScreen
-import org.sonora.feature.queue.QueueScreen
+import org.sonora.feature.episodes.EpisodeSegment
+import org.sonora.feature.episodes.EpisodesScreen
 import org.sonora.feature.subscriptions.SubscriptionsScreen
 import kotlinx.coroutines.flow.Flow
 import org.sonora.feature.player.FullPlayer
@@ -96,10 +97,9 @@ import org.sonora.ui.theme.ThemeState
 import org.sonora.ui.theme.ThemeViewModel
 
 @Serializable data object SubscriptionsRoute
-@Serializable data object QueueRoute
+@Serializable data class EpisodesRoute(val segment: EpisodeSegment? = null)
 @Serializable data object DiscoverRoute
 @Serializable data object SettingsRoute
-@Serializable data object DownloadsRoute
 
 /** Argument name must match [org.sonora.feature.podcast.PodcastDetailViewModel.ARG_PODCAST_ID]. */
 @Serializable data class PodcastRoute(val podcastId: Long)
@@ -109,7 +109,7 @@ internal const val PODCAST_LINK = "sonora://podcast"
 
 private enum class TopLevel(val route: Any, val routeClass: KClass<*>, val label: String, val icon: ImageVector) {
     Subscriptions(SubscriptionsRoute, SubscriptionsRoute::class, "Subscriptions", Icons.Rounded.LibraryMusic),
-    Queue(QueueRoute, QueueRoute::class, "Queue", Icons.Rounded.QueueMusic),
+    Episodes(EpisodesRoute(), EpisodesRoute::class, "Episodes", Icons.Rounded.Headphones),
     Discover(DiscoverRoute, DiscoverRoute::class, "Discover", Icons.Rounded.Explore),
     Settings(SettingsRoute, SettingsRoute::class, "Settings", Icons.Rounded.Settings),
 }
@@ -255,19 +255,17 @@ internal fun SonoraScaffold(
 /** The screens behind each route: slots so tests can put plain content behind the real navigation graph. */
 internal class AppScreens(
     val subscriptions: @Composable (onOpenPodcast: (Long) -> Unit, snackbar: SnackbarHostState) -> Unit,
-    val queue: @Composable (snackbar: SnackbarHostState, onOpenDownloads: () -> Unit) -> Unit,
+    val episodes: @Composable (segment: EpisodeSegment?, snackbar: SnackbarHostState) -> Unit,
     val discover: @Composable (snackbar: SnackbarHostState) -> Unit,
     val settings: @Composable (onOpenDownloads: () -> Unit) -> Unit,
-    val downloads: @Composable (onBack: () -> Unit, snackbar: SnackbarHostState) -> Unit,
     val podcast: @Composable (onBack: () -> Unit, snackbar: SnackbarHostState) -> Unit,
 )
 
 internal val HiltAppScreens = AppScreens(
     subscriptions = { onOpenPodcast, snackbar -> SubscriptionsScreen(onOpenPodcast = onOpenPodcast, snackbar = snackbar) },
-    queue = { snackbar, onOpenDownloads -> QueueScreen(snackbar, onOpenDownloads = onOpenDownloads) },
+    episodes = { segment, snackbar -> EpisodesScreen(segment, snackbar) },
     discover = { snackbar -> DiscoverScreen(snackbar) },
     settings = { onOpenDownloads -> SettingsScreen(onOpenDownloads = onOpenDownloads) },
-    downloads = { onBack, snackbar -> DownloadsScreen(onBack = onBack, snackbar = snackbar) },
     podcast = { onBack, snackbar -> PodcastDetailScreen(onBack = onBack, snackbar = snackbar) },
 )
 
@@ -290,10 +288,9 @@ internal fun AppNavHost(
         composable<SubscriptionsRoute> {
             screens.subscriptions({ navController.navigate(PodcastRoute(it)) }, snackbar)
         }
-        composable<QueueRoute> { screens.queue(snackbar) { navController.navigate(DownloadsRoute) } }
+        composable<EpisodesRoute> { screens.episodes(it.toRoute<EpisodesRoute>().segment, snackbar) }
         composable<DiscoverRoute> { screens.discover(snackbar) }
-        composable<SettingsRoute> { screens.settings { navController.navigate(DownloadsRoute) } }
-        composable<DownloadsRoute> { screens.downloads({ navController.popBackStack() }, snackbar) }
+        composable<SettingsRoute> { screens.settings { navController.navigateTop(EpisodesRoute(EpisodeSegment.DOWNLOADED), restore = false) } }
         composable<PodcastRoute>(deepLinks = listOf(navDeepLink<PodcastRoute>(basePath = PODCAST_LINK))) { screens.podcast({ navController.popBackStack() }, snackbar) }
     }
 }
@@ -389,10 +386,14 @@ private fun Modifier.swipeBetweenTabs(onSwipe: (direction: Int) -> Unit): Modifi
 
 private val SWIPE_DISTANCE = 72.dp
 
-private fun NavHostController.navigateTop(route: Any) = navigate(route) {
+/**
+ * Switches to a top-level screen. [restore] brings back what the tab last showed; a link that wants a
+ * particular view passes false so it lands there instead of on a stale one.
+ */
+private fun NavHostController.navigateTop(route: Any, restore: Boolean = true) = navigate(route) {
     popUpTo(graph.findStartDestination().id) { saveState = true }
     launchSingleTop = true
-    restoreState = true
+    restoreState = restore
 }
 
 @Composable

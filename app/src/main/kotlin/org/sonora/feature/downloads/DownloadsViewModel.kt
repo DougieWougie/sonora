@@ -23,6 +23,7 @@ import org.sonora.core.download.DownloadWaits
 import org.sonora.core.download.EpisodeActions
 import org.sonora.core.download.EvictionNotices
 import org.sonora.core.download.WaitReason
+import org.sonora.core.media.PlayQueue
 import org.sonora.core.media.PlaybackPort
 import org.sonora.core.model.DownloadState
 import org.sonora.feature.common.EpisodeItem
@@ -62,6 +63,8 @@ sealed interface DownloadsIntent {
     data class SetSort(val sort: DownloadSort) : DownloadsIntent
     data class Play(val episodeId: Long) : DownloadsIntent
     data class Delete(val episodeId: Long) : DownloadsIntent
+    /** Adds the episode to the queue, or takes it out if it is already there. */
+    data class ToggleQueue(val episodeId: Long) : DownloadsIntent
     data class Cancel(val episodeId: Long) : DownloadsIntent
     data class Retry(val episodeId: Long) : DownloadsIntent
     data object DeleteAllPlayed : DownloadsIntent
@@ -93,6 +96,7 @@ class DownloadsViewModel @Inject constructor(
     waits: DownloadWaits,
     private val settings: SettingsStore,
     private val notices: EvictionNotices,
+    private val queue: PlayQueue,
 ) : ViewModel() {
     private val sort = MutableStateFlow(DownloadSort.NEWEST)
 
@@ -104,10 +108,11 @@ class DownloadsViewModel @Inject constructor(
         podcastDao.observeAll(),
         waits.observe(),
         sort,
-        notices.unplayedRemoved,
-    ) { episodes, podcasts, reasons, sort, evicted ->
+        combine(notices.unplayedRemoved, queue.items, ::Pair),
+    ) { episodes, podcasts, reasons, sort, (evicted, queued) ->
         val byId = podcasts.associateBy { it.id }
-        val items = episodes.map { it.toItem(byId[it.podcastId], queued = false) }
+        val queuedIds = queued.toSet()
+        val items = episodes.map { it.toItem(byId[it.podcastId], queued = it.id in queuedIds) }
         val downloaded = items.filter { it.downloadState == DownloadState.DOWNLOADED }
         DownloadsUiState(
             isLoading = false,
@@ -127,6 +132,8 @@ class DownloadsViewModel @Inject constructor(
         when (intent) {
             is DownloadsIntent.SetSort -> sort.value = intent.sort
             is DownloadsIntent.Play -> attempt { playback.play(intent.episodeId) }
+            is DownloadsIntent.ToggleQueue ->
+                if (intent.episodeId in queue.items.value) queue.remove(intent.episodeId) else queue.enqueue(intent.episodeId)
             is DownloadsIntent.Delete -> attempt { actions.deleteDownload(intent.episodeId) }
             is DownloadsIntent.Cancel -> attempt { actions.cancelDownload(intent.episodeId) }
             is DownloadsIntent.Retry -> attempt { actions.download(intent.episodeId) }

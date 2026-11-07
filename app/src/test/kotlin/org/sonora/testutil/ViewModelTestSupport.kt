@@ -109,7 +109,7 @@ class FakeSettingsStore : SettingsStore {
     override var allowCleartext = false
     override var debugTools = false
     override var hideExplicit = true
-    override var queueCollapsed = false
+    override var episodesSegment: String? = null
     override var shareLink = true
     override var autoDownloadChargingOnly = false
     override var autoDownloadPerPodcast = 3

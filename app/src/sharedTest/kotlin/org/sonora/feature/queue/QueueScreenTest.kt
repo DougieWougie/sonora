@@ -3,7 +3,6 @@ package org.sonora.feature.queue
 
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialExpressiveTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -53,7 +52,6 @@ class QueueScreenTest {
                     state,
                     EpisodeActionsUi({ played += it }, {}, {}, {}, { _, _ -> }, {}, onPlayNext = {}),
                     { intents += it },
-                    downloadsLink = { Text("Manage downloads") },
                 )
             }
         }
@@ -71,19 +69,16 @@ class QueueScreenTest {
     fun `an empty queue explains itself`() {
         setContent()
 
-        // The visible Queue header is the screen heading, so there is no separate hidden one.
-        composeTestRule.onAllNodes(isHeading() and hasText("Queue")).assertCountEquals(1)
-        composeTestRule.onNodeWithText("Manage downloads").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Manage downloads").assertDoesNotExist()
         composeTestRule.onNodeWithText("Swipe an episode right to queue it.").assertIsDisplayed()
         composeTestRule.onNodeWithText("Clear").assertDoesNotExist()
     }
 
     @Test
-    fun `queued episodes are listed under the Queue heading`() {
+    fun `queued episodes are listed`() {
         state = state.copy(queue = listOf(item(1, "Queued one")))
         setContent()
 
-        composeTestRule.onNodeWithText("Queue").assertIsDisplayed()
         composeTestRule.onNodeWithText("Up next").assertDoesNotExist()
         composeTestRule.onNodeWithText("Queued one").assertIsDisplayed()
         composeTestRule.onNodeWithText("Inbox").assertDoesNotExist()
@@ -210,51 +205,57 @@ class QueueScreenTest {
         state = state.copy(queue = listOf(item(1, "Q1"), item(2, "Q2")))
         setContent()
 
-        composeTestRule.onNodeWithText("2", substring = false).assertIsDisplayed()
+        composeTestRule.onNodeWithText("2 in queue").assertIsDisplayed()
     }
 
     @Test
-    fun `an expanded queue offers to collapse and a collapsed one to expand`() {
+    fun `the queue is always open, so there is nothing to fold`() {
+        state = state.copy(queue = listOf(item(1, "Queued one")))
         setContent()
 
-        composeTestRule.onNodeWithContentDescription("Collapse Queue").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Collapse Queue").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("Expand Queue").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Queued one").assertIsDisplayed()
+    }
 
-        state = state.copy(queueExpanded = false)
-        composeTestRule.onNodeWithContentDescription("Expand Queue").assertIsDisplayed()
+    // --- New segment ---------------------------------------------------------------------------
+
+    private fun setNewContent() {
+        composeTestRule.setContent {
+            MaterialExpressiveTheme {
+                NewEpisodesContent(
+                    state,
+                    EpisodeActionsUi({ played += it }, {}, {}, {}, { _, _ -> }, {}, onPlayNext = {}),
+                    { intents += it },
+                )
+            }
+        }
     }
 
     @Test
-    fun `the chevron and the title both toggle the queue`() {
-        setContent()
+    fun `new episodes are listed and tapping one plays it`() {
+        val fresh = item(5, "Fresh one")
+        state = state.copy(new = listOf(fresh, item(6, "Fresh two")))
+        setNewContent()
 
-        composeTestRule.onNodeWithContentDescription("Collapse Queue").performClick()
-        composeTestRule.onNodeWithText("Queue").performClick()
+        composeTestRule.onNodeWithText("Fresh two").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Fresh one").performClick()
 
-        assertEquals(
-            listOf<QueueIntent>(
-                QueueIntent.ToggleSection(QueueSection.QUEUE),
-                QueueIntent.ToggleSection(QueueSection.QUEUE),
-            ),
-            intents,
-        )
+        assertEquals(listOf(fresh), played)
     }
 
     @Test
-    fun `a collapsed queue hides its episodes and hint but keeps its actions`() {
-        state = state.copy(queue = listOf(item(1, "Queued one")), queueExpanded = false)
-        setContent()
+    fun `with nothing new the segment says you are caught up`() {
+        setNewContent()
 
-        composeTestRule.onNodeWithText("Queued one").assertDoesNotExist()
-        composeTestRule.onNodeWithContentDescription("Play queue").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("Shuffle queue").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Clear").assertIsDisplayed()
+        composeTestRule.onNodeWithText("You're all caught up.").assertIsDisplayed()
     }
 
     @Test
-    fun `a collapsed empty queue does not show its hint`() {
-        state = state.copy(queueExpanded = false)
-        setContent()
+    fun `while loading the new segment shows only a spinner`() {
+        state = QueueUiState(isLoading = true)
+        setNewContent()
 
-        composeTestRule.onNodeWithText("Swipe an episode right to queue it.").assertDoesNotExist()
+        composeTestRule.onNodeWithText("You're all caught up.").assertDoesNotExist()
     }
 }

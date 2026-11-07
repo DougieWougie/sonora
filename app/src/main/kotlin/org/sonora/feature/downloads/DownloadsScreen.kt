@@ -56,40 +56,19 @@ import org.sonora.core.testing.TestTags
 import org.sonora.feature.common.EpisodeItem
 import org.sonora.ui.components.ArtworkImage
 import org.sonora.ui.components.ScreenHeading
+import org.sonora.ui.components.SwipeActionRow
 import org.sonora.ui.formatBytes
 import org.sonora.ui.formatUsageSummary
 
 @Composable
-fun DownloadsScreen(
-    onBack: () -> Unit,
-    snackbar: SnackbarHostState,
-    modifier: Modifier = Modifier,
-    viewModel: DownloadsViewModel = hiltViewModel(),
-) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-    LaunchedEffect(viewModel) {
-        viewModel.events.collect { if (it is DownloadsEvent.Message) snackbar.showSnackbar(it.text) }
-    }
-    DownloadsContent(state, onBack, viewModel::onIntent, modifier)
-}
-
-@Composable
 fun DownloadsContent(
     state: DownloadsUiState,
-    onBack: () -> Unit,
     onIntent: (DownloadsIntent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var confirmingDeletePlayed by remember { mutableStateOf(false) }
 
     Column(modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp).testTag(TestTags.DOWNLOADS_BACK)) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-            }
-            ScreenHeading("Downloads")
-        }
-
         if (state.isLoading) {
             Box(Modifier.fillMaxSize(), Alignment.Center) { LoadingIndicator() }
             return@Column
@@ -296,6 +275,17 @@ private fun FailedRow(item: EpisodeItem, onIntent: (DownloadsIntent) -> Unit) {
 
 @Composable
 private fun DownloadedRow(item: EpisodeItem, onIntent: (DownloadsIntent) -> Unit) {
+    SwipeActionRow(
+        item = item,
+        onSwipeRight = { onIntent(DownloadsIntent.ToggleQueue(it.id)) },
+        onSwipeLeft = { onIntent(DownloadsIntent.Delete(it.id)) },
+    ) {
+        DownloadedListItem(item, onIntent)
+    }
+}
+
+@Composable
+private fun DownloadedListItem(item: EpisodeItem, onIntent: (DownloadsIntent) -> Unit) {
     DownloadListItem(
         item = item,
         modifier = Modifier.clickable { onIntent(DownloadsIntent.Play(item.id)) },
