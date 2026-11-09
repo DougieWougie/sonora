@@ -15,13 +15,12 @@ class FeedFetchException(message: String, val transient: Boolean) : IOException(
 
 /** Downloads and parses a feed in one streaming pass; the body is never buffered as a string. */
 class OkHttpFeedFetcher(
-    client: OkHttpClient,
+    private val client: OkHttpClient,
     private val parser: RssFeedParser,
     private val ioDispatcher: CoroutineDispatcher,
     private val userAgent: String,
     private val allowCleartext: Boolean = false,
 ) : FeedFetcher {
-    private val client = client.withTransportPolicy(allowCleartext)
 
     override suspend fun fetch(feedUrl: String): ParsedFeed {
         if (!isTransportAllowed(feedUrl, allowCleartext)) {
