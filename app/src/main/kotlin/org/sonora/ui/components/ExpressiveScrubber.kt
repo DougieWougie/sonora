@@ -25,6 +25,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -62,11 +63,7 @@ fun ExpressiveScrubber(
     val enabled = durationMs > 0
     val playedFraction = if (enabled) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
     val fraction = if (dragging) dragFraction else playedFraction
-    val amplitude by animateFloatAsState(
-        targetValue = if (isPlaying && !dragging) 1f else 0f,
-        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
-        label = "waveAmplitude",
-    )
+    val waving = isPlaying && !dragging
     val shownPosition = if (dragging) (dragFraction * durationMs).toLong() else positionMs
 
     val sliderState = rememberSliderState(value = playedFraction)
@@ -127,11 +124,15 @@ fun ExpressiveScrubber(
                                 )
                             }
                         }
-                        LinearWavyProgressIndicator(
-                            progress = { fraction },
-                            amplitude = { amplitude },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+                        // The indicator does not redraw when its amplitude changes (a pause left the wave standing until
+                        // the next position tick), so each state gets its own indicator with a fixed amplitude.
+                        key(waving) {
+                            LinearWavyProgressIndicator(
+                                progress = { fraction },
+                                amplitude = { if (waving) 1f else 0f },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
                 },
             )
