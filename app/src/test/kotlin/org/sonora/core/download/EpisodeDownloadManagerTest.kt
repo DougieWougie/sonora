@@ -16,6 +16,7 @@ import okio.Buffer
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -89,6 +90,7 @@ class EpisodeDownloadManagerTest {
         MockResponse.Builder().body(Buffer().write(body)).build()
 
     private fun partFile(id: Long) = File(dir, "episode-$id.mp3.part")
+    private fun validatorFile(id: Long) = File(dir, "episode-$id.mp3.part.validator")
     private fun finalFile(id: Long) = File(dir, "episode-$id.mp3")
 
     // --- streaming download ------------------------------------------------------------------
@@ -196,6 +198,77 @@ class EpisodeDownloadManagerTest {
         manager.downloadToCompletion(id)
 
         assertArrayEquals(payload, finalFile(id).readBytes())
+    }
+
+    /** A first attempt that drops half way, so a partial file and its validator are left behind. */
+    private suspend fun interruptedFirstAttempt(id: Long, vararg headers: Pair<String, String>) {
+        server.enqueue(
+            MockResponse.Builder().apply { headers.forEach { (k, v) -> addHeader(k, v) } }
+                .body(Buffer().write(payload)).onResponseBody(SocketEffect.CloseSocket()).build(),
+        )
+        assertThrows<DownloadException> { manager.downloadToCompletion(id) }
+        server.takeRequest()
+    }
+
+    @Test
+    fun `a resume sends the first response's strong ETag as If-Range`() = runTest {
+        val id = seed()
+        interruptedFirstAttempt(id, "ETag" to "\"v1\"")
+        assertTrue(partFile(id).length() > 0)
+        server.enqueue(ok())
+
+        manager.downloadToCompletion(id)
+
+        val resume = server.takeRequest().headers
+        assertEquals("\"v1\"", resume["If-Range"])
+        assertTrue(resume["Range"]!!.startsWith("bytes="))
+    }
+
+    @Test
+    fun `Last-Modified is the validator when there is no ETag, and a weak ETag is never used`() = runTest {
+        val modified = "Wed, 21 Oct 2015 07:28:00 GMT"
+        val withDate = seed(guid = "d", path = "/d.mp3")
+        interruptedFirstAttempt(withDate, "Last-Modified" to modified, "ETag" to "W/\"weak\"")
+        server.enqueue(ok())
+        manager.downloadToCompletion(withDate)
+        assertEquals(modified, server.takeRequest().headers["If-Range"])
+
+        val weakOnly = seed(guid = "w", path = "/w.mp3")
+        interruptedFirstAttempt(weakOnly, "ETag" to "W/\"weak\"")
+        server.enqueue(ok())
+        manager.downloadToCompletion(weakOnly)
+        val resume = server.takeRequest().headers
+        assertNull(resume["If-Range"])
+        assertNotNull(resume["Range"]) // still resumes, as before, when the server offers nothing to validate with
+    }
+
+    @Test
+    fun `a changed file restarts from zero and the new validator replaces the old`() = runTest {
+        val id = seed()
+        interruptedFirstAttempt(id, "ETag" to "\"v1\"")
+        val replacement = ByteArray(payload.size) { (it % 7).toByte() }
+        server.enqueue(MockResponse.Builder().addHeader("ETag", "\"v2\"").body(Buffer().write(replacement)).build())
+
+        manager.downloadToCompletion(id)
+
+        assertEquals("\"v1\"", server.takeRequest().headers["If-Range"])
+        assertArrayEquals(replacement, finalFile(id).readBytes())
+    }
+
+    @Test
+    fun `the validator is removed with the partial file once the download completes or is deleted`() = runTest {
+        val finished = seed()
+        interruptedFirstAttempt(finished, "ETag" to "\"v1\"")
+        assertTrue(validatorFile(finished).isFile)
+        server.enqueue(ok())
+        manager.downloadToCompletion(finished)
+        assertFalse(validatorFile(finished).exists())
+
+        val abandoned = seed(guid = "x", path = "/x.mp3")
+        interruptedFirstAttempt(abandoned, "ETag" to "\"v1\"")
+        manager.deleteDownload(abandoned)
+        assertFalse(validatorFile(abandoned).exists())
+        assertFalse(partFile(abandoned).exists())
     }
 
     @Test
