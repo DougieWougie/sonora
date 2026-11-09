@@ -128,6 +128,18 @@ abstract class DaoContract {
     }
 
     @Test
+    fun `updateDownloadPath changes only the path and reports whether a row matched`() = runBlocking {
+        val id = podcast("https://a")
+        episodes.insertAll(listOf(episode(id, "e1", state = DownloadState.DOWNLOADED)))
+        val before = episodes.getForPodcast(id).single()
+
+        assertEquals(1, episodes.updateDownloadPath(before.id, "/new/e1.mp3"))
+        assertEquals(0, episodes.updateDownloadPath(before.id + 100, "/x"))
+
+        assertEquals(before.copy(downloadPath = "/new/e1.mp3"), episodes.getForPodcast(id).single())
+    }
+
+    @Test
     fun `deleteById removes only that episode`() = runBlocking {
         val id = podcast("https://a")
         episodes.insertAll(listOf(episode(id, "e1"), episode(id, "e2")))

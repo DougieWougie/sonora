@@ -93,6 +93,11 @@ class FakeEpisodeDao : EpisodeDao {
         rows.value = rows.value.map { if (it.id == id) it.copy(playbackPositionSeconds = positionSeconds) else it }
         return if (found) 1 else 0
     }
+    override suspend fun updateDownloadPath(id: Long, path: String): Int {
+        val found = rows.value.any { it.id == id }
+        rows.value = rows.value.map { if (it.id == id) it.copy(downloadPath = path) else it }
+        return if (found) 1 else 0
+    }
     override suspend fun getByDownloadState(state: org.sonora.core.model.DownloadState) =
         rows.value.filter { it.downloadState == state }
     override suspend fun getOlderUnplayed(podcastId: Long, publishedBefore: Long) =

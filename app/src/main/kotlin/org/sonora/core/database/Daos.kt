@@ -60,6 +60,10 @@ interface EpisodeDao {
     @Query("UPDATE episode SET playbackPositionSeconds = :positionSeconds WHERE id = :id")
     suspend fun updatePosition(id: Long, positionSeconds: Long): Int
 
+    /** Repoints a finished download at a new file location, touching nothing else. */
+    @Query("UPDATE episode SET downloadPath = :path WHERE id = :id")
+    suspend fun updateDownloadPath(id: Long, path: String): Int
+
     /** Only used by the debug "drop newest episode" action, to rehearse the new-episode path. */
     @Query("DELETE FROM episode WHERE id = :id")
     suspend fun deleteById(id: Long)
