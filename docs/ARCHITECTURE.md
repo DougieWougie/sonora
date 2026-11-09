@@ -175,6 +175,10 @@ the Android Keystore.
   `QueueViewModel`; New is the newest unplayed episodes across subscriptions, capped at
   `NEW_EPISODES_LIMIT`) and Downloaded (`DownloadsViewModel`: usage, active, failed and downloaded
   episodes). Settings' "Manage downloads" opens the tab on the Downloaded segment.
+- List queries return `EpisodeRow` (no description); the podcast page reads descriptions only while a search is
+  active, debounces the query and filters on a default dispatcher. Playback progress is a separate flow
+  (`PlayerViewModel.progress`) so only the scrubber and the mini player's bar follow the position. Pull-to-refresh on
+  a podcast page fetches that feed alone; the library-wide sync is the background worker and the Subscriptions tab.
 - Each feature follows the same shape: a `@HiltViewModel` exposes immutable UI state as a
   `StateFlow` and accepts user actions as methods or `Intent` types, and a stateless-ish Composable
   renders it. ViewModels read DAOs and repositories directly; there is no separate use-case layer.

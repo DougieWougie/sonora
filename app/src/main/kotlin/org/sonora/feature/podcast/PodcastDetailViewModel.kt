@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import org.sonora.di.DefaultDispatcher
+import org.sonora.core.sync.FeedFetcher
+import org.sonora.core.database.PodcastRepository
 import org.sonora.core.database.EpisodeRow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOn
@@ -121,6 +123,8 @@ class PodcastDetailViewModel @Inject constructor(
     private val playback: PlaybackPort,
     private val settings: SettingsStore,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
+    private val podcastRepository: PodcastRepository,
+    private val feedFetcher: FeedFetcher,
 ) : ViewModel() {
     private data class Controls(
         val filter: EpisodeFilter = EpisodeFilter.ALL,
@@ -135,6 +139,9 @@ class PodcastDetailViewModel @Inject constructor(
     )
     private val playChoice = PlayChoice(queue, playback)
     private val controls = MutableStateFlow(Controls())
+
+    /** True while this page's own feed is being fetched (the background sync reports through [SyncController]). */
+    private val refreshingFeed = MutableStateFlow(false)
     private val _events = Channel<PodcastDetailEvent>(Channel.BUFFERED)
     val events: Flow<PodcastDetailEvent> = _events.receiveAsFlow()
 
@@ -172,7 +179,7 @@ class PodcastDetailViewModel @Inject constructor(
         matching,
         controls,
         combine(queue.items, playChoice.pending, ::Pair),
-        sync.syncing,
+        combine(sync.syncing, refreshingFeed) { syncing, refreshing -> syncing || refreshing },
     ) { podcast, matching, controls, (queued, pendingPlay), syncing ->
         val header = podcast?.toHeader()?.also { lastHeader = it } ?: lastHeader
         val subscribed = podcast != null
@@ -246,7 +253,28 @@ class PodcastDetailViewModel @Inject constructor(
                     _events.trySend(PodcastDetailEvent.Message("Notifications are off for this show, so it will not notify"))
                 }
             }
-            PodcastDetailIntent.Refresh -> sync.syncNow()
+            PodcastDetailIntent.Refresh -> refreshThisFeed()
+        }
+    }
+
+    /**
+     * Pull-to-refresh on a podcast page fetches and merges just that feed, rather than queueing the whole
+     * library's sync. New-episode notifications and auto-downloads still wait for the background sync.
+     */
+    private fun refreshThisFeed() {
+        val feedUrl = lastHeader?.feedUrl ?: return
+        if (refreshingFeed.value || !uiState.value.subscribed) return
+        refreshingFeed.value = true
+        viewModelScope.launch {
+            try {
+                podcastRepository.refresh(feedUrl, feedFetcher.fetch(feedUrl))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _events.trySend(PodcastDetailEvent.Message("Couldn't refresh: ${e.message ?: "something went wrong"}"))
+            } finally {
+                refreshingFeed.value = false
+            }
         }
     }
 

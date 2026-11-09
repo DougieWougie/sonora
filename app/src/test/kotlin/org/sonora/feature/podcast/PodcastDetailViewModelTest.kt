@@ -18,6 +18,10 @@ import org.sonora.core.database.FakeSubscriptionChangeDao
 import org.sonora.core.database.FakeTransactionRunner
 import org.sonora.core.database.MutableClock
 import org.sonora.core.database.PodcastEntity
+import org.sonora.core.database.PodcastRepository
+import org.sonora.core.model.ParsedEpisode
+import org.sonora.core.sync.FeedFetcher
+import org.sonora.core.model.ParsedFeed
 import org.sonora.core.database.SubscriptionRepository
 import org.sonora.core.media.FakeQueueStorage
 import org.sonora.core.media.PersistentPlayQueue
@@ -60,6 +64,11 @@ class PodcastDetailViewModelTest {
         )
     }
 
+    /** What the single-feed fetch returns; a thrown error stands in for a network failure. */
+    private val fetched = mutableListOf<String>()
+    private var feedResult: () -> ParsedFeed = { error("no feed") }
+    private suspend fun feedFetch(url: String): ParsedFeed { fetched += url; return feedResult() }
+
     private var defaultDispatches = 0
     private val defaultDispatcher = object : kotlinx.coroutines.CoroutineDispatcher() {
         private val inner = kotlinx.coroutines.test.StandardTestDispatcher(main.dispatcher.scheduler)
@@ -72,6 +81,7 @@ class PodcastDetailViewModelTest {
     private fun vm() = PodcastDetailViewModel(
         SavedStateHandle(mapOf(PodcastDetailViewModel.ARG_PODCAST_ID to podcastId)),
         podcasts, episodes, queue, subscriptions, actions, sync, playback, settings, defaultDispatcher,
+        PodcastRepository(podcasts, episodes, FakeTransactionRunner(), MutableClock()), FeedFetcher { feedFetch(it) },
     )
 
     private fun idOf(title: String) = episodes.rows.value.first { it.title == title }.id
@@ -483,13 +493,45 @@ class PodcastDetailViewModelTest {
     }
 
     @Test
-    fun `refresh asks for a background sync`() = runTest {
+    fun `refresh fetches and merges only this feed, without a whole-library sync`() = runTest {
         seed()
+        feedResult = {
+            ParsedFeed(
+                "Show", null, null, null, null,
+                listOf(ParsedEpisode("4", "Fresh episode", null, "https://e/4", "audio/mpeg", null, 60, 400, null)),
+            )
+        }
         val vm = vm()
-        vm.onIntent(PodcastDetailIntent.Refresh)
-        testScheduler.advanceUntilIdle()
-        assertEquals(1, sync.requests)
-        assertNotNull(vm)
+        vm.uiState.test {
+            awaitUntil { it.episodes.size == 3 }
+
+            vm.onIntent(PodcastDetailIntent.Refresh)
+
+            assertEquals(4, awaitUntil { it.episodes.size == 4 }.episodes.size)
+            assertEquals(listOf("https://f/feed"), fetched)
+            assertEquals(0, sync.requests)
+            testScheduler.advanceUntilIdle()
+            assertFalse(vm.uiState.value.isRefreshing)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a failed refresh says so and stops the spinner`() = runTest {
+        seed()
+        feedResult = { throw java.io.IOException("offline") }
+        val vm = vm()
+        vm.events.test {
+            vm.uiState.test {
+                awaitUntil { it.episodes.size == 3 }
+                vm.onIntent(PodcastDetailIntent.Refresh)
+                assertEquals(true, awaitUntil { it.isRefreshing }.isRefreshing)
+                assertFalse(awaitUntil { !it.isRefreshing }.isRefreshing)
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertTrue((awaitItem() as PodcastDetailEvent.Message).text.contains("offline"))
+        }
+        assertEquals(0, sync.requests)
     }
 
     @Test
