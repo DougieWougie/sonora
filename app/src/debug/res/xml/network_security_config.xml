@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only. Lets the "Allow cleartext (HTTP)" setting work against servers on a local network;
+     the app still refuses HTTP unless that setting is on. Release builds keep usesCleartextTraffic="false". -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

@@ -53,6 +53,16 @@ class AppSettingsTest {
     }
 
     @Test
+    fun `a release build ignores a stored cleartext opt-in`() {
+        settings().allowCleartext = true
+
+        val release = AppSettings(context, secrets, cleartextAllowedInThisBuild = false)
+
+        assertFalse(release.allowCleartext)
+        assertTrue(settings().allowCleartext) // the stored value is untouched, so a debug build still sees it
+    }
+
+    @Test
     fun `every setting survives a restart`() {
         settings().apply {
             allowCleartext = true
