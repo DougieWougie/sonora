@@ -31,6 +31,7 @@ import org.sonora.core.model.DownloadState
 import org.sonora.core.work.SyncController
 import org.sonora.feature.common.EpisodeItem
 import org.sonora.feature.common.PendingMarkOlder
+import org.sonora.feature.common.PlayChoice
 import org.sonora.feature.common.toItem
 import org.sonora.feature.settings.SettingsStore
 import org.sonora.ui.htmlToSearchText
@@ -55,6 +56,8 @@ data class PodcastDetailUiState(
     val filter: EpisodeFilter = EpisodeFilter.ALL,
     val query: String = "",
     val pendingMarkOlder: PendingMarkOlder? = null,
+    /** An episode waiting for the user to say whether it plays next or goes last. */
+    val pendingPlay: Long? = null,
     /** Developer actions are on in Settings → Advanced (and only exist in debug builds). */
     val debugTools: Boolean = false,
     /** Episodes picked for a bulk action; selection mode is on while this is not empty. */
@@ -67,6 +70,9 @@ sealed interface PodcastDetailIntent {
     data class SetFilter(val filter: EpisodeFilter) : PodcastDetailIntent
     data class SetQuery(val query: String) : PodcastDetailIntent
     data class Play(val episodeId: Long) : PodcastDetailIntent
+    data object ConfirmPlayNext : PodcastDetailIntent
+    data object ConfirmAddToEnd : PodcastDetailIntent
+    data object DismissPlayChoice : PodcastDetailIntent
     data class Enqueue(val episodeId: Long) : PodcastDetailIntent
     data class Dequeue(val episodeId: Long) : PodcastDetailIntent
     data class PlayNext(val episodeId: Long) : PodcastDetailIntent
@@ -117,6 +123,7 @@ class PodcastDetailViewModel @Inject constructor(
     private val podcastId = MutableStateFlow(
         checkNotNull(savedStateHandle.get<Long>(ARG_PODCAST_ID)) { "Missing $ARG_PODCAST_ID" },
     )
+    private val playChoice = PlayChoice(queue, playback)
     private val controls = MutableStateFlow(Controls())
     private val _events = Channel<PodcastDetailEvent>(Channel.BUFFERED)
     val events: Flow<PodcastDetailEvent> = _events.receiveAsFlow()
@@ -128,9 +135,9 @@ class PodcastDetailViewModel @Inject constructor(
         podcastId.flatMapLatest { podcastDao.observeById(it) },
         podcastId.flatMapLatest { episodeDao.observeForPodcast(it) },
         controls,
-        queue.items,
+        combine(queue.items, playChoice.pending, ::Pair),
         sync.syncing,
-    ) { podcast, episodes, controls, queued, syncing ->
+    ) { podcast, episodes, controls, (queued, pendingPlay), syncing ->
         val header = podcast?.toHeader()?.also { lastHeader = it } ?: lastHeader
         val subscribed = podcast != null
         val visible = if (subscribed) episodes.filter { it.matches(controls) } else emptyList()
@@ -141,6 +148,7 @@ class PodcastDetailViewModel @Inject constructor(
             filter = controls.filter,
             query = controls.query,
             pendingMarkOlder = controls.pendingMarkOlder,
+            pendingPlay = pendingPlay,
             debugTools = settings.debugTools,
             selectedIds = visible.map { it.id }.filterTo(mutableSetOf()) { it in controls.selected },
             isRefreshing = syncing,
@@ -155,7 +163,10 @@ class PodcastDetailViewModel @Inject constructor(
             is PodcastDetailIntent.Enqueue -> queue.enqueue(intent.episodeId)
             is PodcastDetailIntent.Dequeue -> queue.remove(intent.episodeId)
             is PodcastDetailIntent.PlayNext -> queue.enqueueNext(intent.episodeId)
-            is PodcastDetailIntent.Play -> attempt { playback.play(intent.episodeId) }
+            is PodcastDetailIntent.Play -> attempt { playChoice.request(intent.episodeId) }
+            PodcastDetailIntent.ConfirmPlayNext -> playChoice.playNext()
+            PodcastDetailIntent.ConfirmAddToEnd -> playChoice.addToEnd()
+            PodcastDetailIntent.DismissPlayChoice -> playChoice.dismiss()
             is PodcastDetailIntent.Download -> attempt { actions.download(intent.episodeId) }
             is PodcastDetailIntent.DeleteDownload -> attempt { actions.deleteDownload(intent.episodeId) }
             is PodcastDetailIntent.SetPlayed -> attempt {

@@ -54,6 +54,7 @@ import org.sonora.core.testing.TestTags
 import org.sonora.ui.components.ArtworkImage
 import org.sonora.ui.components.EpisodeActionsUi
 import org.sonora.ui.components.MarkOlderPlayedDialog
+import org.sonora.ui.components.PlayChoiceDialog
 import org.sonora.BuildConfig
 import org.sonora.ui.components.EpisodeSelection
 import org.sonora.ui.components.SwipeableEpisodeRow
@@ -98,6 +99,14 @@ internal fun PodcastDetailContent(
             it,
             onConfirm = { onIntent(PodcastDetailIntent.ConfirmMarkOlderPlayed) },
             onDismiss = { onIntent(PodcastDetailIntent.DismissMarkOlderPlayed) },
+        )
+    }
+
+    if (state.pendingPlay != null) {
+        PlayChoiceDialog(
+            onPlayNext = { onIntent(PodcastDetailIntent.ConfirmPlayNext) },
+            onAddToEnd = { onIntent(PodcastDetailIntent.ConfirmAddToEnd) },
+            onDismiss = { onIntent(PodcastDetailIntent.DismissPlayChoice) },
         )
     }
 

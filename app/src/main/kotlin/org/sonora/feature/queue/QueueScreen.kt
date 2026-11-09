@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.sonora.ui.components.EpisodeActionsUi
 import org.sonora.ui.components.MarkOlderPlayedDialog
+import org.sonora.ui.components.PlayChoiceDialog
 import org.sonora.ui.components.QueueDragHandle
 import org.sonora.ui.components.rememberReorderState
 import org.sonora.ui.components.SwipeableEpisodeRow
@@ -67,6 +68,8 @@ internal fun QueueContent(
         Box(modifier.fillMaxSize(), Alignment.Center) { LoadingIndicator() }
         return
     }
+    // Tapping an episode that is already lined up plays it; there is nowhere to ask it to go.
+    val queuedActions = remember(actions) { actions.copy(onPlay = { onIntent(QueueIntent.PlayQueued(it.id)) }) }
     val listState = rememberLazyListState()
     val queueKeys = state.queue.map { "q${it.id}" }
     val reorder = rememberReorderState(listState, { queueKeys }, { from, to -> onIntent(QueueIntent.MoveInQueue(state.queue[from].id, to)) })
@@ -93,7 +96,7 @@ internal fun QueueContent(
                         onMoveUp = { onIntent(QueueIntent.MoveInQueue(episode.id, index - 1)) },
                         onMoveDown = { onIntent(QueueIntent.MoveInQueue(episode.id, index + 1)) },
                     )
-                    SwipeableEpisodeRow(episode, actions, Modifier.weight(1f))
+                    SwipeableEpisodeRow(episode, queuedActions, Modifier.weight(1f))
                 }
             }
         }
@@ -113,6 +116,13 @@ internal fun NewEpisodesContent(
             it,
             onConfirm = { onIntent(QueueIntent.ConfirmMarkOlderPlayed) },
             onDismiss = { onIntent(QueueIntent.DismissMarkOlderPlayed) },
+        )
+    }
+    if (state.pendingPlay != null) {
+        PlayChoiceDialog(
+            onPlayNext = { onIntent(QueueIntent.ConfirmPlayNext) },
+            onAddToEnd = { onIntent(QueueIntent.ConfirmAddToEnd) },
+            onDismiss = { onIntent(QueueIntent.DismissPlayChoice) },
         )
     }
     if (state.isLoading) {

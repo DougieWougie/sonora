@@ -150,6 +150,9 @@ flowchart LR
   Queue view model hands to the screen in `QueueEvent.QueueChanged`. Reordering is drag on
   `QueueDragHandle` (via `ReorderState` in `ui/components/QueueReorder.kt`) or the "Move up/down"
   accessibility actions on the same handle; clearing asks for confirmation first.
+- Tapping an episode in a list goes through `PlayChoice` (`feature/common`): with an empty queue it
+  plays at once; otherwise the user picks "Play next" or "Add to end", so the playing episode is
+  not displaced and the invariant above holds. Tapping a row inside the Queue segment plays it directly.
 
 ### Downloads and retention
 `EpisodeDownloadManager` downloads enclosures to `*.part` files (resumable via HTTP `Range`) and

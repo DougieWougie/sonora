@@ -23,6 +23,7 @@ import org.sonora.core.media.PlayQueue
 import org.sonora.core.media.PlaybackPort
 import org.sonora.feature.common.EpisodeItem
 import org.sonora.feature.common.PendingMarkOlder
+import org.sonora.feature.common.PlayChoice
 import org.sonora.feature.common.toItem
 
 /** How many unplayed episodes the New segment shows at most. */
@@ -34,11 +35,19 @@ data class QueueUiState(
     val new: List<EpisodeItem> = emptyList(),
     val pendingMarkOlder: PendingMarkOlder? = null,
     val confirmingClear: Boolean = false,
+    /** An episode from New waiting for the user to say whether it plays next or goes last. */
+    val pendingPlay: Long? = null,
     val isLoading: Boolean = true,
 )
 
 sealed interface QueueIntent {
+    /** Tap on an episode outside the queue: asks where it goes if the queue has episodes. */
     data class Play(val episodeId: Long) : QueueIntent
+    /** Tap on an episode that is already in the queue: plays it straight away. */
+    data class PlayQueued(val episodeId: Long) : QueueIntent
+    data object ConfirmPlayNext : QueueIntent
+    data object ConfirmAddToEnd : QueueIntent
+    data object DismissPlayChoice : QueueIntent
     data class Enqueue(val episodeId: Long) : QueueIntent
     data class Dequeue(val episodeId: Long) : QueueIntent
     data class PlayNext(val episodeId: Long) : QueueIntent
@@ -73,6 +82,7 @@ class QueueViewModel @Inject constructor(
     private val actions: EpisodeActions,
     private val playback: PlaybackPort,
 ) : ViewModel() {
+    private val playChoice = PlayChoice(queue, playback)
     private val pendingMarkOlder = MutableStateFlow<PendingMarkOlder?>(null)
     private val confirmingClear = MutableStateFlow(false)
     private val _events = Channel<QueueEvent>(Channel.BUFFERED)
@@ -82,13 +92,14 @@ class QueueViewModel @Inject constructor(
     private data class Chrome(
         val pendingMarkOlder: PendingMarkOlder?,
         val confirmingClear: Boolean,
+        val pendingPlay: Long?,
     )
 
     val uiState: StateFlow<QueueUiState> = combine(
         podcastDao.observeAll(),
         queue.items,
         episodeDao.observeUnplayed(NEW_EPISODES_LIMIT),
-        combine(pendingMarkOlder, confirmingClear, ::Chrome),
+        combine(pendingMarkOlder, confirmingClear, playChoice.pending, ::Chrome),
     ) { podcasts, queued, unplayed, chrome ->
         val byId = podcasts.associateBy { it.id }
         val queuedIds = queued.toSet()
@@ -97,6 +108,7 @@ class QueueViewModel @Inject constructor(
             new = unplayed.map { it.toItem(byId[it.podcastId], it.id in queuedIds) },
             pendingMarkOlder = chrome.pendingMarkOlder,
             confirmingClear = chrome.confirmingClear,
+            pendingPlay = chrome.pendingPlay,
             isLoading = false,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), QueueUiState())
@@ -120,7 +132,11 @@ class QueueViewModel @Inject constructor(
                 queue.replaceAll(queue.items.value.shuffled())
                 queue.items.value.firstOrNull()?.let { playback.play(it) }
             }
-            is QueueIntent.Play -> attempt { playback.play(intent.episodeId) }
+            is QueueIntent.Play -> attempt { playChoice.request(intent.episodeId) }
+            is QueueIntent.PlayQueued -> attempt { playback.play(intent.episodeId) }
+            QueueIntent.ConfirmPlayNext -> playChoice.playNext()
+            QueueIntent.ConfirmAddToEnd -> playChoice.addToEnd()
+            QueueIntent.DismissPlayChoice -> playChoice.dismiss()
             is QueueIntent.Download -> attempt { actions.download(intent.episodeId) }
             is QueueIntent.DeleteDownload -> attempt { actions.deleteDownload(intent.episodeId) }
             is QueueIntent.SetPlayed -> attempt {
