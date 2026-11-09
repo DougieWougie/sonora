@@ -11,11 +11,13 @@ interface SettingsStore {
     fun recordSync(epochMillis: Long)
 
     fun nextcloudAccount(): NextcloudAccount?
-    fun saveNextcloudAccount(account: NextcloudAccount)
+    /** False if the app password could not be stored securely; nothing is saved then. */
+    fun saveNextcloudAccount(account: NextcloudAccount): Boolean
     fun clearNextcloudAccount()
 
     suspend fun podcastIndexCredentials(): PodcastIndexCredentials?
-    fun savePodcastIndexCredentials(credentials: PodcastIndexCredentials?)
+    /** False if the credentials could not be stored securely; passing null (or incomplete ones) removes them. */
+    fun savePodcastIndexCredentials(credentials: PodcastIndexCredentials?): Boolean
 
     var autoDownloadUnmeteredOnly: Boolean
     var deleteDownloadsWhenPlayed: Boolean

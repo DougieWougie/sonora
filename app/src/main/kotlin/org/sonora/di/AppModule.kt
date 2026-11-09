@@ -11,6 +11,7 @@ import dagger.hilt.components.SingletonComponent
 import java.io.File
 import java.time.Clock
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
 import org.sonora.core.database.EpisodeDao
@@ -94,6 +95,8 @@ object AppModule {
     fun transactions(db: SonoraDatabase): TransactionRunner = RoomTransactionRunner(db)
 
     @Provides @Singleton fun clock(): Clock = Clock.systemUTC()
+
+    @Provides @IoDispatcher fun ioDispatcher(): CoroutineDispatcher = Dispatchers.IO
 
     @Provides @Singleton
     fun okHttpClient(): OkHttpClient = OkHttpClient.Builder()

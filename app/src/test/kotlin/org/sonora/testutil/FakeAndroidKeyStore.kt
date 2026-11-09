@@ -29,12 +29,17 @@ object FakeAndroidKeyStore {
         }
     }
 
+    /** When set, every keystore lookup throws it, as a transient Keystore fault would. */
+    @Volatile var failure: Throwable? = null
+
     fun install() {
+        failure = null
         keys.clear()
         Security.addProvider(provider)
     }
 
     fun uninstall() {
+        failure = null
         Security.removeProvider(provider.name)
         keys.clear()
     }
@@ -43,7 +48,10 @@ object FakeAndroidKeyStore {
     fun wipe() = keys.clear()
 
     class FakeKeyStoreSpi : KeyStoreSpi() {
-        override fun engineGetKey(alias: String, password: CharArray?): Key? = keys[alias]
+        override fun engineGetKey(alias: String, password: CharArray?): Key? {
+            failure?.let { throw it }
+            return keys[alias]
+        }
         override fun engineContainsAlias(alias: String) = alias in keys
         override fun engineIsKeyEntry(alias: String) = alias in keys
         override fun engineAliases(): Enumeration<String> = Collections.enumeration(keys.keys.toList())

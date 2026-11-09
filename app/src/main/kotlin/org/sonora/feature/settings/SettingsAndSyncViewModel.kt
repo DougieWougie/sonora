@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.sonora.core.network.LoginFlowApi
 import org.sonora.core.network.LoginFlowException
@@ -24,6 +26,7 @@ import org.sonora.core.network.NextcloudCredentials
 import org.sonora.core.network.discovery.PodcastIndexCredentials
 import org.sonora.core.network.isTransportAllowed
 import org.sonora.core.work.SyncController
+import org.sonora.di.IoDispatcher
 
 sealed interface NextcloudState {
     data object Idle : NextcloudState
@@ -33,7 +36,16 @@ sealed interface NextcloudState {
     data class Error(val message: String) : NextcloudState
 }
 
-data class PodcastIndexForm(val apiKey: String = "", val apiSecret: String = "", val saved: Boolean = false)
+/**
+ * [apiSecret] only ever holds what the user has typed in this session: a saved secret is not loaded back
+ * into the UI, [saved] says that one exists.
+ */
+data class PodcastIndexForm(
+    val apiKey: String = "",
+    val apiSecret: String = "",
+    val saved: Boolean = false,
+    val error: String? = null,
+)
 
 data class DownloadPrefs(
     val unmeteredOnly: Boolean,
@@ -91,13 +103,13 @@ class SettingsAndSyncViewModel @Inject constructor(
     private val login: LoginFlowApi,
     private val settings: SettingsStore,
     private val sync: SyncController,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
     private val cleartextAtStart = settings.allowCleartext
 
     private val _state = MutableStateFlow(
         SettingsUiState(
-            nextcloud = settings.nextcloudAccount()?.let { NextcloudState.Connected(it.loginName, it.serverUrl, settings.lastSyncMillis.value.orNull()) }
-                ?: NextcloudState.Idle,
+            nextcloud = NextcloudState.Idle, // the stored account is read in init, off the main thread
             downloads = DownloadPrefs(
                 unmeteredOnly = settings.autoDownloadUnmeteredOnly,
                 deleteWhenPlayed = settings.deleteDownloadsWhenPlayed,
@@ -122,8 +134,16 @@ class SettingsAndSyncViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            settings.podcastIndexCredentials()?.let { c ->
-                _state.update { it.copy(podcastIndex = PodcastIndexForm(c.apiKey, c.apiSecret, saved = true)) }
+            val account = withContext(ioDispatcher) { settings.nextcloudAccount() }
+            if (account != null && _state.value.nextcloud == NextcloudState.Idle) {
+                setNextcloud(NextcloudState.Connected(account.loginName, account.serverUrl, settings.lastSyncMillis.value.orNull()))
+            }
+        }
+        viewModelScope.launch {
+            val saved = withContext(ioDispatcher) { settings.podcastIndexCredentials() }
+            if (saved != null && _state.value.podcastIndex == PodcastIndexForm()) {
+                // The secret stays in the store; the form only learns that one is saved.
+                _state.update { it.copy(podcastIndex = PodcastIndexForm(saved.apiKey, apiSecret = "", saved = true)) }
             }
         }
         viewModelScope.launch {
@@ -148,16 +168,16 @@ class SettingsAndSyncViewModel @Inject constructor(
             }
             SettingsIntent.Disconnect -> {
                 stopLogin()
-                settings.clearNextcloudAccount()
                 setNextcloud(NextcloudState.Idle)
+                viewModelScope.launch(ioDispatcher) { settings.clearNextcloudAccount() }
             }
             SettingsIntent.SyncNow -> if (_state.value.nextcloud is NextcloudState.Connected) sync.syncNow()
-            is SettingsIntent.EditPodcastIndexKey -> editForm { it.copy(apiKey = intent.value, saved = false) }
-            is SettingsIntent.EditPodcastIndexSecret -> editForm { it.copy(apiSecret = intent.value, saved = false) }
+            is SettingsIntent.EditPodcastIndexKey -> editForm { it.copy(apiKey = intent.value, saved = false, error = null) }
+            is SettingsIntent.EditPodcastIndexSecret -> editForm { it.copy(apiSecret = intent.value, saved = false, error = null) }
             SettingsIntent.SavePodcastIndex -> savePodcastIndex()
             SettingsIntent.ClearPodcastIndex -> {
-                settings.savePodcastIndexCredentials(null)
                 _state.update { it.copy(podcastIndex = PodcastIndexForm()) }
+                viewModelScope.launch(ioDispatcher) { settings.savePodcastIndexCredentials(null) }
             }
             is SettingsIntent.SetUnmeteredOnly -> {
                 settings.autoDownloadUnmeteredOnly = intent.enabled
@@ -265,14 +285,17 @@ class SettingsAndSyncViewModel @Inject constructor(
         }
     }
 
-    private fun connect(credentials: NextcloudCredentials) {
+    private suspend fun connect(credentials: NextcloudCredentials) {
         // The server address comes from the server's response: hold it to the same transport policy.
         if (credentials.server.toHttpUrlOrNull() == null || !isTransportAllowed(credentials.server, settings.allowCleartext)) {
             session = null
             return setNextcloud(NextcloudState.Error("The server returned an insecure address (HTTPS is required)."))
         }
-        settings.saveNextcloudAccount(NextcloudAccount(credentials.server, credentials.loginName, credentials.appPassword))
         session = null
+        val stored = withContext(ioDispatcher) {
+            settings.saveNextcloudAccount(NextcloudAccount(credentials.server, credentials.loginName, credentials.appPassword))
+        }
+        if (!stored) return setNextcloud(NextcloudState.Error("Couldn't store the password securely on this device. Try signing in again."))
         setNextcloud(NextcloudState.Connected(credentials.loginName, credentials.server, settings.lastSyncMillis.value.orNull()))
         sync.syncNow()
     }
@@ -294,8 +317,13 @@ class SettingsAndSyncViewModel @Inject constructor(
         val form = _state.value.podcastIndex
         val credentials = PodcastIndexCredentials(form.apiKey.trim(), form.apiSecret.trim())
         if (!credentials.isComplete) return
-        settings.savePodcastIndexCredentials(credentials)
-        editForm { it.copy(saved = true) }
+        viewModelScope.launch {
+            val stored = withContext(ioDispatcher) { settings.savePodcastIndexCredentials(credentials) }
+            editForm {
+                if (stored) it.copy(saved = true, error = null)
+                else it.copy(saved = false, error = "Couldn't store the credentials securely on this device. Try again.")
+            }
+        }
     }
 
     private fun Long.orNull(): Long? = takeIf { it > 0 }

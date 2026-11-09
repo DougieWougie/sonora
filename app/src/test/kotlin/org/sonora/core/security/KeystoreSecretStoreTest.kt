@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -117,5 +118,47 @@ class KeystoreSecretStoreTest {
 
         assertNull(store.get("token"))
         assertFalse(prefs.contains("token"))
+    }
+
+    @Test
+    fun `a transient keystore failure does not discard the secret`() {
+        store.put("token", "s3cret")
+
+        FakeAndroidKeyStore.failure = java.security.KeyStoreException("keystore busy")
+        assertNull(store.get("token"))
+        FakeAndroidKeyStore.failure = java.security.ProviderException("keymaster died")
+        assertNull(store.get("token"))
+
+        assertTrue(prefs.contains("token"))
+        FakeAndroidKeyStore.failure = null
+        assertEquals("s3cret", store.get("token"))
+    }
+
+    @Test
+    fun `a permanently invalidated key discards the secret`() {
+        store.put("token", "s3cret")
+
+        FakeAndroidKeyStore.failure = android.security.keystore.KeyPermanentlyInvalidatedException()
+
+        assertNull(store.get("token"))
+        assertFalse(prefs.contains("token"))
+    }
+
+    @Test
+    fun `put reports success`() {
+        assertTrue(store.put("token", "s3cret"))
+    }
+
+    @Test
+    fun `put reports a keystore failure instead of throwing, and keeps the old secret`() {
+        store.put("token", "old")
+
+        FakeAndroidKeyStore.failure = java.security.ProviderException("keymaster died")
+        assertFalse(store.put("token", "new"))
+        FakeAndroidKeyStore.failure = java.security.KeyStoreException("keystore busy")
+        assertFalse(store.put("token", "new"))
+
+        FakeAndroidKeyStore.failure = null
+        assertEquals("old", store.get("token"))
     }
 }
