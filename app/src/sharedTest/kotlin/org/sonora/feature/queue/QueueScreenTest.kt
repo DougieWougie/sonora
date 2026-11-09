@@ -173,14 +173,14 @@ class QueueScreenTest {
     }
 
     @Test
-    fun `tapping an episode plays it`() {
+    fun `tapping a queued episode plays it straight away`() {
         val queued = item(2, "Queued two")
         state = state.copy(queue = listOf(queued))
         setContent()
 
         composeTestRule.onNodeWithText("Queued two").performClick()
 
-        assertEquals(listOf(queued), played)
+        assertEquals(listOf<QueueIntent>(QueueIntent.PlayQueued(2)), intents)
     }
 
     @Test

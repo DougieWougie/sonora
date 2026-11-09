@@ -276,3 +276,20 @@ fun MarkOlderPlayedDialog(pending: PendingMarkOlder, onConfirm: () -> Unit, onDi
         dismissButton = if (none) null else ({ TextButton(onClick = onDismiss) { Text("Cancel") } }),
     )
 }
+
+/** Shown when the queue already has episodes, so starting one is a choice about where it goes. */
+@Composable
+fun PlayChoiceDialog(onPlayNext: () -> Unit, onAddToEnd: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add to your queue") },
+        text = { Text("Your queue has episodes in it. Play this one next, or add it to the end?") },
+        confirmButton = { TextButton(onClick = onPlayNext) { Text("Play next") } },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(onClick = onAddToEnd) { Text("Add to end") }
+            }
+        },
+    )
+}

@@ -216,6 +216,60 @@ class QueueViewModelTest {
     }
 
     @Test
+    fun `playing from new asks where to put it when the queue has episodes`() = runTest {
+        val ids = seed()
+        queue.enqueue(ids[0])
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { !it.isLoading }
+            vm.onIntent(QueueIntent.Play(ids[1]))
+            assertEquals(ids[1], awaitUntil { it.pendingPlay != null }.pendingPlay)
+            assertEquals(emptyList<String>(), playback.calls)
+
+            vm.onIntent(QueueIntent.ConfirmPlayNext)
+            assertNull(awaitUntil { it.pendingPlay == null }.pendingPlay)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(listOf(ids[1], ids[0]), queue.items.value)
+    }
+
+    @Test
+    fun `adding to the end and cancelling are both offered`() = runTest {
+        val ids = seed()
+        queue.enqueue(ids[0])
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { !it.isLoading }
+            vm.onIntent(QueueIntent.Play(ids[1]))
+            awaitUntil { it.pendingPlay != null }
+            vm.onIntent(QueueIntent.ConfirmAddToEnd)
+            awaitUntil { it.pendingPlay == null }
+            assertEquals(listOf(ids[0], ids[1]), queue.items.value)
+
+            vm.onIntent(QueueIntent.Play(ids[2]))
+            awaitUntil { it.pendingPlay != null }
+            vm.onIntent(QueueIntent.DismissPlayChoice)
+            awaitUntil { it.pendingPlay == null }
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(listOf(ids[0], ids[1]), queue.items.value)
+    }
+
+    @Test
+    fun `tapping an episode inside the queue plays it without asking`() = runTest {
+        val ids = seed()
+        queue.enqueue(ids[0]); queue.enqueue(ids[1])
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { !it.isLoading }
+            vm.onIntent(QueueIntent.PlayQueued(ids[1]))
+            testScheduler.advanceUntilIdle()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(listOf("play:${ids[1]}"), playback.calls)
+    }
+
+    @Test
     fun `play, download and mark played are delegated`() = runTest {
         val ids = seed()
         val vm = vm()

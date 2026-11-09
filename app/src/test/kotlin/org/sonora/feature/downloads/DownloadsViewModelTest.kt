@@ -251,6 +251,22 @@ class DownloadsViewModelTest {
     }
 
     @Test
+    fun `playing a download asks where to put it when the queue has episodes`() = runTest {
+        queue.enqueue(1)
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { !it.isLoading }
+            vm.onIntent(DownloadsIntent.Play(4))
+            assertEquals(4L, awaitUntil { it.pendingPlay != null }.pendingPlay)
+            vm.onIntent(DownloadsIntent.ConfirmAddToEnd)
+            awaitUntil { it.pendingPlay == null }
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(emptyList<String>(), playback.calls)
+        assertEquals(listOf(1L, 4L), queue.items.value)
+    }
+
+    @Test
     fun `deleting all played downloads says how many went`() = runTest {
         actions.playedDeleted = 3
         val vm = vm()

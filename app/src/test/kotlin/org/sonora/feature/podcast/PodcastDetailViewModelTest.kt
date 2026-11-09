@@ -275,6 +275,26 @@ class PodcastDetailViewModelTest {
     }
 
     @Test
+    fun `tapping an episode asks where to put it when the queue has episodes`() = runTest {
+        seed()
+        val queued = idOf("Mars landing")
+        val tapped = idOf("Intro to Space")
+        queue.enqueue(queued)
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.episodes.isNotEmpty() }
+            vm.onIntent(PodcastDetailIntent.Play(tapped))
+            assertEquals(tapped, awaitUntil { it.pendingPlay != null }.pendingPlay)
+            assertEquals(emptyList<String>(), playback.calls)
+
+            vm.onIntent(PodcastDetailIntent.ConfirmPlayNext)
+            awaitUntil { it.pendingPlay == null }
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(listOf(tapped, queued), queue.items.value)
+    }
+
+    @Test
     fun `a playback failure becomes a message, not a crash`() = runTest {
         seed()
         playback.failure = IllegalStateException("Refusing to stream http://x")

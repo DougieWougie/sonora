@@ -27,6 +27,7 @@ import org.sonora.core.media.PlayQueue
 import org.sonora.core.media.PlaybackPort
 import org.sonora.core.model.DownloadState
 import org.sonora.feature.common.EpisodeItem
+import org.sonora.feature.common.PlayChoice
 import org.sonora.feature.common.toItem
 import org.sonora.feature.settings.SettingsStore
 
@@ -55,6 +56,8 @@ data class DownloadsUiState(
     val sort: DownloadSort = DownloadSort.NEWEST,
     /** Unplayed episodes retention removed since the user last dismissed the notice. */
     val evictedUnplayed: Int = 0,
+    /** An episode waiting for the user to say whether it plays next or goes last. */
+    val pendingPlay: Long? = null,
 ) {
     val isEmpty: Boolean get() = active.isEmpty() && failed.isEmpty() && downloaded.isEmpty()
 }
@@ -62,6 +65,9 @@ data class DownloadsUiState(
 sealed interface DownloadsIntent {
     data class SetSort(val sort: DownloadSort) : DownloadsIntent
     data class Play(val episodeId: Long) : DownloadsIntent
+    data object ConfirmPlayNext : DownloadsIntent
+    data object ConfirmAddToEnd : DownloadsIntent
+    data object DismissPlayChoice : DownloadsIntent
     data class Delete(val episodeId: Long) : DownloadsIntent
     /** Adds the episode to the queue, or takes it out if it is already there. */
     data class ToggleQueue(val episodeId: Long) : DownloadsIntent
@@ -98,6 +104,7 @@ class DownloadsViewModel @Inject constructor(
     private val notices: EvictionNotices,
     private val queue: PlayQueue,
 ) : ViewModel() {
+    private val playChoice = PlayChoice(queue, playback)
     private val sort = MutableStateFlow(DownloadSort.NEWEST)
 
     private val _events = Channel<DownloadsEvent>(Channel.BUFFERED)
@@ -108,8 +115,8 @@ class DownloadsViewModel @Inject constructor(
         podcastDao.observeAll(),
         waits.observe(),
         sort,
-        combine(notices.unplayedRemoved, queue.items, ::Pair),
-    ) { episodes, podcasts, reasons, sort, (evicted, queued) ->
+        combine(notices.unplayedRemoved, queue.items, playChoice.pending, ::Triple),
+    ) { episodes, podcasts, reasons, sort, (evicted, queued, pendingPlay) ->
         val byId = podcasts.associateBy { it.id }
         val queuedIds = queued.toSet()
         val items = episodes.map { it.toItem(byId[it.podcastId], queued = it.id in queuedIds) }
@@ -125,13 +132,17 @@ class DownloadsViewModel @Inject constructor(
             downloaded = downloaded.sortedWith(sort.comparator),
             sort = sort,
             evictedUnplayed = evicted,
+            pendingPlay = pendingPlay,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), DownloadsUiState())
 
     fun onIntent(intent: DownloadsIntent) {
         when (intent) {
             is DownloadsIntent.SetSort -> sort.value = intent.sort
-            is DownloadsIntent.Play -> attempt { playback.play(intent.episodeId) }
+            is DownloadsIntent.Play -> attempt { playChoice.request(intent.episodeId) }
+            DownloadsIntent.ConfirmPlayNext -> playChoice.playNext()
+            DownloadsIntent.ConfirmAddToEnd -> playChoice.addToEnd()
+            DownloadsIntent.DismissPlayChoice -> playChoice.dismiss()
             is DownloadsIntent.ToggleQueue ->
                 if (intent.episodeId in queue.items.value) queue.remove(intent.episodeId) else queue.enqueue(intent.episodeId)
             is DownloadsIntent.Delete -> attempt { actions.deleteDownload(intent.episodeId) }

@@ -57,6 +57,7 @@ import org.sonora.core.model.DownloadState
 import org.sonora.core.testing.TestTags
 import org.sonora.feature.common.EpisodeItem
 import org.sonora.ui.components.ArtworkImage
+import org.sonora.ui.components.PlayChoiceDialog
 import org.sonora.ui.components.ScreenHeading
 import org.sonora.ui.components.SwipeActionRow
 import org.sonora.ui.components.SwipeActionStyle
@@ -71,6 +72,14 @@ fun DownloadsContent(
     modifier: Modifier = Modifier,
 ) {
     var confirmingDeletePlayed by remember { mutableStateOf(false) }
+
+    if (state.pendingPlay != null) {
+        PlayChoiceDialog(
+            onPlayNext = { onIntent(DownloadsIntent.ConfirmPlayNext) },
+            onAddToEnd = { onIntent(DownloadsIntent.ConfirmAddToEnd) },
+            onDismiss = { onIntent(DownloadsIntent.DismissPlayChoice) },
+        )
+    }
 
     Column(modifier.fillMaxSize()) {
         if (state.isLoading) {
