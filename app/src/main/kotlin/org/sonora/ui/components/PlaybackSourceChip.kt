@@ -75,7 +75,7 @@ fun PlaybackSourceChip(
             .testTag(TestTags.SOURCE_CHIP)
             .semantics(mergeDescendants = true) {}
             .then(
-                if (tappable) Modifier.clip(CircleShape).clickable(onClickLabel = "Download episode", role = Role.Button) { onDownload?.invoke() } else Modifier,
+                if (tappable) Modifier.clip(CircleShape).clickable(onClickLabel = "Download episode", role = Role.Button) { onDownload() } else Modifier,
             ),
     ) {
         AnimatedContent(
