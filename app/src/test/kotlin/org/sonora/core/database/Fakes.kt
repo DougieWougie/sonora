@@ -49,6 +49,12 @@ class FakePodcastDao(private val episodes: FakeEpisodeDao? = null) : PodcastDao 
     override fun observeAll(): Flow<List<PodcastEntity>> = rows.map { all -> all.sortedBy { it.title.lowercase() } }
     override fun observeById(id: Long): Flow<PodcastEntity?> = rows.map { all -> all.firstOrNull { it.id == id } }
     override suspend fun getAll() = rows.value
+    override suspend fun toggleAutoDownload(id: Long) {
+        rows.value = rows.value.map { if (it.id == id) it.copy(autoDownload = !it.autoDownload) else it }
+    }
+    override suspend fun toggleNotifyNewEpisodes(id: Long) {
+        rows.value = rows.value.map { if (it.id == id) it.copy(notifyNewEpisodes = !it.notifyNewEpisodes) else it }
+    }
 }
 
 class FakeEpisodeDao : EpisodeDao {
@@ -91,6 +97,13 @@ class FakeEpisodeDao : EpisodeDao {
     override suspend fun updatePosition(id: Long, positionSeconds: Long): Int {
         val found = rows.value.any { it.id == id }
         rows.value = rows.value.map { if (it.id == id) it.copy(playbackPositionSeconds = positionSeconds) else it }
+        return if (found) 1 else 0
+    }
+    override suspend fun updateDownload(id: Long, state: org.sonora.core.model.DownloadState, bytes: Long, keepPath: Boolean): Int {
+        val found = rows.value.any { it.id == id }
+        rows.value = rows.value.map {
+            if (it.id == id) it.copy(downloadState = state, downloadedBytes = bytes, downloadPath = it.downloadPath.takeIf { keepPath }) else it
+        }
         return if (found) 1 else 0
     }
     override suspend fun getByDownloadState(state: org.sonora.core.model.DownloadState) =
