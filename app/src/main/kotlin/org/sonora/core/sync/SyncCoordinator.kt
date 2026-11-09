@@ -74,7 +74,7 @@ class SyncCoordinator(
             transactions.run {
                 // Keep rows the user changed again while the push was in flight.
                 val unchanged = subscriptionChangeDao.getAll().filter { it in pending }
-                subscriptionChangeDao.deleteByFeedUrls(unchanged.map { it.feedUrl })
+                unchanged.map { it.feedUrl }.chunked(CHUNK_SIZE).forEach { subscriptionChangeDao.deleteByFeedUrls(it) }
             }
         }
         return added to removed
@@ -107,9 +107,11 @@ class SyncCoordinator(
         }
 
         val outgoing = syncQueueDao.getAll()
-        if (outgoing.isNotEmpty()) {
-            provider.pushEpisodeActions(outgoing.map { it.toRemote() })
-            syncQueueDao.deleteByIds(outgoing.map { it.id })
+        // Each chunk is removed once the server accepted it, so a failure part-way neither loses nor resends the rest.
+        // The chunk size also keeps the delete under SQLite's 999 bound variables (API < 31).
+        outgoing.chunked(CHUNK_SIZE).forEach { chunk ->
+            provider.pushEpisodeActions(chunk.map { it.toRemote() })
+            syncQueueDao.deleteByIds(chunk.map { it.id })
         }
         return applied to outgoing.size
     }
@@ -139,3 +141,6 @@ class SyncCoordinator(
         totalSeconds = totalSeconds,
     )
 }
+
+/** Rows pushed or deleted per call; well under the 999 bound variables SQLite allows before API 31. */
+private const val CHUNK_SIZE = 500
