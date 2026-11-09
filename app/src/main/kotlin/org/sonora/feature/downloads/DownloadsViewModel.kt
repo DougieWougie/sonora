@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.sonora.core.database.EpisodeDao
-import org.sonora.core.database.EpisodeEntity
+import org.sonora.core.database.EpisodeRow
 import org.sonora.core.database.PodcastDao
 import org.sonora.core.download.DownloadWaits
 import org.sonora.core.download.EpisodeActions
@@ -81,7 +81,7 @@ sealed interface DownloadsEvent {
     data class Message(val text: String) : DownloadsEvent
 }
 
-private fun storageUsage(episodes: List<EpisodeEntity>, limitBytes: Long): StorageUsage {
+private fun storageUsage(episodes: List<EpisodeRow>, limitBytes: Long): StorageUsage {
     val downloaded = episodes.filter { it.downloadState == DownloadState.DOWNLOADED }
     val played = downloaded.filter { it.played }
     return StorageUsage(

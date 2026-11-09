@@ -6,7 +6,33 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
+import org.sonora.core.model.DownloadState
 import org.sonora.core.model.SyncActionType
+
+/**
+ * An episode as the lists show it: everything but the description, which can be tens of kilobytes of HTML
+ * that no list row uses.
+ */
+data class EpisodeRow(
+    val id: Long,
+    val podcastId: Long,
+    val title: String,
+    val publishedAtMillis: Long?,
+    val durationSeconds: Long?,
+    val imageUrl: String?,
+    val playbackPositionSeconds: Long,
+    val played: Boolean,
+    val downloadState: DownloadState,
+    val downloadedBytes: Long,
+    val sizeBytes: Long?,
+)
+
+/** An episode's description, read only while a search needs it. */
+data class EpisodeDescription(val id: Long, val description: String)
+
+private const val ROW_COLUMNS =
+    "id, podcastId, title, publishedAtMillis, durationSeconds, imageUrl, playbackPositionSeconds, played, " +
+        "downloadState, downloadedBytes, sizeBytes"
 
 /** Per-podcast aggregates for the library grid. */
 data class PodcastEpisodeStats(val podcastId: Long, val unplayed: Int, val latestPublishedAtMillis: Long?)
@@ -88,17 +114,25 @@ interface EpisodeDao {
     )
     fun observeStats(): Flow<List<PodcastEpisodeStats>>
 
-    @Query("SELECT * FROM episode WHERE downloadState IN (:states)")
-    fun observeByDownloadStates(states: List<org.sonora.core.model.DownloadState>): Flow<List<EpisodeEntity>>
+    @Query("SELECT $ROW_COLUMNS FROM episode WHERE downloadState IN (:states)")
+    fun observeByDownloadStates(states: List<org.sonora.core.model.DownloadState>): Flow<List<EpisodeRow>>
 
-    @Query("SELECT * FROM episode WHERE played = 0 ORDER BY publishedAtMillis DESC, id DESC LIMIT :limit")
-    fun observeUnplayed(limit: Int): Flow<List<EpisodeEntity>>
+    @Query("SELECT $ROW_COLUMNS FROM episode WHERE played = 0 ORDER BY publishedAtMillis DESC, id DESC LIMIT :limit")
+    fun observeUnplayed(limit: Int): Flow<List<EpisodeRow>>
+
+    /** One query for a whole list of ids; callers pass at most a few hundred at a time (SQLite allows 999 variables). */
+    @Query("SELECT $ROW_COLUMNS FROM episode WHERE id IN (:ids)")
+    suspend fun getRowsByIds(ids: List<Long>): List<EpisodeRow>
 
     @Query("SELECT COUNT(*) FROM episode WHERE played = 0")
     fun observeUnplayedCount(): Flow<Int>
 
-    @Query("SELECT * FROM episode WHERE podcastId = :podcastId ORDER BY publishedAtMillis DESC")
-    fun observeForPodcast(podcastId: Long): Flow<List<EpisodeEntity>>
+    @Query("SELECT $ROW_COLUMNS FROM episode WHERE podcastId = :podcastId ORDER BY publishedAtMillis DESC")
+    fun observeForPodcast(podcastId: Long): Flow<List<EpisodeRow>>
+
+    /** Only for searching show notes; the list itself never loads descriptions. */
+    @Query("SELECT id, description FROM episode WHERE podcastId = :podcastId AND description IS NOT NULL")
+    fun observeDescriptions(podcastId: Long): Flow<List<EpisodeDescription>>
 }
 
 @Dao

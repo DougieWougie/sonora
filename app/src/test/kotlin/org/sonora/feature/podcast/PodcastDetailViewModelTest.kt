@@ -60,9 +60,18 @@ class PodcastDetailViewModelTest {
         )
     }
 
+    private var defaultDispatches = 0
+    private val defaultDispatcher = object : kotlinx.coroutines.CoroutineDispatcher() {
+        private val inner = kotlinx.coroutines.test.StandardTestDispatcher(main.dispatcher.scheduler)
+        override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
+            defaultDispatches++
+            inner.dispatch(context, block)
+        }
+    }
+
     private fun vm() = PodcastDetailViewModel(
         SavedStateHandle(mapOf(PodcastDetailViewModel.ARG_PODCAST_ID to podcastId)),
-        podcasts, episodes, queue, subscriptions, actions, sync, playback, settings,
+        podcasts, episodes, queue, subscriptions, actions, sync, playback, settings, defaultDispatcher,
     )
 
     private fun idOf(title: String) = episodes.rows.value.first { it.title == title }.id
@@ -85,9 +94,60 @@ class PodcastDetailViewModelTest {
         vm.uiState.test {
             awaitUntil { it.episodes.isNotEmpty() }
             vm.onIntent(PodcastDetailIntent.SetFilter(EpisodeFilter.UNPLAYED))
-            assertEquals(listOf("Cooking basics", "Mars landing"), awaitUntil { it.filter == EpisodeFilter.UNPLAYED }.episodes.map { it.title })
+            assertEquals(listOf("Cooking basics", "Mars landing"), awaitUntil { it.filter == EpisodeFilter.UNPLAYED && it.episodes.size == 2 }.episodes.map { it.title })
             vm.onIntent(PodcastDetailIntent.SetFilter(EpisodeFilter.DOWNLOADED))
-            assertEquals(listOf("Mars landing"), awaitUntil { it.filter == EpisodeFilter.DOWNLOADED }.episodes.map { it.title })
+            assertEquals(listOf("Mars landing"), awaitUntil { it.filter == EpisodeFilter.DOWNLOADED && it.episodes.size == 1 }.episodes.map { it.title })
+        }
+    }
+
+    @Test
+    fun `typing waits for a pause before filtering, but the field echoes at once`() = runTest {
+        seed()
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.episodes.size == 3 }
+
+            vm.onIntent(PodcastDetailIntent.SetQuery("M"))
+            vm.onIntent(PodcastDetailIntent.SetQuery("Ma"))
+            vm.onIntent(PodcastDetailIntent.SetQuery("Mars"))
+            assertEquals("Mars", awaitUntil { it.query == "Mars" }.query)
+            assertEquals(3, vm.uiState.value.episodes.size) // not filtered yet
+
+            testScheduler.advanceTimeBy(299)
+            testScheduler.runCurrent()
+            assertEquals(3, vm.uiState.value.episodes.size)
+
+            assertEquals(listOf("Mars landing"), awaitUntil { it.episodes.size == 1 }.episodes.map { it.title })
+        }
+    }
+
+    @Test
+    fun `clearing the search shows everything again without waiting`() = runTest {
+        seed()
+        val vm = vm()
+        vm.uiState.test {
+            vm.onIntent(PodcastDetailIntent.SetQuery("Mars"))
+            awaitUntil { it.episodes.size == 1 }
+
+            vm.onIntent(PodcastDetailIntent.SetQuery(""))
+            testScheduler.runCurrent()
+
+            assertEquals(3, awaitUntil { it.episodes.size == 3 }.episodes.size)
+        }
+    }
+
+    @Test
+    fun `the filtering work runs on the injected default dispatcher and descriptions load only while searching`() = runTest {
+        seed()
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.episodes.size == 3 }
+            assertTrue(defaultDispatches > 0, "list mapping should leave Main")
+            assertEquals(0, episodes.descriptionObservations)
+
+            vm.onIntent(PodcastDetailIntent.SetQuery("space"))
+            awaitUntil { it.episodes.size == 2 }
+            assertEquals(1, episodes.descriptionObservations)
         }
     }
 
@@ -100,7 +160,7 @@ class PodcastDetailViewModelTest {
             vm.onIntent(PodcastDetailIntent.SetQuery("SPACE"))
             assertEquals(
                 listOf("Cooking basics", "Intro to Space"),
-                awaitUntil { it.query == "SPACE" }.episodes.map { it.title },
+                awaitUntil { it.query == "SPACE" && it.episodes.size == 2 }.episodes.map { it.title },
             )
         }
     }
@@ -120,11 +180,11 @@ class PodcastDetailViewModelTest {
         vm.uiState.test {
             awaitUntil { it.episodes.isNotEmpty() }
             vm.onIntent(PodcastDetailIntent.SetQuery("rockets"))
-            assertEquals(emptyList<String>(), awaitUntil { it.query == "rockets" }.episodes.map { it.title })
+            assertEquals(emptyList<String>(), awaitUntil { it.query == "rockets" && it.episodes.isEmpty() }.episodes.map { it.title })
             vm.onIntent(PodcastDetailIntent.SetQuery("<b>"))
-            assertEquals(emptyList<String>(), awaitUntil { it.query == "<b>" }.episodes.map { it.title })
+            assertEquals(emptyList<String>(), awaitUntil { it.query == "<b>" && it.episodes.isEmpty() }.episodes.map { it.title })
             vm.onIntent(PodcastDetailIntent.SetQuery("tom & jerry visit the moon"))
-            assertEquals(listOf("Rich notes"), awaitUntil { it.query == "tom & jerry visit the moon" }.episodes.map { it.title })
+            assertEquals(listOf("Rich notes"), awaitUntil { it.query == "tom & jerry visit the moon" && it.episodes.size == 1 }.episodes.map { it.title })
         }
     }
 
@@ -136,7 +196,7 @@ class PodcastDetailViewModelTest {
             awaitUntil { it.episodes.isNotEmpty() }
             vm.onIntent(PodcastDetailIntent.SetQuery("space"))
             vm.onIntent(PodcastDetailIntent.SetFilter(EpisodeFilter.UNPLAYED))
-            assertEquals(listOf("Cooking basics"), awaitUntil { it.filter == EpisodeFilter.UNPLAYED && it.query == "space" }.episodes.map { it.title })
+            assertEquals(listOf("Cooking basics"), awaitUntil { it.filter == EpisodeFilter.UNPLAYED && it.query == "space" && it.episodes.size == 1 }.episodes.map { it.title })
         }
     }
 
@@ -202,7 +262,7 @@ class PodcastDetailViewModelTest {
             assertEquals(setOf(b), awaitUntil { it.selectedIds.size == 1 }.selectedIds)
             // Filtering the selected episode out of view drops it from the selection.
             vm.onIntent(PodcastDetailIntent.SetQuery("Cooking"))
-            assertEquals(emptySet<Long>(), awaitUntil { it.query == "Cooking" }.selectedIds)
+            assertEquals(emptySet<Long>(), awaitUntil { it.query == "Cooking" && it.episodes.size == 1 }.selectedIds)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -214,7 +274,7 @@ class PodcastDetailViewModelTest {
         vm.uiState.test {
             awaitUntil { it.episodes.isNotEmpty() }
             vm.onIntent(PodcastDetailIntent.SetFilter(EpisodeFilter.UNPLAYED))
-            awaitUntil { it.filter == EpisodeFilter.UNPLAYED }
+            awaitUntil { it.filter == EpisodeFilter.UNPLAYED && it.episodes.size == 2 }
             vm.onIntent(PodcastDetailIntent.SelectAll)
             val all = awaitUntil { it.selectedIds.isNotEmpty() }
             assertEquals(all.episodes.map { it.id }.toSet(), all.selectedIds)

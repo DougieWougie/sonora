@@ -6,6 +6,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import org.sonora.di.DefaultDispatcher
+import org.sonora.core.database.EpisodeRow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -111,6 +120,7 @@ class PodcastDetailViewModel @Inject constructor(
     private val sync: SyncController,
     private val playback: PlaybackPort,
     private val settings: SettingsStore,
+    @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
     private data class Controls(
         val filter: EpisodeFilter = EpisodeFilter.ALL,
@@ -131,16 +141,42 @@ class PodcastDetailViewModel @Inject constructor(
     /** Kept after unsubscribing so the screen can still offer "Subscribe". */
     private var lastHeader: PodcastHeader? = null
 
+    /** The trimmed query, once typing pauses. Clearing it applies at once; the field itself echoes [controls]. */
+    @OptIn(FlowPreview::class)
+    private val searchQuery: Flow<String> = controls.map { it.query.trim() }
+        .distinctUntilChanged()
+        .debounce { if (it.isEmpty()) 0L else SEARCH_DEBOUNCE_MS }
+
+    /** What a search matches against: the query and, only while one is active, each episode's description text. */
+    private class Search(val query: String, val texts: Map<Long, String>)
+
+    private val search: Flow<Search> = searchQuery.flatMapLatest { query ->
+        if (query.isEmpty()) {
+            flowOf(Search("", emptyMap()))
+        } else {
+            podcastId.flatMapLatest { episodeDao.observeDescriptions(it) }
+                .map { descriptions -> Search(query, descriptions.associate { it.id to htmlToSearchText(it.description) }) }
+        }
+    }
+
+    /** Filtering and text extraction cost time proportional to the list, so they stay off Main. */
+    private val matching: Flow<List<EpisodeRow>> = combine(
+        podcastId.flatMapLatest { episodeDao.observeForPodcast(it) },
+        controls.map { it.filter }.distinctUntilChanged(),
+        search,
+    ) { rows, filter, search -> rows.filter { it.matches(filter, search) } }
+        .flowOn(defaultDispatcher)
+
     val uiState: StateFlow<PodcastDetailUiState> = combine(
         podcastId.flatMapLatest { podcastDao.observeById(it) },
-        podcastId.flatMapLatest { episodeDao.observeForPodcast(it) },
+        matching,
         controls,
         combine(queue.items, playChoice.pending, ::Pair),
         sync.syncing,
-    ) { podcast, episodes, controls, (queued, pendingPlay), syncing ->
+    ) { podcast, matching, controls, (queued, pendingPlay), syncing ->
         val header = podcast?.toHeader()?.also { lastHeader = it } ?: lastHeader
         val subscribed = podcast != null
-        val visible = if (subscribed) episodes.filter { it.matches(controls) } else emptyList()
+        val visible = if (subscribed) matching else emptyList()
         PodcastDetailUiState(
             podcast = header,
             subscribed = subscribed,
@@ -237,14 +273,14 @@ class PodcastDetailViewModel @Inject constructor(
         }
     }
 
-    private fun EpisodeEntity.matches(controls: Controls): Boolean {
-        val filterOk = when (controls.filter) {
+    private fun EpisodeRow.matches(filter: EpisodeFilter, search: Search): Boolean {
+        val filterOk = when (filter) {
             EpisodeFilter.ALL -> true
             EpisodeFilter.UNPLAYED -> !played
             EpisodeFilter.DOWNLOADED -> downloadState == DownloadState.DOWNLOADED
         }
-        val q = controls.query.trim()
-        return filterOk && (q.isEmpty() || title.contains(q, ignoreCase = true) || description?.let { htmlToSearchText(it) }.orEmpty().contains(q, ignoreCase = true))
+        val q = search.query
+        return filterOk && (q.isEmpty() || title.contains(q, ignoreCase = true) || search.texts[id].orEmpty().contains(q, ignoreCase = true))
     }
 
     private fun PodcastEntity.toHeader() = PodcastHeader(id, feedUrl, title, author, description, imageUrl, autoDownload, notifyNewEpisodes)
@@ -252,5 +288,6 @@ class PodcastDetailViewModel @Inject constructor(
     companion object {
         const val ARG_PODCAST_ID = "podcastId"
         private const val STOP_TIMEOUT_MS = 5_000L
+        private const val SEARCH_DEBOUNCE_MS = 300L
     }
 }
