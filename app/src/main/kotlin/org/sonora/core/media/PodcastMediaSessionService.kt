@@ -232,20 +232,16 @@ class PodcastMediaSessionService : MediaSessionService() {
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
         ): MediaSession.ConnectionResult {
-            // Custom commands (play any episode id, ...) are for our own UI and system controllers only.
-            val privileged = controller.isTrusted || controller.packageName == packageName
+            // Only system controllers (notification, lock screen, Bluetooth, Auto, Assistant) and our own UI may
+            // control playback; any other app that finds the session is turned away.
+            if (!isAllowedController(controller.isTrusted, controller.packageName, packageName)) {
+                return MediaSession.ConnectionResult.reject()
+            }
             val commands = SessionCommands.Builder()
                 .addSessionCommands(MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.commands)
-                .apply { if (privileged) PlaybackCommands.ALL.forEach(::add) }
+                .apply { PlaybackCommands.ALL.forEach(::add) }
                 .build()
-            val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
-                .apply {
-                    if (!privileged) {
-                        remove(Player.COMMAND_SET_MEDIA_ITEM)
-                        remove(Player.COMMAND_CHANGE_MEDIA_ITEMS)
-                    }
-                }
-                .build()
+            val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
             return MediaSession.ConnectionResult.accept(commands, playerCommands)
         }
 
@@ -297,3 +293,7 @@ private fun failureOf(error: PlaybackException): PlaybackFailure {
         .firstOrNull()?.responseCode
     return PlaybackFailure.fromErrorCode(error.errorCode, status)
 }
+
+/** True for system-trusted controllers and for our own package (exact match, not a prefix). */
+internal fun isAllowedController(isTrusted: Boolean, controllerPackage: String, ownPackage: String): Boolean =
+    isTrusted || controllerPackage == ownPackage
