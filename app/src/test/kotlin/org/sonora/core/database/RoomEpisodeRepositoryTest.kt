@@ -32,16 +32,26 @@ class RoomEpisodeRepositoryTest {
         real.insertAll(listOf(episodeEntity(podcastId, "g")))
         val id = real.getForPodcast(podcastId).single().id
 
-        // Whatever the repository reads, the user marks the episode played right after the read.
+        // The user marks the episode played at the worst moment: right after the repository's read (the old
+        // read-then-@Update code) or right before its write (the targeted UPDATE, which does not read at all).
+        var interleaved = 0
+        suspend fun markPlayed() {
+            interleaved++
+            real.update(real.findById(id)!!.copy(played = true, playbackPositionSeconds = 300))
+        }
         val racing = object : EpisodeDao by real {
-            override suspend fun findById(id: Long): EpisodeEntity? =
-                real.findById(id).also { row -> real.update(row!!.copy(played = true, playbackPositionSeconds = 300)) }
+            override suspend fun findById(id: Long): EpisodeEntity? = real.findById(id).also { markPlayed() }
+            override suspend fun updateDownload(id: Long, state: DownloadState, bytes: Long, keepPath: Boolean): Int {
+                markPlayed()
+                return real.updateDownload(id, state, bytes, keepPath)
+            }
         }
         val repo = EpisodeRepository(db.podcastDao(), racing, db.syncQueueDao(), FakeTransactionRunner(), MutableClock())
 
         repo.updateDownload(id, DownloadState.DOWNLOADING, 1024)
 
         val row = real.findById(id)!!
+        assertTrue("the concurrent write never happened, so this test proves nothing", interleaved > 0)
         assertTrue(row.played)
         assertEquals(300L, row.playbackPositionSeconds)
         assertEquals(DownloadState.DOWNLOADING, row.downloadState)
