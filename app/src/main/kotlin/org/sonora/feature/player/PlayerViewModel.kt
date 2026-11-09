@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.SharingStarted
@@ -27,6 +28,7 @@ import org.sonora.core.database.PodcastDao
 import org.sonora.core.media.PlayQueue
 import org.sonora.core.media.PlaybackFailure
 import org.sonora.core.media.PlaybackPort
+import org.sonora.core.media.PlaybackProgress
 import org.sonora.core.media.PlaybackSource
 import org.sonora.core.media.PlaybackStateManager
 import org.sonora.feature.settings.SettingsStore
@@ -37,9 +39,6 @@ data class PlayerUiState(
     val episode: PlayerEpisode? = null,
     val isPlaying: Boolean = false,
     val isAudioFlowing: Boolean = false,
-    val positionMs: Long = 0,
-    val bufferedMs: Long = 0,
-    val durationMs: Long = 0,
     val speed: Float = 1f,
     val skipSilence: Boolean = false,
     val sleepTimerRemainingMs: Long? = null,
@@ -97,15 +96,19 @@ class PlayerViewModel @Inject constructor(
             if (id == null) flowOf(DownloadState.NONE) else episodeDao.observeById(id).map { it?.downloadState ?: DownloadState.NONE }
         }
 
-    val uiState: StateFlow<PlayerUiState> = combine(port.state, port.progress(), queue.items, downloadState, ::Quad)
-        .map { (playback, progress, queued, download) ->
+    /**
+     * The 500 ms position poll lives apart from [uiState] on purpose: only the scrubber and the mini-player's
+     * bar read it, so the rest of the app does not recompose twice a second during playback.
+     */
+    val progress: StateFlow<PlaybackProgress> = port.progress()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), PlaybackProgress.None)
+
+    val uiState: StateFlow<PlayerUiState> = combine(port.state, queue.items, downloadState, ::Triple)
+        .map { (playback, queued, download) ->
             PlayerUiState(
                 episode = playback.episodeId?.let { resolve(it) },
                 isPlaying = playback.isPlaying,
                 isAudioFlowing = playback.isAudioFlowing,
-                positionMs = progress.positionMs,
-                bufferedMs = progress.bufferedMs,
-                durationMs = progress.durationMs,
                 speed = playback.speed,
                 skipSilence = playback.skipSilence,
                 sleepTimerRemainingMs = playback.sleepTimerRemainingMs,
@@ -127,9 +130,15 @@ class PlayerViewModel @Inject constructor(
                 val id = state.episode?.id ?: return@launch
                 if (state.isPlaying) port.pause() else port.play(id)
             }
-            is PlayerIntent.SeekTo -> launch { port.seekTo(clamp(intent.positionMs, state.durationMs)) }
-            PlayerIntent.SkipForward -> launch { port.seekTo(clamp(state.positionMs + SKIP_FORWARD_MS, state.durationMs)) }
-            PlayerIntent.Rewind -> launch { port.seekTo(clamp(state.positionMs - REWIND_MS, state.durationMs)) }
+            is PlayerIntent.SeekTo -> launch { port.seekTo(clamp(intent.positionMs, currentProgress().durationMs)) }
+            PlayerIntent.SkipForward -> launch {
+                val now = currentProgress()
+                port.seekTo(clamp(now.positionMs + SKIP_FORWARD_MS, now.durationMs))
+            }
+            PlayerIntent.Rewind -> launch {
+                val now = currentProgress()
+                port.seekTo(clamp(now.positionMs - REWIND_MS, now.durationMs))
+            }
             PlayerIntent.Next -> launch { port.next() }
             PlayerIntent.Previous -> launch { port.previous() }
             is PlayerIntent.StepSpeed -> {
@@ -161,6 +170,9 @@ class PlayerViewModel @Inject constructor(
             }
         }
     }
+
+    /** The latest position, read when needed rather than held, so seeks are right even with nobody watching [progress]. */
+    private suspend fun currentProgress(): PlaybackProgress = port.progress().first()
 
     private fun clamp(positionMs: Long, durationMs: Long): Long =
         if (durationMs > 0) positionMs.coerceIn(0, durationMs) else positionMs.coerceAtLeast(0)

@@ -92,7 +92,7 @@ class SonoraRootTest {
 
     @Test
     fun `an episode without artwork leaves the current colour alone`() {
-        setContent(player = PlayerUiState(episode = episode, durationMs = 1_000))
+        setContent(player = PlayerUiState(episode = episode))
         composeTestRule.waitForIdle()
 
         assertEquals(emptyList<Int?>(), seeds)
