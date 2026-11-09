@@ -59,6 +59,7 @@ class EpisodeDownloadManagerTest {
             ioDispatcher = Dispatchers.IO,
             allowCleartext = true,
             progressStepBytes = 64 * 1024,
+            progressIntervalMillis = 0,
             notices = notices,
         )
     }
@@ -92,6 +93,66 @@ class EpisodeDownloadManagerTest {
     private fun finalFile(id: Long) = File(dir, "episode-$id.mp3")
 
     // --- streaming download ------------------------------------------------------------------
+
+    /** A clock that moves forward [stepMillis] every time it is read. */
+    private class TickingClock(private val stepMillis: Long) : java.time.Clock() {
+        var now = 0L
+        override fun getZone() = java.time.ZoneOffset.UTC
+        override fun withZone(zone: java.time.ZoneId?) = this
+        override fun instant(): java.time.Instant = java.time.Instant.ofEpochMilli(now).also { now += stepMillis }
+    }
+
+    private class CountingEpisodeDao(private val real: FakeEpisodeDao) : org.sonora.core.database.EpisodeDao by real {
+        var progressWrites = 0
+        override suspend fun update(episode: org.sonora.core.database.EpisodeEntity) {
+            if (episode.downloadState == DownloadState.DOWNLOADING) progressWrites++
+            real.update(episode)
+        }
+    }
+
+    private suspend fun throttledDownload(clock: java.time.Clock): Pair<Int, Int> {
+        val big = ByteArray(2_000_000) { (it % 251).toByte() }
+        val id = seed()
+        server.enqueue(ok(big))
+        val counting = CountingEpisodeDao(episodeDao)
+        val throttled = EpisodeDownloadManager(
+            episodeDao = counting,
+            episodeRepository = EpisodeRepository(podcastDao, counting, queue, FakeTransactionRunner(), MutableClock()),
+            client = OkHttpClient(),
+            downloadsDir = dir,
+            policy = { policy },
+            ioDispatcher = Dispatchers.IO,
+            allowCleartext = true,
+            progressStepBytes = 8 * 1024,
+            clock = clock,
+        )
+        var emissions = 0
+        throttled.download(id).test {
+            while (true) {
+                val event = awaitEvent()
+                if (event is app.cash.turbine.Event.Item) emissions++ else break
+            }
+        }
+        assertEquals(DownloadState.DOWNLOADED, episodeDao.findById(id)!!.downloadState)
+        return counting.progressWrites to emissions
+    }
+
+    @Test
+    fun `progress writes are bounded by elapsed time, not by size`() = runTest {
+        // About 250 reads at 50 ms each is roughly 12 seconds of transfer.
+        val (writes, emissions) = throttledDownload(TickingClock(stepMillis = 50))
+
+        assertTrue(writes in 1..15, "expected about one write a second, got $writes")
+        assertTrue(emissions in 1..16, "expected about one emission a second, got $emissions")
+    }
+
+    @Test
+    fun `no time passing means no mid-transfer writes, yet the final progress is still emitted`() = runTest {
+        val (writes, emissions) = throttledDownload(TickingClock(stepMillis = 0))
+
+        assertEquals(1, writes, "only the DOWNLOADING write at the start")
+        assertEquals(1, emissions, "only the final progress")
+    }
 
     @Test
     fun `streams the enclosure to disk, emitting monotonic progress`() = runTest {
