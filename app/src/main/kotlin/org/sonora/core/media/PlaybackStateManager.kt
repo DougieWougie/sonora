@@ -124,7 +124,8 @@ class PlaybackStateManager(
 
     /** Called by the engine adapter when the player starts or stops actually producing audio. */
     fun onPlayerOutputChanged(flowing: Boolean) {
-        _state.update { it.copy(isAudioFlowing = flowing && it.isPlaying) }
+        // Not gated on isPlaying: on resume the player reports this from inside engine.play(), before we set it.
+        _state.update { it.copy(isAudioFlowing = flowing) }
     }
 
     suspend fun pause() {

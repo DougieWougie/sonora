@@ -43,7 +43,8 @@ class FakePlayerEngine : PlayerEngine {
         calls += "prepare"
     }
 
-    override fun play() { calls += "play" }
+    var onPlay: () -> Unit = {}
+    override fun play() { calls += "play"; onPlay() }
     override fun pause() { calls += "pause" }
     override fun stop() { calls += "stop" }
     override fun seekTo(positionMs: Long) {
@@ -163,6 +164,22 @@ class PlaybackStateManagerTest {
         m.onPlayerOutputChanged(false)
         assertTrue(m.state.value.isPlaying)
         assertFalse(m.state.value.isAudioFlowing)
+    }
+
+    @Test
+    fun `resuming flows audio even when the player reports it from inside play`() = runTest {
+        val id = seed()
+        val m = manager()
+        m.play(id)
+        m.onPlayerOutputChanged(true)
+        m.pause()
+        m.onPlayerOutputChanged(false)
+
+        // ExoPlayer announces "playing" synchronously from engine.play(), before the manager marks itself playing.
+        engine.onPlay = { m.onPlayerOutputChanged(true) }
+        m.play(id)
+
+        assertTrue(m.state.value.isAudioFlowing)
     }
 
     @Test
