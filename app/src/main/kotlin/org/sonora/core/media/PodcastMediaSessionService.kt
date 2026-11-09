@@ -43,7 +43,7 @@ import org.sonora.core.database.EpisodeRepository
 import org.sonora.core.database.PodcastDao
 import org.sonora.core.download.EpisodeDownloadManager
 import org.sonora.core.network.withTransportPolicy
-import org.sonora.feature.settings.AppSettings
+import org.sonora.core.settings.AppSettings
 
 @UnstableApi
 @AndroidEntryPoint

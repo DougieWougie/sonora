@@ -28,8 +28,8 @@ import org.junit.Test
 import org.sonora.ui.assertScreenHeading
 import org.junit.runner.RunWith
 import org.sonora.ui.theme.ThemeIntent
-import org.sonora.ui.theme.ThemeMode
-import org.sonora.ui.theme.ThemePreferences
+import org.sonora.core.settings.ThemeMode
+import org.sonora.core.settings.ThemePreferences
 import org.sonora.ui.theme.ThemeState
 
 @RunWith(AndroidJUnit4::class)

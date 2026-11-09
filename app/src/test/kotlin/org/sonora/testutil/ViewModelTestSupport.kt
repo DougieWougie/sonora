@@ -41,8 +41,8 @@ import org.sonora.feature.discover.DirectorySuggestions
 import org.sonora.feature.discover.DirectorySource
 import org.sonora.feature.discover.OpmlImportResult
 import org.sonora.feature.discover.OpmlTransfer
-import org.sonora.feature.settings.NextcloudAccount
-import org.sonora.feature.settings.SettingsStore
+import org.sonora.core.settings.NextcloudAccount
+import org.sonora.core.settings.SettingsStore
 
 /** Installs a [StandardTestDispatcher] as Main, so `viewModelScope` work only runs when the test lets it. */
 @OptIn(ExperimentalCoroutinesApi::class)

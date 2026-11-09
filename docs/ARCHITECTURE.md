@@ -21,6 +21,7 @@ org.sonora
 │   ├── media      PlaybackStateManager, PlayerEngine, Media3 session service, PlaybackHub, play queue
 │   ├── work       WorkManager workers and schedulers
 │   ├── security   SecretStore (Android Keystore)
+│   ├── settings   AppSettings, SettingsStore (preferences read by UI and background code alike)
 │   └── model      Plain data types shared across core
 └── di/        AppModule: the Hilt graph that wires everything together
 ```
@@ -40,10 +41,10 @@ flowchart TD
 - `feature` and `ui` depend on `core`; `core` does not depend on them.
 - `ui` (the navigation shell and shared components) and `feature` (the screens) reference each
   other: the shell hosts every screen, and screens use the shared components and theme.
-- **Known exceptions:** three `core` classes import `feature.settings`:
-  `PodcastMediaSessionService` and `NextcloudRemoteSync` use `AppSettings`, and `PodcastSyncWorker`
-  uses `SettingsStore`. Settings are stored by `feature/settings` but read by background code, so
-  they sit on the boundary. Moving the settings interfaces into `core` would remove the exception.
+- `core` has no imports from `ui` or `feature`; `LayeringTest` scans the sources and fails if one appears.
+  Settings (`AppSettings`, `SettingsStore`) live in `core/settings`, which is why background code can read
+  them. The theme choices that are stored (`ThemeMode`, `ThemePreferences`) are there too, while the UI-facing
+  `ThemePreferenceStore` stays in `ui/theme` and is backed by `SettingsThemePreferenceStore`.
 
 ## Data flow
 
@@ -162,7 +163,7 @@ storage limits (played before unplayed, older before newer, never the episode in
 `EvictionNotices` tells the user afterwards.
 
 ### Settings and secrets
-`AppSettings` implements `SettingsStore` (and the theme and discovery-credential interfaces) over
+`AppSettings` (`core/settings`) implements `SettingsStore` and the discovery-credential interface over
 SharedPreferences. Secrets, such as the Nextcloud app password, go through `SecretStore`, backed by
 the Android Keystore.
 
