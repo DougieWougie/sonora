@@ -21,14 +21,20 @@ internal fun newHardenedParser(factory: XmlPullParserFactory): XmlPullParser {
     }
 }
 
-/** Reads the text content of the current element and leaves the parser on its end tag. */
-internal fun XmlPullParser.readText(): String {
+/**
+ * Reads the text content of the current element and leaves the parser on its end tag.
+ * Throws [FeedLimitExceededException] if it runs past [maxChars].
+ */
+internal fun XmlPullParser.readText(maxChars: Int = FeedLimits.MAX_FIELD_CHARS): String {
     val text = StringBuilder()
     var depth = 1
     while (depth > 0) {
         when (next()) {
             XmlPullParser.TEXT, XmlPullParser.CDSECT, XmlPullParser.ENTITY_REF ->
-                if (depth == 1) text.append(this.text.orEmpty())
+                if (depth == 1) {
+                    text.append(this.text.orEmpty())
+                    if (text.length > maxChars) throw FeedLimitExceededException("Text field is longer than $maxChars characters")
+                }
             XmlPullParser.START_TAG -> depth++
             XmlPullParser.END_TAG -> depth--
             XmlPullParser.END_DOCUMENT -> throw XmlPullParserException("Unexpected end of document", this, null)
