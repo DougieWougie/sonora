@@ -246,7 +246,7 @@ private fun SharedTransitionScope.PlayerDock(
             ExpressiveScrubber(
                 positionMs = state.positionMs,
                 durationMs = state.durationMs,
-                isPlaying = state.isPlaying,
+                isPlaying = state.isAudioFlowing,
                 onSeek = { onIntent(PlayerIntent.SeekTo(it)) },
                 bufferedMs = state.bufferedMs,
                 streaming = state.source == PlaybackSource.STREAMING,

@@ -147,6 +147,44 @@ class PlaybackStateManagerTest {
         }
     }
 
+    // --- audible output ----------------------------------------------------------------------
+
+    @Test
+    fun `audio counts as flowing only while the player is really producing it`() = runTest {
+        val id = seed()
+        val m = manager()
+        assertFalse(m.state.value.isAudioFlowing)
+
+        m.play(id)
+        m.onPlayerOutputChanged(true)
+        assertTrue(m.state.value.isAudioFlowing)
+
+        // Buffering or a transient focus loss: still "playing" for the user, but nothing is moving.
+        m.onPlayerOutputChanged(false)
+        assertTrue(m.state.value.isPlaying)
+        assertFalse(m.state.value.isAudioFlowing)
+    }
+
+    @Test
+    fun `audio stops flowing when playback is paused, stopped or fails`() = runTest {
+        val id = seed()
+        val m = manager()
+        m.play(id)
+        m.onPlayerOutputChanged(true)
+        m.pause()
+        assertFalse(m.state.value.isAudioFlowing)
+
+        m.play(id)
+        m.onPlayerOutputChanged(true)
+        m.stop()
+        assertFalse(m.state.value.isAudioFlowing)
+
+        m.play(id)
+        m.onPlayerOutputChanged(true)
+        m.onPlayerError(PlaybackFailure(PlaybackFailureReason.NETWORK))
+        assertFalse(m.state.value.isAudioFlowing)
+    }
+
     // --- player errors -----------------------------------------------------------------------
 
     @Test

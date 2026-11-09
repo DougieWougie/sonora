@@ -28,6 +28,8 @@ enum class PlaybackSource { STREAMING, OFFLINE }
 data class PlaybackState(
     val episodeId: Long? = null,
     val isPlaying: Boolean = false,
+    /** True only while the player is actually producing audio: false when buffering or paused by the system. */
+    val isAudioFlowing: Boolean = false,
     val speed: Float = 1f,
     val skipSilence: Boolean = false,
     val sleepTimerRemainingMs: Long? = null,
@@ -120,11 +122,16 @@ class PlaybackStateManager(
         startProgressTicker(episodeId)
     }
 
+    /** Called by the engine adapter when the player starts or stops actually producing audio. */
+    fun onPlayerOutputChanged(flowing: Boolean) {
+        _state.update { it.copy(isAudioFlowing = flowing && it.isPlaying) }
+    }
+
     suspend fun pause() {
         if (loadedId == null) return
         progressJob?.cancel()
         engine.pause()
-        _state.update { it.copy(isPlaying = false) }
+        _state.update { it.copy(isPlaying = false, isAudioFlowing = false) }
         checkpoint()
     }
 
@@ -137,7 +144,7 @@ class PlaybackStateManager(
         engine.stop()
         loadedId = null
         loadedDurationMs = 0
-        _state.update { it.copy(episodeId = null, isPlaying = false, source = null) }
+        _state.update { it.copy(episodeId = null, isPlaying = false, isAudioFlowing = false, source = null) }
     }
 
     /**
@@ -172,7 +179,7 @@ class PlaybackStateManager(
         if (loadedId == null) return
         progressJob?.cancel()
         failed = true
-        _state.update { it.copy(isPlaying = false) }
+        _state.update { it.copy(isPlaying = false, isAudioFlowing = false) }
         checkpoint()
         _errors.emit(failure)
     }
@@ -181,7 +188,7 @@ class PlaybackStateManager(
     suspend fun onPlaybackEnded() {
         if (loadedId == null) return
         progressJob?.cancel()
-        _state.update { it.copy(isPlaying = false) }
+        _state.update { it.copy(isPlaying = false, isAudioFlowing = false) }
         checkpoint(forceComplete = true)
         playNextInQueue()
     }
