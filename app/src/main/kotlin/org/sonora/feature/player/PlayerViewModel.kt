@@ -36,6 +36,7 @@ data class PlayerEpisode(val id: Long, val title: String, val podcastTitle: Stri
 data class PlayerUiState(
     val episode: PlayerEpisode? = null,
     val isPlaying: Boolean = false,
+    val isAudioFlowing: Boolean = false,
     val positionMs: Long = 0,
     val bufferedMs: Long = 0,
     val durationMs: Long = 0,
@@ -101,6 +102,7 @@ class PlayerViewModel @Inject constructor(
             PlayerUiState(
                 episode = playback.episodeId?.let { resolve(it) },
                 isPlaying = playback.isPlaying,
+                isAudioFlowing = playback.isAudioFlowing,
                 positionMs = progress.positionMs,
                 bufferedMs = progress.bufferedMs,
                 durationMs = progress.durationMs,

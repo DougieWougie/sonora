@@ -110,6 +110,10 @@ class PodcastMediaSessionService : MediaSessionService() {
                 if (playbackState == Player.STATE_ENDED) scope.launch { manager.onPlaybackEnded() }
             }
 
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                manager.onPlayerOutputChanged(isPlaying)
+            }
+
             override fun onPlayerError(error: PlaybackException) {
                 Log.w(TAG, "Playback error", error)
                 scope.launch { manager.onPlayerError(failureOf(error)) }
