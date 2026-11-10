@@ -1,27 +1,33 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.sonora.feature.settings
+package org.sonora.core.settings
 
 import android.content.Context
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import org.sonora.BuildConfig
 import org.sonora.core.download.DownloadPolicy
 import org.sonora.core.network.discovery.DiscoveryCredentialsSource
 import org.sonora.core.network.discovery.PodcastIndexCredentials
 import org.sonora.core.security.SecretStore
-import org.sonora.ui.theme.ThemeMode
-import org.sonora.ui.theme.ThemePreferenceStore
-import org.sonora.ui.theme.ThemePreferences
 
 data class NextcloudAccount(val serverUrl: String, val loginName: String, val appPassword: String)
 
 /** User preferences. Secrets go to [SecretStore]; everything else to plain SharedPreferences. */
-class AppSettings(context: Context, private val secrets: SecretStore) : DiscoveryCredentialsSource, SettingsStore, ThemePreferenceStore {
+class AppSettings(
+    context: Context,
+    private val secrets: SecretStore,
+    /** Only debug builds carry the network security config that lets cleartext through; release builds never do. */
+    private val cleartextAllowedInThisBuild: Boolean = BuildConfig.DEBUG,
+) : DiscoveryCredentialsSource, SettingsStore {
     private val prefs = context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
-    /** Cleartext is off unless the user opts in for local development. Read when networking is set up. */
+    /**
+     * Cleartext is off unless the user opts in for local development, and only debug builds can opt in
+     * (the platform refuses cleartext elsewhere). Read when networking is set up.
+     */
     override var allowCleartext: Boolean
-        get() = prefs.getBoolean(ALLOW_CLEARTEXT, false)
+        get() = cleartextAllowedInThisBuild && prefs.getBoolean(ALLOW_CLEARTEXT, false)
         set(value) = prefs.edit().putBoolean(ALLOW_CLEARTEXT, value).apply()
 
     override var debugTools: Boolean
@@ -83,9 +89,9 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
             artworkColors = prefs.getBoolean(ARTWORK_COLORS, true),
         ),
     )
-    override val preferences: Flow<ThemePreferences> = _theme
+    val themePreferences: Flow<ThemePreferences> = _theme
 
-    override suspend fun save(preferences: ThemePreferences) {
+    suspend fun saveThemePreferences(preferences: ThemePreferences) {
         prefs.edit().putString(THEME_MODE, preferences.mode.name).putBoolean(ARTWORK_COLORS, preferences.artworkColors).apply()
         _theme.value = preferences
     }
@@ -103,9 +109,10 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
         return NextcloudAccount(server, login, password)
     }
 
-    override fun saveNextcloudAccount(account: NextcloudAccount) {
+    override fun saveNextcloudAccount(account: NextcloudAccount): Boolean {
+        if (!secrets.put(NC_PASSWORD, account.appPassword)) return false
         prefs.edit().putString(NC_SERVER, account.serverUrl).putString(NC_LOGIN, account.loginName).apply()
-        secrets.put(NC_PASSWORD, account.appPassword)
+        return true
     }
 
     override fun clearNextcloudAccount() {
@@ -113,14 +120,17 @@ class AppSettings(context: Context, private val secrets: SecretStore) : Discover
         secrets.remove(NC_PASSWORD)
     }
 
-    override fun savePodcastIndexCredentials(credentials: PodcastIndexCredentials?) {
+    override fun savePodcastIndexCredentials(credentials: PodcastIndexCredentials?): Boolean {
         if (credentials == null || !credentials.isComplete) {
             secrets.remove(PI_KEY)
             secrets.remove(PI_SECRET)
-        } else {
-            secrets.put(PI_KEY, credentials.apiKey)
-            secrets.put(PI_SECRET, credentials.apiSecret)
+            return true
         }
+        if (!secrets.put(PI_KEY, credentials.apiKey)) return false // nothing changed
+        if (secrets.put(PI_SECRET, credentials.apiSecret)) return true
+        secrets.remove(PI_KEY) // never leave a new key paired with the old secret
+        secrets.remove(PI_SECRET)
+        return false
     }
 
     override suspend fun podcastIndexCredentials(): PodcastIndexCredentials? {

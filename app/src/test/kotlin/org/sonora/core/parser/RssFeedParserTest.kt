@@ -159,4 +159,45 @@ class RssFeedParserTest {
         )
         assertEquals("Short", feed.episodes.single().description)
     }
+
+    // --- limits on untrusted input ---------------------------------------------------------------
+
+    private fun rss(items: String, channelExtra: String = "") =
+        """<?xml version="1.0"?><rss version="2.0"><channel><title>T</title>$channelExtra$items</channel></rss>"""
+
+    private fun item(i: Int) = """<item><guid>g$i</guid><title>t$i</title><enclosure url="https://c/$i.mp3" type="audio/mpeg"/></item>"""
+
+    private fun RssFeedParser.parseText(xml: String) = parse(ByteArrayInputStream(xml.toByteArray()))
+
+    @Test
+    fun `a single text field over the cap is rejected`() {
+        val limited = RssFeedParser(XmlPullParserFactory.newInstance(), maxFieldChars = 100)
+
+        assertThrows(FeedLimitExceededException::class.java) {
+            limited.parseText(rss("", channelExtra = "<description>${"x".repeat(101)}</description>"))
+        }
+        assertEquals(100, limited.parseText(rss("", channelExtra = "<description>${"x".repeat(100)}</description>")).description!!.length)
+    }
+
+    @Test
+    fun `more items than the cap is rejected`() {
+        val limited = RssFeedParser(XmlPullParserFactory.newInstance(), maxItems = 5)
+
+        assertThrows(FeedLimitExceededException::class.java) { limited.parseText(rss((1..6).joinToString("") { item(it) })) }
+        assertEquals(5, limited.parseText(rss((1..5).joinToString("") { item(it) })).episodes.size)
+    }
+
+    @Test
+    fun `a body that decompresses past the byte cap is rejected while streaming`() {
+        val limited = RssFeedParser(XmlPullParserFactory.newInstance(), maxBytes = 2_000)
+
+        assertThrows(FeedLimitExceededException::class.java) { limited.parseText(rss((1..100).joinToString("") { item(it) })) }
+    }
+
+    @Test
+    fun `the default limits are generous`() {
+        assertEquals(50L * 1024 * 1024, FeedLimits.MAX_BYTES)
+        assertEquals(200_000, FeedLimits.MAX_FIELD_CHARS)
+        assertEquals(20_000, FeedLimits.MAX_ITEMS)
+    }
 }

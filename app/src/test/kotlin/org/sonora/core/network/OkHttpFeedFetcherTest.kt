@@ -76,4 +76,33 @@ class OkHttpFeedFetcherTest {
         assertFalse(failure.transient)
         assertEquals(0, server.requestCount)
     }
+
+    @Test
+    fun `an oversized body fails as a permanent limit error`() = runTest {
+        val small = OkHttpFeedFetcher(
+            client = OkHttpClient(),
+            parser = RssFeedParser(XmlPullParserFactory.newInstance(), maxBytes = 1_000),
+            ioDispatcher = Dispatchers.IO,
+            userAgent = "Sonora/test",
+            allowCleartext = true,
+        )
+        server.enqueue(MockResponse.Builder().body(okio.Buffer().write(fixtureBytes().let { it + ByteArray(5_000) { ' '.code.toByte() } })).build())
+
+        assertThrows<org.sonora.core.parser.FeedLimitExceededException> { small.fetch(server.url("/big").toString()) }
+    }
+
+    @Test
+    fun `a stalled response hits the call timeout as an io failure`() = runTest {
+        val impatient = OkHttpFeedFetcher(
+            client = OkHttpClient(),
+            parser = RssFeedParser(XmlPullParserFactory.newInstance()),
+            ioDispatcher = Dispatchers.IO,
+            userAgent = "Sonora/test",
+            allowCleartext = true,
+            callTimeout = java.time.Duration.ofMillis(300),
+        )
+        server.enqueue(MockResponse.Builder().headersDelay(5, java.util.concurrent.TimeUnit.SECONDS).body("<rss/>").build())
+
+        assertThrows<java.io.IOException> { impatient.fetch(server.url("/slow").toString()) }
+    }
 }

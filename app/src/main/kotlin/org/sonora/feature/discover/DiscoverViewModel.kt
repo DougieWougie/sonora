@@ -34,7 +34,7 @@ import org.sonora.core.model.DirectoryPodcast
 import org.sonora.core.network.isTransportAllowed
 import org.sonora.core.sync.FeedFetcher
 import org.sonora.core.work.SyncController
-import org.sonora.feature.settings.SettingsStore
+import org.sonora.core.settings.SettingsStore
 
 data class DiscoverResult(val podcast: DirectoryPodcast, val subscribed: Boolean)
 

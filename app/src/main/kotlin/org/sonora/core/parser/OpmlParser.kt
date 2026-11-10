@@ -8,11 +8,14 @@ import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 
 /** Reads every `<outline>` that carries an `xmlUrl`, regardless of how deeply it is nested in folders. */
-class OpmlParser(private val factory: XmlPullParserFactory) {
+class OpmlParser(
+    private val factory: XmlPullParserFactory,
+    private val maxBytes: Long = FeedLimits.MAX_BYTES,
+) {
 
     fun parse(input: InputStream): List<OpmlEntry> {
         val parser = newHardenedParser(factory)
-        parser.setInput(input, null)
+        parser.setInput(LimitedInputStream(input, maxBytes), null)
         val entries = mutableListOf<OpmlEntry>()
         while (parser.next() != XmlPullParser.END_DOCUMENT) {
             if (parser.eventType != XmlPullParser.START_TAG || parser.name != "outline") continue

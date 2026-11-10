@@ -41,8 +41,8 @@ import org.sonora.feature.discover.DirectorySuggestions
 import org.sonora.feature.discover.DirectorySource
 import org.sonora.feature.discover.OpmlImportResult
 import org.sonora.feature.discover.OpmlTransfer
-import org.sonora.feature.settings.NextcloudAccount
-import org.sonora.feature.settings.SettingsStore
+import org.sonora.core.settings.NextcloudAccount
+import org.sonora.core.settings.SettingsStore
 
 /** Installs a [StandardTestDispatcher] as Main, so `viewModelScope` work only runs when the test lets it. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -99,11 +99,24 @@ class FakeSettingsStore : SettingsStore {
     override fun recordSync(epochMillis: Long) { lastSyncMillis.value = epochMillis }
     var account: NextcloudAccount? = null
     var podcastIndex: PodcastIndexCredentials? = null
-    override fun nextcloudAccount() = account
-    override fun saveNextcloudAccount(account: NextcloudAccount) { this.account = account }
-    override fun clearNextcloudAccount() { account = null }
-    override suspend fun podcastIndexCredentials() = podcastIndex
-    override fun savePodcastIndexCredentials(credentials: PodcastIndexCredentials?) { podcastIndex = credentials?.takeIf { it.isComplete } }
+    /** False to behave like a Keystore that cannot store the secret. */
+    var saveSucceeds = true
+    /** Called before every operation that touches secrets, so a test can assert which thread it runs on. */
+    var onSecretAccess: () -> Unit = {}
+    override fun nextcloudAccount() = account.also { onSecretAccess() }
+    override fun saveNextcloudAccount(account: NextcloudAccount): Boolean {
+        onSecretAccess()
+        if (saveSucceeds) this.account = account
+        return saveSucceeds
+    }
+    override fun clearNextcloudAccount() { onSecretAccess(); account = null }
+    override suspend fun podcastIndexCredentials() = podcastIndex.also { onSecretAccess() }
+    override fun savePodcastIndexCredentials(credentials: PodcastIndexCredentials?): Boolean {
+        onSecretAccess()
+        if (!saveSucceeds && credentials != null) return false
+        podcastIndex = credentials?.takeIf { it.isComplete }
+        return true
+    }
     override var autoDownloadUnmeteredOnly = true
     override var deleteDownloadsWhenPlayed = true
     override var allowCleartext = false

@@ -42,8 +42,7 @@ import org.sonora.core.database.EpisodeDao
 import org.sonora.core.database.EpisodeRepository
 import org.sonora.core.database.PodcastDao
 import org.sonora.core.download.EpisodeDownloadManager
-import org.sonora.core.network.withTransportPolicy
-import org.sonora.feature.settings.AppSettings
+import org.sonora.core.settings.AppSettings
 
 @UnstableApi
 @AndroidEntryPoint
@@ -74,7 +73,7 @@ class PodcastMediaSessionService : MediaSessionService() {
                 DefaultMediaSourceFactory(
                     DefaultDataSource.Factory(
                         this,
-                        OkHttpDataSource.Factory(okHttpClient.withTransportPolicy(allowCleartext)),
+                        OkHttpDataSource.Factory(okHttpClient),
                     ),
                 ),
             )
