@@ -18,7 +18,7 @@ import okhttp3.OkHttpClient
 import org.sonora.core.download.DownloadsMigration
 import org.sonora.core.network.withTransportPolicy
 import org.sonora.core.work.WorkManagerSyncScheduler
-import org.sonora.feature.settings.AppSettings
+import org.sonora.core.settings.AppSettings
 import org.sonora.feature.discover.DirectorySuggestions
 import org.sonora.ui.HttpsUpgradeInterceptor
 
@@ -37,7 +37,7 @@ class SonoraApp : Application(), Configuration.Provider, SingletonImageLoader.Fa
     /** Artwork goes through the app's own client, so it follows the same HTTPS-only policy as everything else. */
     override fun newImageLoader(context: PlatformContext): ImageLoader {
         val allowCleartext = settings.allowCleartext
-        val client = okHttpClient.withTransportPolicy(allowCleartext)
+        val client = okHttpClient
         return ImageLoader.Builder(context)
             .components {
                 add(OkHttpNetworkFetcherFactory(callFactory = { client }))

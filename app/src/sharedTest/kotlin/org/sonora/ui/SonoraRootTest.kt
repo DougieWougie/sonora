@@ -28,8 +28,8 @@ import org.junit.runner.RunWith
 import org.sonora.feature.player.PlayerEpisode
 import org.sonora.feature.player.PlayerUiState
 import org.sonora.ui.theme.ColorRoles
-import org.sonora.ui.theme.ThemeMode
-import org.sonora.ui.theme.ThemePreferences
+import org.sonora.core.settings.ThemeMode
+import org.sonora.core.settings.ThemePreferences
 import org.sonora.ui.theme.ThemeState
 import org.sonora.ui.theme.toColorScheme
 
@@ -92,7 +92,7 @@ class SonoraRootTest {
 
     @Test
     fun `an episode without artwork leaves the current colour alone`() {
-        setContent(player = PlayerUiState(episode = episode, durationMs = 1_000))
+        setContent(player = PlayerUiState(episode = episode))
         composeTestRule.waitForIdle()
 
         assertEquals(emptyList<Int?>(), seeds)

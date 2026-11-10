@@ -140,6 +140,34 @@ abstract class DaoContract {
     }
 
     @Test
+    fun `updateDownload writes only the download columns and clears the path unless it is kept`() = runBlocking {
+        val id = podcast("https://a")
+        episodes.insertAll(listOf(episode(id, "e1", played = true)))
+        val before = episodes.getForPodcast(id).single()
+        episodes.update(before.copy(downloadPath = "/f", downloadState = DownloadState.DOWNLOADED))
+
+        assertEquals(1, episodes.updateDownload(before.id, DownloadState.DOWNLOADED, 5, keepPath = true))
+        assertEquals("/f", episodes.findById(before.id)!!.downloadPath)
+
+        assertEquals(1, episodes.updateDownload(before.id, DownloadState.DOWNLOADING, 9, keepPath = false))
+        val after = episodes.findById(before.id)!!
+        assertEquals(before.copy(downloadState = DownloadState.DOWNLOADING, downloadedBytes = 9, downloadPath = null), after)
+        assertEquals(0, episodes.updateDownload(before.id + 100, DownloadState.QUEUED, 0, keepPath = false))
+    }
+
+    @Test
+    fun `podcast toggles flip one flag and leave the rest of the row alone`() = runBlocking {
+        val id = podcast("https://a", "A")
+        val before = podcasts.findById(id)!!
+
+        podcasts.toggleAutoDownload(id)
+        assertEquals(before.copy(autoDownload = !before.autoDownload), podcasts.findById(id))
+        podcasts.toggleAutoDownload(id)
+        podcasts.toggleNotifyNewEpisodes(id)
+        assertEquals(before.copy(notifyNewEpisodes = !before.notifyNewEpisodes), podcasts.findById(id))
+    }
+
+    @Test
     fun `deleteById removes only that episode`() = runBlocking {
         val id = podcast("https://a")
         episodes.insertAll(listOf(episode(id, "e1"), episode(id, "e2")))
@@ -208,8 +236,8 @@ abstract class DaoContract {
 
         assertEquals(listOf("done"), episodes.getByDownloadState(DownloadState.DOWNLOADED).map { it.guid })
         val observed = episodes.observeByDownloadStates(listOf(DownloadState.QUEUED, DownloadState.FAILED)).first()
-        assertEquals(setOf("queued", "failed"), observed.map { it.guid }.toSet())
-        assertEquals(emptyList<EpisodeEntity>(), episodes.observeByDownloadStates(emptyList()).first())
+        assertEquals(setOf("queued", "failed"), observed.map { it.title }.toSet())
+        assertEquals(emptyList<EpisodeRow>(), episodes.observeByDownloadStates(emptyList()).first())
     }
 
     @Test
@@ -232,7 +260,50 @@ abstract class DaoContract {
             listOf(episode(id, "mid", 200), episode(id, "new", 300), episode(id, "old", 100), episode(other, "x", 999)),
         )
 
-        assertEquals(listOf("new", "mid", "old"), episodes.observeForPodcast(id).first().map { it.guid })
+        assertEquals(listOf("new", "mid", "old"), episodes.observeForPodcast(id).first().map { it.title })
+    }
+
+    @Test
+    fun `list rows carry what the lists show, without the description`() = runBlocking {
+        val id = podcast("https://a")
+        episodes.insertAll(
+            listOf(episodeEntity(id, "e1", publishedAtMillis = 5, durationSeconds = 60, sizeBytes = 9, played = true, description = "long notes")),
+        )
+        val entity = episodes.getForPodcast(id).single()
+        val expected = EpisodeRow(
+            id = entity.id, podcastId = id, title = "e1", publishedAtMillis = 5, durationSeconds = 60, imageUrl = null,
+            playbackPositionSeconds = 0, played = true, downloadState = DownloadState.NONE, downloadedBytes = 0, sizeBytes = 9,
+        )
+
+        assertEquals(listOf(expected), episodes.observeForPodcast(id).first())
+        assertEquals(listOf(expected), episodes.observeUnplayed(10).first() + episodes.observeByDownloadStates(listOf(DownloadState.NONE)).first())
+    }
+
+    @Test
+    fun `descriptions are observed per podcast and only where there is one`() = runBlocking {
+        val a = podcast("https://a")
+        val b = podcast("https://b")
+        episodes.insertAll(
+            listOf(
+                episodeEntity(a, "with", description = "notes"),
+                episodeEntity(a, "without"),
+                episodeEntity(b, "other", description = "elsewhere"),
+            ),
+        )
+        val withId = episodes.getForPodcast(a).first { it.guid == "with" }.id
+
+        assertEquals(listOf(EpisodeDescription(withId, "notes")), episodes.observeDescriptions(a).first())
+    }
+
+    @Test
+    fun `rows are fetched by id in one query`() = runBlocking {
+        val id = podcast("https://a")
+        episodes.insertAll(listOf(episode(id, "e1"), episode(id, "e2"), episode(id, "e3")))
+        val all = episodes.getForPodcast(id)
+        val wanted = listOf(all[2].id, all[0].id, 9_999L)
+
+        assertEquals(setOf("e1", "e3"), episodes.getRowsByIds(wanted).map { it.title }.toSet())
+        assertEquals(emptyList<EpisodeRow>(), episodes.getRowsByIds(emptyList()))
     }
 
     @Test

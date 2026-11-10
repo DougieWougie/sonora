@@ -77,6 +77,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.sonora.core.testing.TestTags
 import org.sonora.ui.components.ArtworkImage
+import org.sonora.core.media.PlaybackProgress
 import org.sonora.core.media.PlaybackSource
 import org.sonora.ui.components.ExpressiveScrubber
 import org.sonora.ui.components.PlaybackSourceChip
@@ -102,6 +103,7 @@ private fun boundsTransform(): androidx.compose.animation.BoundsTransform {
 @Composable
 fun SharedTransitionScope.MiniPlayer(
     state: PlayerUiState,
+    progress: () -> PlaybackProgress,
     visibilityScope: AnimatedVisibilityScope,
     onIntent: (PlayerIntent) -> Unit,
     onExpand: () -> Unit,
@@ -151,7 +153,8 @@ fun SharedTransitionScope.MiniPlayer(
                 )
             }
             LinearProgressIndicator(
-                progress = { if (state.durationMs > 0) (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f },
+                // Read inside the lambda: the bar redraws on each tick without recomposing the mini player.
+                progress = { progress().let { if (it.durationMs > 0) (it.positionMs.toFloat() / it.durationMs).coerceIn(0f, 1f) else 0f } },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 10.dp).height(4.dp),
                 gapSize = 0.dp,
                 drawStopIndicator = {},
@@ -163,6 +166,7 @@ fun SharedTransitionScope.MiniPlayer(
 @Composable
 fun SharedTransitionScope.FullPlayer(
     state: PlayerUiState,
+    progress: () -> PlaybackProgress,
     visibilityScope: AnimatedVisibilityScope,
     onIntent: (PlayerIntent) -> Unit,
     onCollapse: () -> Unit,
@@ -191,7 +195,7 @@ fun SharedTransitionScope.FullPlayer(
                 },
             )
         },
-        bottomBar = { PlayerDock(state, visibilityScope, transform, onIntent) },
+        bottomBar = { PlayerDock(state, progress, visibilityScope, transform, onIntent) },
     ) { innerPadding ->
         Column(
             Modifier.testTag(TestTags.PLAYER_SCROLL_BODY).fillMaxSize().verticalScroll(rememberScrollState()).padding(innerPadding).padding(horizontal = 24.dp),
@@ -228,10 +232,25 @@ fun SharedTransitionScope.FullPlayer(
     if (showQueue) QueueSheet(state, onIntent, onDismiss = { showQueue = false })
 }
 
+/** Reads [progress] here, so only the scrubber recomposes as the position moves. */
+@Composable
+private fun ProgressScrubber(progress: () -> PlaybackProgress, isPlaying: Boolean, streaming: Boolean, onSeek: (Long) -> Unit) {
+    val now = progress()
+    ExpressiveScrubber(
+        positionMs = now.positionMs,
+        durationMs = now.durationMs,
+        isPlaying = isPlaying,
+        onSeek = onSeek,
+        bufferedMs = now.bufferedMs,
+        streaming = streaming,
+    )
+}
+
 /** Scrubber, times and transport controls, pinned under the scrolling body. */
 @Composable
 private fun SharedTransitionScope.PlayerDock(
     state: PlayerUiState,
+    progress: () -> PlaybackProgress,
     visibilityScope: AnimatedVisibilityScope,
     transform: androidx.compose.animation.BoundsTransform,
     onIntent: (PlayerIntent) -> Unit,
@@ -243,14 +262,9 @@ private fun SharedTransitionScope.PlayerDock(
     ) {
         Column(Modifier.navigationBarsPadding().padding(horizontal = 24.dp).padding(top = 8.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             state.source?.let { PlaybackSourceChip(it, downloadState = state.downloadState, onDownload = { onIntent(PlayerIntent.DownloadCurrent) }) }
-            ExpressiveScrubber(
-                positionMs = state.positionMs,
-                durationMs = state.durationMs,
-                isPlaying = state.isAudioFlowing,
-                onSeek = { onIntent(PlayerIntent.SeekTo(it)) },
-                bufferedMs = state.bufferedMs,
-                streaming = state.source == PlaybackSource.STREAMING,
-            )
+            ProgressScrubber(progress, isPlaying = state.isAudioFlowing, streaming = state.source == PlaybackSource.STREAMING) {
+                onIntent(PlayerIntent.SeekTo(it))
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { onIntent(PlayerIntent.Previous) }, modifier = Modifier.size(48.dp).testTag(TestTags.PREVIOUS_BUTTON)) {
                     Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous episode", Modifier.size(28.dp))
