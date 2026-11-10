@@ -139,6 +139,21 @@ class PodcastSyncPipelineTest {
     }
 
     @Test
+    fun `a feed over the size limits is a permanent failure, a stalled one is transient`() = runTest {
+        subscribe("https://huge")
+        subscribe("https://stalled")
+        feeds["https://huge"] = { throw org.sonora.core.parser.FeedLimitExceededException("too big") }
+        feeds["https://stalled"] = { throw java.io.InterruptedIOException("timeout") }
+
+        val outcome = pipeline().run()
+
+        assertEquals(
+            mapOf("https://huge" to FailureKind.PERMANENT, "https://stalled" to FailureKind.TRANSIENT),
+            outcome.failedFeeds,
+        )
+    }
+
+    @Test
     fun `a transient remote failure still refreshes feeds and asks for a retry`() = runTest {
         subscribe("https://a")
         feeds["https://a"] = { feed(episode("a", 1)) }

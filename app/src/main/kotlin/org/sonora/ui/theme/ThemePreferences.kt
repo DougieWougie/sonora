@@ -9,13 +9,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
-enum class ThemeMode { SYSTEM, LIGHT, DARK, AMOLED }
-
-data class ThemePreferences(
-    val mode: ThemeMode = ThemeMode.SYSTEM,
-    val artworkColors: Boolean = true,
-)
+import org.sonora.core.settings.AppSettings
+import org.sonora.core.settings.ThemeMode
+import org.sonora.core.settings.ThemePreferences
 
 sealed interface ThemeIntent {
     data class SelectMode(val mode: ThemeMode) : ThemeIntent
@@ -45,6 +41,12 @@ data class ThemeState(
 interface ThemePreferenceStore {
     val preferences: Flow<ThemePreferences>
     suspend fun save(preferences: ThemePreferences)
+}
+
+/** Lets the UI observe and save the theme through [AppSettings] without `core` knowing about this package. */
+class SettingsThemePreferenceStore(private val settings: AppSettings) : ThemePreferenceStore {
+    override val preferences: Flow<ThemePreferences> get() = settings.themePreferences
+    override suspend fun save(preferences: ThemePreferences) = settings.saveThemePreferences(preferences)
 }
 
 class ThemeStateHolder(private val store: ThemePreferenceStore, private val scope: CoroutineScope) {

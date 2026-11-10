@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.ui.theme
 
+import org.sonora.core.settings.ThemeMode
+import org.sonora.core.settings.ThemePreferences
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme

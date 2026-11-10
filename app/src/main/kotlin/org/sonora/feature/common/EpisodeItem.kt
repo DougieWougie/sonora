@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.feature.common
 
-import org.sonora.core.database.EpisodeEntity
+import org.sonora.core.database.EpisodeRow
 import org.sonora.core.database.PodcastEntity
 import org.sonora.core.model.DownloadState
 
@@ -25,7 +25,7 @@ data class EpisodeItem(
 /** A "mark older episodes as played" request waiting for the user to confirm it. */
 data class PendingMarkOlder(val episodeId: Long, val count: Int)
 
-fun EpisodeEntity.toItem(podcast: PodcastEntity?, queued: Boolean) = EpisodeItem(
+fun EpisodeRow.toItem(podcast: PodcastEntity?, queued: Boolean) = EpisodeItem(
     id = id,
     podcastId = podcastId,
     podcastTitle = podcast?.title,

@@ -3,6 +3,7 @@ package org.sonora.core.download
 
 import java.io.File
 import java.io.IOException
+import java.time.Clock
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -22,7 +23,6 @@ import org.sonora.core.database.EpisodeRepository
 import org.sonora.core.model.DownloadState
 import org.sonora.core.network.isTransportAllowed
 import org.sonora.core.network.upgradedToHttps
-import org.sonora.core.network.withTransportPolicy
 
 /** [keepPerPodcast] and [maxStorageBytes] are both "0 means unlimited". */
 data class DownloadPolicy(
@@ -45,15 +45,16 @@ class DownloadException(message: String, val retryable: Boolean, cause: Throwabl
 class EpisodeDownloadManager(
     private val episodeDao: EpisodeDao,
     private val episodeRepository: EpisodeRepository,
-    client: OkHttpClient,
+    private val client: OkHttpClient,
     private val downloadsDir: File,
     private val policy: suspend () -> DownloadPolicy,
     private val ioDispatcher: CoroutineDispatcher,
     private val allowCleartext: Boolean = false,
     private val progressStepBytes: Long = 256 * 1024,
+    private val progressIntervalMillis: Long = 1_000,
+    private val clock: Clock = Clock.systemUTC(),
     private val notices: EvictionNotices = NoEvictionNotices,
 ) {
-    private val client = client.withTransportPolicy(allowCleartext)
 
     /** Episodes whose running download was cancelled on purpose, so its unwinding must not re-queue them. */
     private val cancelRequested = ConcurrentHashMap.newKeySet<Long>()
@@ -160,6 +161,7 @@ class EpisodeDownloadManager(
             episode.downloadPath?.let { File(it).delete() }
             finalFile(episode).delete()
             partFile(episode).delete()
+            validatorFile(episode).delete()
         }
         if (episode.downloadState == DownloadState.DOWNLOADED) {
             episodeRepository.deleteDownload(episodeId)
@@ -193,12 +195,19 @@ class EpisodeDownloadManager(
         var offset = if (part.isFile) part.length() else 0L
 
         while (true) {
+            // If the file changed since the partial copy began (ad insertion makes this common), a plain Range
+            // would splice two versions together. With If-Range the server sends the whole new file instead.
+            val validator = if (offset > 0) readValidator(episode) else null
             val request = Request.Builder().url(downloadUrl(episode))
-                .apply { if (offset > 0) header("Range", "bytes=$offset-") }
+                .apply {
+                    if (offset > 0) header("Range", "bytes=$offset-")
+                    if (validator != null) header("If-Range", validator)
+                }
                 .build()
             val outcome = client.newCall(request).execute().use { response ->
                 if (response.code == 416 && offset > 0) {
                     part.delete() // our partial file no longer matches the resource
+                    validatorFile(episode).delete()
                     return@use Outcome.RestartFromScratch
                 }
                 if (!response.isSuccessful) {
@@ -206,7 +215,10 @@ class EpisodeDownloadManager(
                     throw DownloadException("HTTP $code", retryable = code >= 500 || code == 408 || code == 429)
                 }
                 val resuming = response.code == 206 && offset > 0
-                if (!resuming) offset = 0
+                if (!resuming) {
+                    offset = 0
+                    writeValidator(episode, response) // a whole new body: remember which version it is
+                }
                 val body = response.body
                 val total = if (resuming) {
                     response.header("Content-Range")?.substringAfter('/')?.toLongOrNull()
@@ -217,6 +229,7 @@ class EpisodeDownloadManager(
                 episodeRepository.updateDownload(episode.id, DownloadState.DOWNLOADING, offset)
                 var written = offset
                 var lastReported = offset
+                var lastReportedAt = clock.millis()
                 part.sink(append = resuming).buffer().use { sink ->
                     val source = body.source()
                     while (true) {
@@ -224,8 +237,9 @@ class EpisodeDownloadManager(
                         if (read == -1L) break
                         sink.emitCompleteSegments()
                         written += read
-                        if (written - lastReported >= progressStepBytes) {
+                        if (written - lastReported >= progressStepBytes && clock.millis() - lastReportedAt >= progressIntervalMillis) {
                             lastReported = written
+                            lastReportedAt = clock.millis()
                             episodeRepository.updateDownload(episode.id, DownloadState.DOWNLOADING, written)
                             emit(DownloadProgress(written, total))
                         }
@@ -241,6 +255,7 @@ class EpisodeDownloadManager(
                 val target = finalFile(episode)
                 target.delete()
                 if (!part.renameTo(target)) throw IOException("Could not move ${part.name} into place")
+                validatorFile(episode).delete()
                 episodeRepository.markDownloaded(episode.id, target.absolutePath, outcome.written)
                 if (!outcome.reported) emit(DownloadProgress(outcome.written, outcome.total))
                 return
@@ -251,7 +266,10 @@ class EpisodeDownloadManager(
 
     private suspend fun fail(episode: EpisodeEntity, retryable: Boolean) {
         // A permanent failure leaves nothing worth resuming; a transient one keeps the partial file.
-        if (!retryable) partFile(episode).delete()
+        if (!retryable) {
+            partFile(episode).delete()
+            validatorFile(episode).delete()
+        }
         episodeRepository.updateDownload(episode.id, DownloadState.FAILED, partFile(episode).sizeOrZero())
     }
 
@@ -261,6 +279,19 @@ class EpisodeDownloadManager(
     private fun sizeOnDisk(episode: EpisodeEntity): Long = episode.downloadPath?.let { File(it).sizeOrZero() } ?: 0
 
     private fun File.sizeOrZero(): Long = if (isFile) length() else 0
+
+    /** Beside the `.part` file, so no schema change: the ETag or Last-Modified of the response that began it. */
+    private fun validatorFile(episode: EpisodeEntity) = File(downloadsDir, "${partFile(episode).name}.validator")
+
+    private fun readValidator(episode: EpisodeEntity): String? =
+        validatorFile(episode).takeIf { it.isFile }?.readText()?.trim()?.ifEmpty { null }
+
+    /** A strong ETag if there is one (a weak one is not allowed in If-Range), else Last-Modified, else nothing. */
+    private fun writeValidator(episode: EpisodeEntity, response: okhttp3.Response) {
+        val file = validatorFile(episode)
+        val value = response.header("ETag")?.takeUnless { it.startsWith("W/") } ?: response.header("Last-Modified")
+        if (value == null) file.delete() else file.writeText(value)
+    }
 
     private fun finalFile(episode: EpisodeEntity) = File(downloadsDir, "episode-${episode.id}.${extensionOf(episode)}")
     private fun partFile(episode: EpisodeEntity) = File(downloadsDir, "${finalFile(episode).name}.part")
