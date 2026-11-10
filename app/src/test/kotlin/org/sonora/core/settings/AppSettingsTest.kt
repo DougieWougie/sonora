@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.sonora.feature.settings
+package org.sonora.core.settings
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
@@ -16,8 +16,6 @@ import org.junit.runner.RunWith
 import org.sonora.core.download.DownloadPolicy
 import org.sonora.core.network.discovery.PodcastIndexCredentials
 import org.sonora.testutil.FakeSecretStore
-import org.sonora.ui.theme.ThemeMode
-import org.sonora.ui.theme.ThemePreferences
 
 @RunWith(AndroidJUnit4::class)
 class AppSettingsTest {
@@ -50,6 +48,16 @@ class AppSettingsTest {
         assertEquals(0, s.keepPerPodcast)
         assertEquals(6L, s.syncIntervalHours)
         assertEquals(0L, s.lastSyncMillis.value)
+    }
+
+    @Test
+    fun `a release build ignores a stored cleartext opt-in`() {
+        settings().allowCleartext = true
+
+        val release = AppSettings(context, secrets, cleartextAllowedInThisBuild = false)
+
+        assertFalse(release.allowCleartext)
+        assertTrue(settings().allowCleartext) // the stored value is untouched, so a debug build still sees it
     }
 
     @Test
@@ -122,7 +130,7 @@ class AppSettingsTest {
 
     @Test
     fun `theme defaults to the system mode with artwork colours`() = runBlocking {
-        assertEquals(ThemePreferences(ThemeMode.SYSTEM, artworkColors = true), settings().preferences.first())
+        assertEquals(ThemePreferences(ThemeMode.SYSTEM, artworkColors = true), settings().themePreferences.first())
     }
 
     @Test
@@ -130,17 +138,17 @@ class AppSettingsTest {
         val s = settings()
         val chosen = ThemePreferences(ThemeMode.AMOLED, artworkColors = false)
 
-        s.save(chosen)
+        s.saveThemePreferences(chosen)
 
-        assertEquals(chosen, s.preferences.first())
-        assertEquals(chosen, settings().preferences.first())
+        assertEquals(chosen, s.themePreferences.first())
+        assertEquals(chosen, settings().themePreferences.first())
     }
 
     @Test
     fun `an unrecognised stored theme mode falls back to the system mode`() = runBlocking {
         prefs.edit().putString("theme_mode", "NEON").commit()
 
-        assertEquals(ThemeMode.SYSTEM, settings().preferences.first().mode)
+        assertEquals(ThemeMode.SYSTEM, settings().themePreferences.first().mode)
     }
 
     // --- Nextcloud account ---------------------------------------------------------------------

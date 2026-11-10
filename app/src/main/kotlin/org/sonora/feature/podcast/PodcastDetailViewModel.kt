@@ -6,6 +6,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import org.sonora.di.DefaultDispatcher
+import org.sonora.core.sync.FeedFetcher
+import org.sonora.core.database.PodcastRepository
+import org.sonora.core.database.EpisodeRow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -33,8 +44,8 @@ import org.sonora.feature.common.EpisodeItem
 import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.feature.common.PlayChoice
 import org.sonora.feature.common.toItem
-import org.sonora.feature.settings.SettingsStore
-import org.sonora.ui.htmlToSearchText
+import org.sonora.core.settings.SettingsStore
+import org.sonora.core.text.htmlToSearchText
 
 enum class EpisodeFilter { ALL, UNPLAYED, DOWNLOADED }
 
@@ -111,6 +122,9 @@ class PodcastDetailViewModel @Inject constructor(
     private val sync: SyncController,
     private val playback: PlaybackPort,
     private val settings: SettingsStore,
+    @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
+    private val podcastRepository: PodcastRepository,
+    private val feedFetcher: FeedFetcher,
 ) : ViewModel() {
     private data class Controls(
         val filter: EpisodeFilter = EpisodeFilter.ALL,
@@ -125,22 +139,51 @@ class PodcastDetailViewModel @Inject constructor(
     )
     private val playChoice = PlayChoice(queue, playback)
     private val controls = MutableStateFlow(Controls())
+
+    /** True while this page's own feed is being fetched (the background sync reports through [SyncController]). */
+    private val refreshingFeed = MutableStateFlow(false)
     private val _events = Channel<PodcastDetailEvent>(Channel.BUFFERED)
     val events: Flow<PodcastDetailEvent> = _events.receiveAsFlow()
 
     /** Kept after unsubscribing so the screen can still offer "Subscribe". */
     private var lastHeader: PodcastHeader? = null
 
+    /** The trimmed query, once typing pauses. Clearing it applies at once; the field itself echoes [controls]. */
+    @OptIn(FlowPreview::class)
+    private val searchQuery: Flow<String> = controls.map { it.query.trim() }
+        .distinctUntilChanged()
+        .debounce { if (it.isEmpty()) 0L else SEARCH_DEBOUNCE_MS }
+
+    /** What a search matches against: the query and, only while one is active, each episode's description text. */
+    private class Search(val query: String, val texts: Map<Long, String>)
+
+    private val search: Flow<Search> = searchQuery.flatMapLatest { query ->
+        if (query.isEmpty()) {
+            flowOf(Search("", emptyMap()))
+        } else {
+            podcastId.flatMapLatest { episodeDao.observeDescriptions(it) }
+                .map { descriptions -> Search(query, descriptions.associate { it.id to htmlToSearchText(it.description) }) }
+        }
+    }
+
+    /** Filtering and text extraction cost time proportional to the list, so they stay off Main. */
+    private val matching: Flow<List<EpisodeRow>> = combine(
+        podcastId.flatMapLatest { episodeDao.observeForPodcast(it) },
+        controls.map { it.filter }.distinctUntilChanged(),
+        search,
+    ) { rows, filter, search -> rows.filter { it.matches(filter, search) } }
+        .flowOn(defaultDispatcher)
+
     val uiState: StateFlow<PodcastDetailUiState> = combine(
         podcastId.flatMapLatest { podcastDao.observeById(it) },
-        podcastId.flatMapLatest { episodeDao.observeForPodcast(it) },
+        matching,
         controls,
         combine(queue.items, playChoice.pending, ::Pair),
-        sync.syncing,
-    ) { podcast, episodes, controls, (queued, pendingPlay), syncing ->
+        combine(sync.syncing, refreshingFeed) { syncing, refreshing -> syncing || refreshing },
+    ) { podcast, matching, controls, (queued, pendingPlay), syncing ->
         val header = podcast?.toHeader()?.also { lastHeader = it } ?: lastHeader
         val subscribed = podcast != null
-        val visible = if (subscribed) episodes.filter { it.matches(controls) } else emptyList()
+        val visible = if (subscribed) matching else emptyList()
         PodcastDetailUiState(
             podcast = header,
             subscribed = subscribed,
@@ -196,10 +239,10 @@ class PodcastDetailViewModel @Inject constructor(
             }
             PodcastDetailIntent.ToggleSubscription -> attempt { toggleSubscription() }
             PodcastDetailIntent.ToggleAutoDownload -> attempt {
-                podcastDao.findById(podcastId.value)?.let { podcastDao.update(it.copy(autoDownload = !it.autoDownload)) }
+                podcastDao.toggleAutoDownload(podcastId.value)
             }
             PodcastDetailIntent.ToggleNotifications -> attempt {
-                podcastDao.findById(podcastId.value)?.let { podcastDao.update(it.copy(notifyNewEpisodes = !it.notifyNewEpisodes)) }
+                podcastDao.toggleNotifyNewEpisodes(podcastId.value)
             }
             PodcastDetailIntent.DropNewestEpisode -> attempt {
                 episodeDao.getForPodcast(podcastId.value)
@@ -210,7 +253,28 @@ class PodcastDetailViewModel @Inject constructor(
                     _events.trySend(PodcastDetailEvent.Message("Notifications are off for this show, so it will not notify"))
                 }
             }
-            PodcastDetailIntent.Refresh -> sync.syncNow()
+            PodcastDetailIntent.Refresh -> refreshThisFeed()
+        }
+    }
+
+    /**
+     * Pull-to-refresh on a podcast page fetches and merges just that feed, rather than queueing the whole
+     * library's sync. New-episode notifications and auto-downloads still wait for the background sync.
+     */
+    private fun refreshThisFeed() {
+        val feedUrl = lastHeader?.feedUrl ?: return
+        if (refreshingFeed.value || !uiState.value.subscribed) return
+        refreshingFeed.value = true
+        viewModelScope.launch {
+            try {
+                podcastRepository.refresh(feedUrl, feedFetcher.fetch(feedUrl))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _events.trySend(PodcastDetailEvent.Message("Couldn't refresh: ${e.message ?: "something went wrong"}"))
+            } finally {
+                refreshingFeed.value = false
+            }
         }
     }
 
@@ -237,14 +301,14 @@ class PodcastDetailViewModel @Inject constructor(
         }
     }
 
-    private fun EpisodeEntity.matches(controls: Controls): Boolean {
-        val filterOk = when (controls.filter) {
+    private fun EpisodeRow.matches(filter: EpisodeFilter, search: Search): Boolean {
+        val filterOk = when (filter) {
             EpisodeFilter.ALL -> true
             EpisodeFilter.UNPLAYED -> !played
             EpisodeFilter.DOWNLOADED -> downloadState == DownloadState.DOWNLOADED
         }
-        val q = controls.query.trim()
-        return filterOk && (q.isEmpty() || title.contains(q, ignoreCase = true) || description?.let { htmlToSearchText(it) }.orEmpty().contains(q, ignoreCase = true))
+        val q = search.query
+        return filterOk && (q.isEmpty() || title.contains(q, ignoreCase = true) || search.texts[id].orEmpty().contains(q, ignoreCase = true))
     }
 
     private fun PodcastEntity.toHeader() = PodcastHeader(id, feedUrl, title, author, description, imageUrl, autoDownload, notifyNewEpisodes)
@@ -252,5 +316,6 @@ class PodcastDetailViewModel @Inject constructor(
     companion object {
         const val ARG_PODCAST_ID = "podcastId"
         private const val STOP_TIMEOUT_MS = 5_000L
+        private const val SEARCH_DEBOUNCE_MS = 300L
     }
 }

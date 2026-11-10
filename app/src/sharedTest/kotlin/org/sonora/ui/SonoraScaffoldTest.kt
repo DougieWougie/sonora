@@ -65,7 +65,7 @@ class SonoraScaffoldTest {
     }
 
     private fun playing() {
-        player = PlayerUiState(episode = episode, durationMs = 1_800_000)
+        player = PlayerUiState(episode = episode)
     }
 
     // --- navigation ----------------------------------------------------------------------------

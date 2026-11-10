@@ -7,6 +7,7 @@ import java.time.ZoneOffset
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import org.sonora.core.model.SyncActionType
 
 class MutableClock(var nowMillis: Long = 1_700_000_000_000) : Clock() {
@@ -24,6 +25,9 @@ class FakeTransactionRunner : TransactionRunner {
 }
 
 /** [episodes], when given, receive the cascade that the foreign key performs on delete in Room. */
+/** SQLite before API 31 rejects statements with more bound variables than this. */
+const val SQLITE_MAX_VARIABLES = 999
+
 class FakePodcastDao(private val episodes: FakeEpisodeDao? = null) : PodcastDao {
     val rows = MutableStateFlow<List<PodcastEntity>>(emptyList())
     private var nextId = 1L
@@ -49,6 +53,12 @@ class FakePodcastDao(private val episodes: FakeEpisodeDao? = null) : PodcastDao 
     override fun observeAll(): Flow<List<PodcastEntity>> = rows.map { all -> all.sortedBy { it.title.lowercase() } }
     override fun observeById(id: Long): Flow<PodcastEntity?> = rows.map { all -> all.firstOrNull { it.id == id } }
     override suspend fun getAll() = rows.value
+    override suspend fun toggleAutoDownload(id: Long) {
+        rows.value = rows.value.map { if (it.id == id) it.copy(autoDownload = !it.autoDownload) else it }
+    }
+    override suspend fun toggleNotifyNewEpisodes(id: Long) {
+        rows.value = rows.value.map { if (it.id == id) it.copy(notifyNewEpisodes = !it.notifyNewEpisodes) else it }
+    }
 }
 
 class FakeEpisodeDao : EpisodeDao {
@@ -78,7 +88,14 @@ class FakeEpisodeDao : EpisodeDao {
     override suspend fun deleteById(id: Long) {
         rows.value = rows.value.filterNot { it.id == id }
     }
-    override suspend fun findById(id: Long) = rows.value.firstOrNull { it.id == id }
+    /** How many single-row and batched lookups were made, to keep list screens from querying once per row. */
+    var findByIdCalls = 0
+    var rowQueries = 0
+
+    override suspend fun findById(id: Long): EpisodeEntity? {
+        findByIdCalls++
+        return rows.value.firstOrNull { it.id == id }
+    }
     override fun observeById(id: Long): Flow<EpisodeEntity?> = rows.map { all -> all.firstOrNull { it.id == id } }
     override suspend fun findByEnclosureUrl(enclosureUrl: String) = rows.value.firstOrNull { it.enclosureUrl == enclosureUrl }
     override suspend fun getForPodcast(podcastId: Long): List<EpisodeEntity> {
@@ -93,14 +110,34 @@ class FakeEpisodeDao : EpisodeDao {
         rows.value = rows.value.map { if (it.id == id) it.copy(playbackPositionSeconds = positionSeconds) else it }
         return if (found) 1 else 0
     }
+    override suspend fun updateDownload(id: Long, state: org.sonora.core.model.DownloadState, bytes: Long, keepPath: Boolean): Int {
+        val found = rows.value.any { it.id == id }
+        rows.value = rows.value.map {
+            if (it.id == id) it.copy(downloadState = state, downloadedBytes = bytes, downloadPath = it.downloadPath.takeIf { keepPath }) else it
+        }
+        return if (found) 1 else 0
+    }
     override suspend fun getByDownloadState(state: org.sonora.core.model.DownloadState) =
         rows.value.filter { it.downloadState == state }
     override suspend fun getOlderUnplayed(podcastId: Long, publishedBefore: Long) =
         rows.value.filter { it.podcastId == podcastId && !it.played && (it.publishedAtMillis ?: Long.MAX_VALUE) < publishedBefore }
     override suspend fun getUnplayedForPodcast(podcastId: Long) =
         rows.value.filter { it.podcastId == podcastId && !it.played }
-    override fun observeForPodcast(podcastId: Long): Flow<List<EpisodeEntity>> =
-        rows.map { all -> all.filter { it.podcastId == podcastId }.sortedByDescending { it.publishedAtMillis } }
+    override fun observeForPodcast(podcastId: Long): Flow<List<EpisodeRow>> =
+        rows.map { all -> all.filter { it.podcastId == podcastId }.sortedByDescending { it.publishedAtMillis }.map { it.toRow() } }
+
+    /** How many times descriptions were asked for, to prove the list path never loads them. */
+    var descriptionObservations = 0
+
+    override fun observeDescriptions(podcastId: Long): Flow<List<EpisodeDescription>> = rows.onStart { descriptionObservations++ }.map { all ->
+        all.filter { it.podcastId == podcastId }.mapNotNull { e -> e.description?.let { EpisodeDescription(e.id, it) } }
+    }
+
+    override suspend fun getRowsByIds(ids: List<Long>): List<EpisodeRow> {
+        check(ids.size <= 999) { "too many SQL variables: ${ids.size}" }
+        rowQueries++
+        return rows.value.filter { it.id in ids }.map { it.toRow() }
+    }
 
     override fun observeStats(): Flow<List<PodcastEpisodeStats>> = rows.map { all ->
         all.groupBy { it.podcastId }.map { (id, eps) ->
@@ -108,11 +145,15 @@ class FakeEpisodeDao : EpisodeDao {
         }
     }
 
-    override fun observeByDownloadStates(states: List<org.sonora.core.model.DownloadState>): Flow<List<EpisodeEntity>> =
-        rows.map { all -> all.filter { it.downloadState in states } }
+    override fun observeByDownloadStates(states: List<org.sonora.core.model.DownloadState>): Flow<List<EpisodeRow>> =
+        rows.map { all -> all.filter { it.downloadState in states }.map { it.toRow() } }
 
-    override fun observeUnplayed(limit: Int): Flow<List<EpisodeEntity>> =
-        rows.map { all -> all.filter { !it.played }.sortedWith(compareByDescending<EpisodeEntity> { it.publishedAtMillis ?: Long.MIN_VALUE }.thenByDescending { it.id }).take(limit) }
+    override fun observeUnplayed(limit: Int): Flow<List<EpisodeRow>> =
+        rows.map { all ->
+            all.filter { !it.played }
+                .sortedWith(compareByDescending<EpisodeEntity> { it.publishedAtMillis ?: Long.MIN_VALUE }.thenByDescending { it.id })
+                .take(limit).map { it.toRow() }
+        }
 
     override fun observeUnplayedCount(): Flow<Int> = rows.map { all -> all.count { !it.played } }
 }
@@ -130,6 +171,7 @@ class FakeSyncQueueDao : SyncQueueDao {
     override suspend fun getAll() = rows.value.sortedWith(compareBy({ it.timestampUtcMillis }, { it.id }))
 
     override suspend fun deleteByIds(ids: List<Long>) {
+        check(ids.size <= SQLITE_MAX_VARIABLES) { "too many SQL variables: ${ids.size}" }
         rows.value = rows.value.filterNot { it.id in ids }
     }
 
@@ -156,6 +198,11 @@ class FakeSubscriptionChangeDao : SubscriptionChangeDao {
 
     override suspend fun getAll() = rows.values.toList()
     override suspend fun deleteByFeedUrls(feedUrls: List<String>) {
+        check(feedUrls.size <= SQLITE_MAX_VARIABLES) { "too many SQL variables: ${feedUrls.size}" }
         feedUrls.forEach { rows.remove(it) }
     }
 }
+
+fun EpisodeEntity.toRow() = EpisodeRow(
+    id, podcastId, title, publishedAtMillis, durationSeconds, imageUrl, playbackPositionSeconds, played, downloadState, downloadedBytes, sizeBytes,
+)

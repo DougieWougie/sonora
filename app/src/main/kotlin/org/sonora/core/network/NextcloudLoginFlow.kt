@@ -38,12 +38,11 @@ interface LoginFlowApi {
 
 /** Nextcloud Login Flow v2: obtains an app password without the app ever seeing the user's real password. */
 class NextcloudLoginFlow(
-    client: OkHttpClient,
+    private val client: OkHttpClient,
     private val userAgent: String = "Sonora",
     private val allowCleartext: Boolean = false,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : LoginFlowApi {
-    private val client = client.withTransportPolicy(allowCleartext)
 
     override suspend fun start(serverUrl: String): LoginFlowSession {
         val url = serverUrl.trimEnd('/') + "/index.php/login/v2"

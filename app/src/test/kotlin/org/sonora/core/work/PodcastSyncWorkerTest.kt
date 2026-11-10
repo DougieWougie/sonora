@@ -22,7 +22,7 @@ import org.sonora.core.sync.FailureKind
 import org.sonora.core.sync.PodcastSyncPipeline
 import org.sonora.core.sync.RemoteStatus
 import org.sonora.core.sync.SyncOutcome
-import org.sonora.feature.settings.SettingsStore
+import org.sonora.core.settings.SettingsStore
 import org.junit.Assert.assertEquals
 
 @RunWith(AndroidJUnit4::class)
