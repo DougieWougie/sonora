@@ -159,8 +159,9 @@ flowchart LR
   not displaced and the invariant above holds. Tapping a row inside the Queue segment plays it directly.
 
 ### Downloads and retention
-`EpisodeDownloadManager` downloads enclosures to `*.part` files (resumable via HTTP `Range`) and
-updates Room. `DownloadEpisodeWorker` runs it under WorkManager constraints (unmetered, charging).
+`EpisodeDownloadManager` downloads enclosures to `*.part` files and updates Room. A resume sends `Range`
+plus `If-Range` with the ETag (or Last-Modified) of the response that began the partial file, kept in a
+`*.part.validator` sidecar; if the file changed, the server answers `200` and the download restarts from zero. `DownloadEpisodeWorker` runs it under WorkManager constraints (unmetered, charging).
 `RetentionPlanner` is a pure function that picks what to evict under the keep-per-podcast and
 storage limits (played before unplayed, older before newer, never the episode in use);
 `EvictionNotices` tells the user afterwards.
