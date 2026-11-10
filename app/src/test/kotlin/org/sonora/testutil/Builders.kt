@@ -26,9 +26,10 @@ fun episodeEntity(
     downloadState: DownloadState = DownloadState.NONE,
     downloadPath: String? = null,
     sizeBytes: Long? = null,
+    description: String? = null,
 ) = EpisodeEntity(
     podcastId = podcastId, guid = guid, title = title, enclosureUrl = enclosureUrl,
     durationSeconds = durationSeconds, publishedAtMillis = publishedAtMillis,
     playbackPositionSeconds = playbackPositionSeconds, played = played,
-    downloadState = downloadState, downloadPath = downloadPath, sizeBytes = sizeBytes,
+    downloadState = downloadState, downloadPath = downloadPath, sizeBytes = sizeBytes, description = description,
 )

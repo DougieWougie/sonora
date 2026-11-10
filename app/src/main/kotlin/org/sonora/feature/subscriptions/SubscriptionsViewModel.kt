@@ -139,10 +139,10 @@ class SubscriptionsViewModel @Inject constructor(
                 message("Marked $count ${if (count == 1) "episode" else "episodes"} played")
             }
             is SubscriptionsIntent.ToggleAutoDownload -> viewModelScope.launch {
-                podcastDao.findById(intent.podcastId)?.let { podcastDao.update(it.copy(autoDownload = !it.autoDownload)) }
+                podcastDao.toggleAutoDownload(intent.podcastId)
             }
             is SubscriptionsIntent.ToggleNotifications -> viewModelScope.launch {
-                podcastDao.findById(intent.podcastId)?.let { podcastDao.update(it.copy(notifyNewEpisodes = !it.notifyNewEpisodes)) }
+                podcastDao.toggleNotifyNewEpisodes(intent.podcastId)
             }
             is SubscriptionsIntent.RequestUnsubscribe -> unsubscribeRequest.value = intent.podcastId
             SubscriptionsIntent.DismissUnsubscribe -> unsubscribeRequest.value = null

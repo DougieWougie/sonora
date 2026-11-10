@@ -22,7 +22,7 @@ object NextcloudApiFactory {
         allowCleartext: Boolean = false,
     ): GpodderSyncApi {
         require(isTransportAllowed(serverUrl, allowCleartext)) { "Refusing non-HTTPS server URL" }
-        val authed = client.withTransportPolicy(allowCleartext).newBuilder()
+        val authed = client.newBuilder()
             .addInterceptor { chain ->
                 chain.proceed(
                     chain.request().newBuilder()

@@ -47,6 +47,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.sonora.core.media.PlaybackProgress
 import org.sonora.core.media.PlaybackSource
 import org.sonora.core.testing.TestTags
 import org.sonora.testutil.performCustomAction
@@ -58,7 +59,8 @@ class ExpressivePlayerSheetTest {
     private val episode = PlayerEpisode(id = 1, title = "The Episode", podcastTitle = "The Podcast", artworkUrl = null)
     private val intents = mutableListOf<PlayerIntent>()
     private var shares = 0
-    private var state by mutableStateOf(PlayerUiState(episode = episode, durationMs = 1_800_000, positionMs = 330_000))
+    private var state by mutableStateOf(PlayerUiState(episode = episode))
+    private var progress by mutableStateOf(PlaybackProgress(positionMs = 330_000, bufferedMs = 0, durationMs = 1_800_000))
 
     /** The same shared-transition arrangement as the app shell: mini player and full player swap places. */
     private fun setContent(expanded: Boolean = false) {
@@ -68,10 +70,10 @@ class ExpressivePlayerSheetTest {
                 SharedTransitionLayout {
                     Box {
                         AnimatedVisibility(visible = !isExpanded) {
-                            MiniPlayer(state, this, { intents += it }, onExpand = { isExpanded = true })
+                            MiniPlayer(state, { progress }, this, { intents += it }, onExpand = { isExpanded = true })
                         }
                         AnimatedVisibility(visible = isExpanded) {
-                            FullPlayer(state, this, { intents += it }, onCollapse = { isExpanded = false }, onShare = { shares++ })
+                            FullPlayer(state, { progress }, this, { intents += it }, onCollapse = { isExpanded = false }, onShare = { shares++ })
                         }
                     }
                 }
@@ -392,7 +394,8 @@ class ExpressivePlayerSheetTest {
 
     @Test
     fun bufferedExtentIsShownOnTheScrubberOnlyWhileStreaming() {
-        state = state.copy(source = PlaybackSource.STREAMING, bufferedMs = 900_000)
+        state = state.copy(source = PlaybackSource.STREAMING)
+        progress = progress.copy(bufferedMs = 900_000)
         setContent(expanded = true)
         composeTestRule.onNodeWithTag(TestTags.BUFFERED_TRACK, useUnmergedTree = true).assertExists()
 

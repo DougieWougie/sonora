@@ -38,4 +38,12 @@ class OpmlParserTest {
         assert(text.contains("""<opml version="2.0">""")) { text }
         assertEquals(entries, parser.parse(ByteArrayInputStream(out.toByteArray())))
     }
+
+    @Test
+    fun `an import over the byte cap is rejected`() {
+        val limited = OpmlParser(factory, maxBytes = 500)
+        val body = "<opml><body>" + (1..100).joinToString("") { """<outline xmlUrl="https://f/$it"/>""" } + "</body></opml>"
+
+        org.junit.jupiter.api.assertThrows<FeedLimitExceededException> { limited.parse(ByteArrayInputStream(body.toByteArray())) }
+    }
 }

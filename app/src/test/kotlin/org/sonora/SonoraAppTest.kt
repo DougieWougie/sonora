@@ -12,7 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.sonora.feature.settings.AppSettings
+import org.sonora.core.settings.AppSettings
 import org.sonora.testutil.FakeSecretStore
 import org.sonora.ui.HttpsUpgradeInterceptor
 

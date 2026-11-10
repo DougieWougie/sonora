@@ -22,8 +22,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.sonora.R
 import org.sonora.core.sync.NewEpisodeNotifier
 import org.sonora.core.sync.NewEpisodes
-import org.sonora.ui.PODCAST_LINK
-import org.sonora.ui.htmlToSearchText
+import org.sonora.core.model.PODCAST_LINK
+import org.sonora.core.text.htmlToSearchText
 
 object NewEpisodeNotifications {
     const val CHANNEL_ID = "new_episodes"
