@@ -24,6 +24,9 @@ class FakeTransactionRunner : TransactionRunner {
 }
 
 /** [episodes], when given, receive the cascade that the foreign key performs on delete in Room. */
+/** SQLite before API 31 rejects statements with more bound variables than this. */
+const val SQLITE_MAX_VARIABLES = 999
+
 class FakePodcastDao(private val episodes: FakeEpisodeDao? = null) : PodcastDao {
     val rows = MutableStateFlow<List<PodcastEntity>>(emptyList())
     private var nextId = 1L
@@ -143,6 +146,7 @@ class FakeSyncQueueDao : SyncQueueDao {
     override suspend fun getAll() = rows.value.sortedWith(compareBy({ it.timestampUtcMillis }, { it.id }))
 
     override suspend fun deleteByIds(ids: List<Long>) {
+        check(ids.size <= SQLITE_MAX_VARIABLES) { "too many SQL variables: ${ids.size}" }
         rows.value = rows.value.filterNot { it.id in ids }
     }
 
@@ -169,6 +173,7 @@ class FakeSubscriptionChangeDao : SubscriptionChangeDao {
 
     override suspend fun getAll() = rows.values.toList()
     override suspend fun deleteByFeedUrls(feedUrls: List<String>) {
+        check(feedUrls.size <= SQLITE_MAX_VARIABLES) { "too many SQL variables: ${feedUrls.size}" }
         feedUrls.forEach { rows.remove(it) }
     }
 }
