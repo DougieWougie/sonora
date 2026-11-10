@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.ui.theme
 
+import org.sonora.core.settings.ThemeMode
+import org.sonora.core.settings.ThemePreferences
 import app.cash.turbine.test
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest

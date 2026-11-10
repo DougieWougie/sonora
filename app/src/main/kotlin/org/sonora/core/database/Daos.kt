@@ -62,6 +62,13 @@ interface PodcastDao {
 
     @Query("SELECT * FROM podcast")
     suspend fun getAll(): List<PodcastEntity>
+
+    /** Flips the flag in place, so a concurrent refresh or toggle of another column is never overwritten. */
+    @Query("UPDATE podcast SET autoDownload = NOT autoDownload WHERE id = :id")
+    suspend fun toggleAutoDownload(id: Long)
+
+    @Query("UPDATE podcast SET notifyNewEpisodes = NOT notifyNewEpisodes WHERE id = :id")
+    suspend fun toggleNotifyNewEpisodes(id: Long)
 }
 
 @Dao
@@ -85,6 +92,16 @@ interface EpisodeDao {
     /** Writes the playback position alone, so the periodic checkpoint need not read and rewrite the whole row. */
     @Query("UPDATE episode SET playbackPositionSeconds = :positionSeconds WHERE id = :id")
     suspend fun updatePosition(id: Long, positionSeconds: Long): Int
+
+    /**
+     * Writes the transfer columns alone, so progress ticks cannot overwrite a played mark or position saved
+     * meanwhile. The path is kept only when [keepPath] is set (the file is complete); otherwise it is cleared.
+     */
+    @Query(
+        "UPDATE episode SET downloadState = :state, downloadedBytes = :bytes, " +
+            "downloadPath = CASE WHEN :keepPath THEN downloadPath ELSE NULL END WHERE id = :id",
+    )
+    suspend fun updateDownload(id: Long, state: DownloadState, bytes: Long, keepPath: Boolean): Int
 
     /** Only used by the debug "drop newest episode" action, to rehearse the new-episode path. */
     @Query("DELETE FROM episode WHERE id = :id")

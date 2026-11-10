@@ -70,14 +70,8 @@ class EpisodeRepository(
 
     /** Tracks transfer progress locally; only completion and deletion are worth telling the server. */
     suspend fun updateDownload(episodeId: Long, state: DownloadState, bytes: Long) {
-        val episode = requireEpisode(episodeId)
-        episodeDao.update(
-            episode.copy(
-                downloadState = state,
-                downloadedBytes = bytes,
-                downloadPath = episode.downloadPath.takeIf { state == DownloadState.DOWNLOADED },
-            ),
-        )
+        val matched = episodeDao.updateDownload(episodeId, state, bytes, keepPath = state == DownloadState.DOWNLOADED)
+        if (matched == 0) throw NoSuchElementException("No episode with id $episodeId")
     }
 
     suspend fun markDownloaded(episodeId: Long, path: String, bytes: Long? = null) = transactions.run {

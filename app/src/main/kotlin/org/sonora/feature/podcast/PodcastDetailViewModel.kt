@@ -44,8 +44,8 @@ import org.sonora.feature.common.EpisodeItem
 import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.feature.common.PlayChoice
 import org.sonora.feature.common.toItem
-import org.sonora.feature.settings.SettingsStore
-import org.sonora.ui.htmlToSearchText
+import org.sonora.core.settings.SettingsStore
+import org.sonora.core.text.htmlToSearchText
 
 enum class EpisodeFilter { ALL, UNPLAYED, DOWNLOADED }
 
@@ -239,10 +239,10 @@ class PodcastDetailViewModel @Inject constructor(
             }
             PodcastDetailIntent.ToggleSubscription -> attempt { toggleSubscription() }
             PodcastDetailIntent.ToggleAutoDownload -> attempt {
-                podcastDao.findById(podcastId.value)?.let { podcastDao.update(it.copy(autoDownload = !it.autoDownload)) }
+                podcastDao.toggleAutoDownload(podcastId.value)
             }
             PodcastDetailIntent.ToggleNotifications -> attempt {
-                podcastDao.findById(podcastId.value)?.let { podcastDao.update(it.copy(notifyNewEpisodes = !it.notifyNewEpisodes)) }
+                podcastDao.toggleNotifyNewEpisodes(podcastId.value)
             }
             PodcastDetailIntent.DropNewestEpisode -> attempt {
                 episodeDao.getForPodcast(podcastId.value)

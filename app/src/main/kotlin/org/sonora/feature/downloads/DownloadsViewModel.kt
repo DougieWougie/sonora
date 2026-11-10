@@ -29,7 +29,7 @@ import org.sonora.core.model.DownloadState
 import org.sonora.feature.common.EpisodeItem
 import org.sonora.feature.common.PlayChoice
 import org.sonora.feature.common.toItem
-import org.sonora.feature.settings.SettingsStore
+import org.sonora.core.settings.SettingsStore
 
 enum class DownloadSort { NEWEST, LARGEST, SHOW }
 

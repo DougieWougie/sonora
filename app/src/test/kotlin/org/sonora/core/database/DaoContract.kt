@@ -128,6 +128,34 @@ abstract class DaoContract {
     }
 
     @Test
+    fun `updateDownload writes only the download columns and clears the path unless it is kept`() = runBlocking {
+        val id = podcast("https://a")
+        episodes.insertAll(listOf(episode(id, "e1", played = true)))
+        val before = episodes.getForPodcast(id).single()
+        episodes.update(before.copy(downloadPath = "/f", downloadState = DownloadState.DOWNLOADED))
+
+        assertEquals(1, episodes.updateDownload(before.id, DownloadState.DOWNLOADED, 5, keepPath = true))
+        assertEquals("/f", episodes.findById(before.id)!!.downloadPath)
+
+        assertEquals(1, episodes.updateDownload(before.id, DownloadState.DOWNLOADING, 9, keepPath = false))
+        val after = episodes.findById(before.id)!!
+        assertEquals(before.copy(downloadState = DownloadState.DOWNLOADING, downloadedBytes = 9, downloadPath = null), after)
+        assertEquals(0, episodes.updateDownload(before.id + 100, DownloadState.QUEUED, 0, keepPath = false))
+    }
+
+    @Test
+    fun `podcast toggles flip one flag and leave the rest of the row alone`() = runBlocking {
+        val id = podcast("https://a", "A")
+        val before = podcasts.findById(id)!!
+
+        podcasts.toggleAutoDownload(id)
+        assertEquals(before.copy(autoDownload = !before.autoDownload), podcasts.findById(id))
+        podcasts.toggleAutoDownload(id)
+        podcasts.toggleNotifyNewEpisodes(id)
+        assertEquals(before.copy(notifyNewEpisodes = !before.notifyNewEpisodes), podcasts.findById(id))
+    }
+
+    @Test
     fun `deleteById removes only that episode`() = runBlocking {
         val id = podcast("https://a")
         episodes.insertAll(listOf(episode(id, "e1"), episode(id, "e2")))

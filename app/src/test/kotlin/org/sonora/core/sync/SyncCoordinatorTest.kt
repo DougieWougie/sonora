@@ -32,6 +32,8 @@ private class FakeSyncProvider : SyncProvider {
     val pushedActions = mutableListOf<List<RemoteEpisodeAction>>()
     var failPull: Exception? = null
     var failEpisodePush: Exception? = null
+    /** Fails the episode push with this many successful pushes before it. */
+    var failEpisodePushAfter: Int? = null
     var onEpisodePush: suspend () -> Unit = {}
 
     override suspend fun pullSubscriptions(since: Long): SubscriptionChanges {
@@ -53,6 +55,7 @@ private class FakeSyncProvider : SyncProvider {
     override suspend fun pushEpisodeActions(actions: List<RemoteEpisodeAction>): Long {
         onEpisodePush()
         failEpisodePush?.let { throw it }
+        if (failEpisodePushAfter == pushedActions.size) throw SyncException("boom")
         pushedActions += actions
         return 250
     }
@@ -301,6 +304,46 @@ class SyncCoordinatorTest {
         coordinator.sync()
 
         assertEquals(listOf(SyncActionType.DELETE), queue.getAll().map { it.type })
+    }
+
+    private suspend fun queueActions(count: Int) = repeat(count) { i ->
+        queue.insert(
+            SyncQueueActionEntity(
+                type = SyncActionType.PLAY, feedUrl = feed, episodeUrl = "https://f/$i.mp3", timestampUtcMillis = i.toLong(),
+            ),
+        )
+    }
+
+    @Test
+    fun `a long queue is pushed in chunks and drained`() = runTest {
+        queueActions(1200)
+
+        val report = coordinator.sync()
+
+        assertEquals(listOf(500, 500, 200), provider.pushedActions.map { it.size })
+        assertEquals(1200, report.episodeActionsPushed)
+        assertTrue(queue.getAll().isEmpty())
+    }
+
+    @Test
+    fun `a failing later chunk only loses the chunks already accepted`() = runTest {
+        queueActions(1200)
+        provider.failEpisodePushAfter = 1
+
+        assertThrows<SyncException> { coordinator.sync() }
+
+        assertEquals(1, provider.pushedActions.size)
+        assertEquals(700, queue.getAll().size)
+        assertTrue(queue.getAll().none { it.episodeUrl in provider.pushedActions.single().map { a -> a.episodeUrl } })
+    }
+
+    @Test
+    fun `many pending subscription changes are cleared in chunks`() = runTest {
+        repeat(1200) { changes.upsert(SubscriptionChangeEntity("https://f/$it", true, 1)) }
+
+        coordinator.sync()
+
+        assertTrue(changes.getAll().isEmpty())
     }
 
     @Test

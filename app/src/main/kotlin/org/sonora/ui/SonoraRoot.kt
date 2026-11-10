@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.sonora.core.model.PODCAST_LINK
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -106,7 +107,6 @@ import org.sonora.ui.theme.ThemeViewModel
 @Serializable data class PodcastRoute(val podcastId: Long)
 
 /** The link a new-episode notification opens; the id is appended as `/{podcastId}`. */
-internal const val PODCAST_LINK = "sonora://podcast"
 
 private enum class TopLevel(val route: Any, val routeClass: KClass<*>, val label: String, val icon: ImageVector) {
     Subscriptions(SubscriptionsRoute, SubscriptionsRoute::class, "Subscriptions", Icons.Rounded.LibraryMusic),
