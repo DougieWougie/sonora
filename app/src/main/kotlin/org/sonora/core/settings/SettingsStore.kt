@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.sonora.feature.settings
+package org.sonora.core.settings
 
 import kotlinx.coroutines.flow.StateFlow
 import org.sonora.core.network.discovery.PodcastIndexCredentials

@@ -33,8 +33,8 @@ import org.sonora.feature.common.EpisodeItem
 import org.sonora.feature.common.PendingMarkOlder
 import org.sonora.feature.common.PlayChoice
 import org.sonora.feature.common.toItem
-import org.sonora.feature.settings.SettingsStore
-import org.sonora.ui.htmlToSearchText
+import org.sonora.core.settings.SettingsStore
+import org.sonora.core.text.htmlToSearchText
 
 enum class EpisodeFilter { ALL, UNPLAYED, DOWNLOADED }
 

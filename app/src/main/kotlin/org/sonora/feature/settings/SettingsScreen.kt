@@ -60,7 +60,7 @@ import org.sonora.feature.downloads.DownloadsLink
 import org.sonora.ui.components.ScreenHeading
 import org.sonora.ui.components.SonoraLogo
 import org.sonora.ui.theme.ThemeIntent
-import org.sonora.ui.theme.ThemeMode
+import org.sonora.core.settings.ThemeMode
 import org.sonora.ui.theme.ThemeState
 import org.sonora.ui.theme.ThemeViewModel
 

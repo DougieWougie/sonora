@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package org.sonora.feature.settings
+package org.sonora.core.settings
 
 import android.content.Context
 import kotlinx.coroutines.flow.Flow
@@ -10,9 +10,6 @@ import org.sonora.core.download.DownloadPolicy
 import org.sonora.core.network.discovery.DiscoveryCredentialsSource
 import org.sonora.core.network.discovery.PodcastIndexCredentials
 import org.sonora.core.security.SecretStore
-import org.sonora.ui.theme.ThemeMode
-import org.sonora.ui.theme.ThemePreferenceStore
-import org.sonora.ui.theme.ThemePreferences
 
 data class NextcloudAccount(val serverUrl: String, val loginName: String, val appPassword: String)
 
@@ -22,7 +19,7 @@ class AppSettings(
     private val secrets: SecretStore,
     /** Only debug builds carry the network security config that lets cleartext through; release builds never do. */
     private val cleartextAllowedInThisBuild: Boolean = BuildConfig.DEBUG,
-) : DiscoveryCredentialsSource, SettingsStore, ThemePreferenceStore {
+) : DiscoveryCredentialsSource, SettingsStore {
     private val prefs = context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     /**
@@ -92,9 +89,9 @@ class AppSettings(
             artworkColors = prefs.getBoolean(ARTWORK_COLORS, true),
         ),
     )
-    override val preferences: Flow<ThemePreferences> = _theme
+    val themePreferences: Flow<ThemePreferences> = _theme
 
-    override suspend fun save(preferences: ThemePreferences) {
+    suspend fun saveThemePreferences(preferences: ThemePreferences) {
         prefs.edit().putString(THEME_MODE, preferences.mode.name).putBoolean(ARTWORK_COLORS, preferences.artworkColors).apply()
         _theme.value = preferences
     }

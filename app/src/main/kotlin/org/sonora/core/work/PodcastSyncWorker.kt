@@ -10,7 +10,7 @@ import dagger.assisted.AssistedInject
 import java.time.Clock
 import org.sonora.core.sync.PodcastSyncPipeline
 import org.sonora.core.sync.WorkOutcome
-import org.sonora.feature.settings.SettingsStore
+import org.sonora.core.settings.SettingsStore
 
 @HiltWorker
 class PodcastSyncWorker @AssistedInject constructor(

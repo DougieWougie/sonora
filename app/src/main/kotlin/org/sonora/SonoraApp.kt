@@ -16,7 +16,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.sonora.core.work.WorkManagerSyncScheduler
-import org.sonora.feature.settings.AppSettings
+import org.sonora.core.settings.AppSettings
 import org.sonora.feature.discover.DirectorySuggestions
 import org.sonora.ui.HttpsUpgradeInterceptor
 

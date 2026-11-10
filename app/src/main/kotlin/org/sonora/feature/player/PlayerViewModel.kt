@@ -29,7 +29,7 @@ import org.sonora.core.media.PlaybackFailure
 import org.sonora.core.media.PlaybackPort
 import org.sonora.core.media.PlaybackSource
 import org.sonora.core.media.PlaybackStateManager
-import org.sonora.feature.settings.SettingsStore
+import org.sonora.core.settings.SettingsStore
 
 data class PlayerEpisode(val id: Long, val title: String, val podcastTitle: String?, val artworkUrl: String?, val showNotes: String? = null, val link: String? = null)
 

@@ -56,7 +56,7 @@ import org.sonora.feature.discover.ChartSuggestions
 import org.sonora.feature.discover.PrefsSuggestionStore
 import org.sonora.feature.discover.DirectorySuggestions
 import org.sonora.feature.discover.DiscoveryRepository
-import org.sonora.feature.settings.AppSettings
+import org.sonora.core.settings.AppSettings
 import org.sonora.core.download.DefaultEpisodeActions
 import org.sonora.core.download.EpisodeActions
 import org.sonora.core.media.PersistentPlayQueue
@@ -73,7 +73,8 @@ import org.sonora.core.work.SyncController
 import org.sonora.feature.discover.DefaultOpmlTransfer
 import org.sonora.feature.discover.DirectorySearch
 import org.sonora.feature.discover.OpmlTransfer
-import org.sonora.feature.settings.SettingsStore
+import org.sonora.core.settings.SettingsStore
+import org.sonora.ui.theme.SettingsThemePreferenceStore
 import org.sonora.ui.theme.ThemePreferenceStore
 import org.xmlpull.v1.XmlPullParserFactory
 
@@ -246,7 +247,7 @@ object AppModule {
     }
 
     @Provides @Singleton
-    fun themeStore(settings: AppSettings): ThemePreferenceStore = settings
+    fun themeStore(settings: AppSettings): ThemePreferenceStore = SettingsThemePreferenceStore(settings)
 
     @Provides @Singleton
     fun settingsStore(settings: AppSettings): SettingsStore = settings
