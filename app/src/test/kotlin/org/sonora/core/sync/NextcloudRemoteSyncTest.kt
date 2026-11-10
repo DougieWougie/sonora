@@ -21,8 +21,8 @@ import org.sonora.core.database.FakeSyncQueueDao
 import org.sonora.core.database.FakeSyncStateDao
 import org.sonora.core.database.FakeTransactionRunner
 import org.sonora.core.database.MutableClock
-import org.sonora.feature.settings.AppSettings
-import org.sonora.feature.settings.NextcloudAccount
+import org.sonora.core.settings.AppSettings
+import org.sonora.core.settings.NextcloudAccount
 import org.sonora.testutil.FakeSecretStore
 
 @RunWith(AndroidJUnit4::class)

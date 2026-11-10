@@ -55,6 +55,34 @@ class QueueViewModelTest {
     }
 
     @Test
+    fun `the queue is loaded with one query, not one per episode`() = runTest {
+        val ids = seed()
+        ids.take(3).forEach { queue.enqueue(it) }
+        episodes.findByIdCalls = 0
+
+        vm().uiState.test {
+            awaitUntil { it.queue.size == 3 }
+            assertEquals(0, episodes.findByIdCalls)
+            assertEquals(1, episodes.rowQueries)
+        }
+    }
+
+    @Test
+    fun `a queue longer than SQLites variable limit is loaded in chunks and keeps its order`() = runTest {
+        val p = podcasts.insert(PodcastEntity(feedUrl = "https://a", title = "Alpha"))
+        episodes.insertAll(
+            (1..1_200).map { EpisodeEntity(podcastId = p, guid = "g$it", title = "Ep $it", enclosureUrl = "https://e/$it") },
+        )
+        val ids = episodes.rows.value.map { it.id }.reversed()
+        ids.forEach { queue.enqueue(it) }
+
+        vm().uiState.test {
+            val state = awaitUntil { it.queue.size == 1_200 }
+            assertEquals(ids, state.queue.map { it.id })
+        }
+    }
+
+    @Test
     fun `new lists unplayed episodes from every podcast, newest first`() = runTest {
         seed()
 

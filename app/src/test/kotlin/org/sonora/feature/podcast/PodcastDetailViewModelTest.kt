@@ -18,6 +18,10 @@ import org.sonora.core.database.FakeSubscriptionChangeDao
 import org.sonora.core.database.FakeTransactionRunner
 import org.sonora.core.database.MutableClock
 import org.sonora.core.database.PodcastEntity
+import org.sonora.core.database.PodcastRepository
+import org.sonora.core.model.ParsedEpisode
+import org.sonora.core.sync.FeedFetcher
+import org.sonora.core.model.ParsedFeed
 import org.sonora.core.database.SubscriptionRepository
 import org.sonora.core.media.FakeQueueStorage
 import org.sonora.core.media.PersistentPlayQueue
@@ -60,9 +64,24 @@ class PodcastDetailViewModelTest {
         )
     }
 
+    /** What the single-feed fetch returns; a thrown error stands in for a network failure. */
+    private val fetched = mutableListOf<String>()
+    private var feedResult: () -> ParsedFeed = { error("no feed") }
+    private suspend fun feedFetch(url: String): ParsedFeed { fetched += url; return feedResult() }
+
+    private var defaultDispatches = 0
+    private val defaultDispatcher = object : kotlinx.coroutines.CoroutineDispatcher() {
+        private val inner = kotlinx.coroutines.test.StandardTestDispatcher(main.dispatcher.scheduler)
+        override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
+            defaultDispatches++
+            inner.dispatch(context, block)
+        }
+    }
+
     private fun vm() = PodcastDetailViewModel(
         SavedStateHandle(mapOf(PodcastDetailViewModel.ARG_PODCAST_ID to podcastId)),
-        podcasts, episodes, queue, subscriptions, actions, sync, playback, settings,
+        podcasts, episodes, queue, subscriptions, actions, sync, playback, settings, defaultDispatcher,
+        PodcastRepository(podcasts, episodes, FakeTransactionRunner(), MutableClock()), FeedFetcher { feedFetch(it) },
     )
 
     private fun idOf(title: String) = episodes.rows.value.first { it.title == title }.id
@@ -85,9 +104,60 @@ class PodcastDetailViewModelTest {
         vm.uiState.test {
             awaitUntil { it.episodes.isNotEmpty() }
             vm.onIntent(PodcastDetailIntent.SetFilter(EpisodeFilter.UNPLAYED))
-            assertEquals(listOf("Cooking basics", "Mars landing"), awaitUntil { it.filter == EpisodeFilter.UNPLAYED }.episodes.map { it.title })
+            assertEquals(listOf("Cooking basics", "Mars landing"), awaitUntil { it.filter == EpisodeFilter.UNPLAYED && it.episodes.size == 2 }.episodes.map { it.title })
             vm.onIntent(PodcastDetailIntent.SetFilter(EpisodeFilter.DOWNLOADED))
-            assertEquals(listOf("Mars landing"), awaitUntil { it.filter == EpisodeFilter.DOWNLOADED }.episodes.map { it.title })
+            assertEquals(listOf("Mars landing"), awaitUntil { it.filter == EpisodeFilter.DOWNLOADED && it.episodes.size == 1 }.episodes.map { it.title })
+        }
+    }
+
+    @Test
+    fun `typing waits for a pause before filtering, but the field echoes at once`() = runTest {
+        seed()
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.episodes.size == 3 }
+
+            vm.onIntent(PodcastDetailIntent.SetQuery("M"))
+            vm.onIntent(PodcastDetailIntent.SetQuery("Ma"))
+            vm.onIntent(PodcastDetailIntent.SetQuery("Mars"))
+            assertEquals("Mars", awaitUntil { it.query == "Mars" }.query)
+            assertEquals(3, vm.uiState.value.episodes.size) // not filtered yet
+
+            testScheduler.advanceTimeBy(299)
+            testScheduler.runCurrent()
+            assertEquals(3, vm.uiState.value.episodes.size)
+
+            assertEquals(listOf("Mars landing"), awaitUntil { it.episodes.size == 1 }.episodes.map { it.title })
+        }
+    }
+
+    @Test
+    fun `clearing the search shows everything again without waiting`() = runTest {
+        seed()
+        val vm = vm()
+        vm.uiState.test {
+            vm.onIntent(PodcastDetailIntent.SetQuery("Mars"))
+            awaitUntil { it.episodes.size == 1 }
+
+            vm.onIntent(PodcastDetailIntent.SetQuery(""))
+            testScheduler.runCurrent()
+
+            assertEquals(3, awaitUntil { it.episodes.size == 3 }.episodes.size)
+        }
+    }
+
+    @Test
+    fun `the filtering work runs on the injected default dispatcher and descriptions load only while searching`() = runTest {
+        seed()
+        val vm = vm()
+        vm.uiState.test {
+            awaitUntil { it.episodes.size == 3 }
+            assertTrue(defaultDispatches > 0, "list mapping should leave Main")
+            assertEquals(0, episodes.descriptionObservations)
+
+            vm.onIntent(PodcastDetailIntent.SetQuery("space"))
+            awaitUntil { it.episodes.size == 2 }
+            assertEquals(1, episodes.descriptionObservations)
         }
     }
 
@@ -100,7 +170,7 @@ class PodcastDetailViewModelTest {
             vm.onIntent(PodcastDetailIntent.SetQuery("SPACE"))
             assertEquals(
                 listOf("Cooking basics", "Intro to Space"),
-                awaitUntil { it.query == "SPACE" }.episodes.map { it.title },
+                awaitUntil { it.query == "SPACE" && it.episodes.size == 2 }.episodes.map { it.title },
             )
         }
     }
@@ -120,11 +190,11 @@ class PodcastDetailViewModelTest {
         vm.uiState.test {
             awaitUntil { it.episodes.isNotEmpty() }
             vm.onIntent(PodcastDetailIntent.SetQuery("rockets"))
-            assertEquals(emptyList<String>(), awaitUntil { it.query == "rockets" }.episodes.map { it.title })
+            assertEquals(emptyList<String>(), awaitUntil { it.query == "rockets" && it.episodes.isEmpty() }.episodes.map { it.title })
             vm.onIntent(PodcastDetailIntent.SetQuery("<b>"))
-            assertEquals(emptyList<String>(), awaitUntil { it.query == "<b>" }.episodes.map { it.title })
+            assertEquals(emptyList<String>(), awaitUntil { it.query == "<b>" && it.episodes.isEmpty() }.episodes.map { it.title })
             vm.onIntent(PodcastDetailIntent.SetQuery("tom & jerry visit the moon"))
-            assertEquals(listOf("Rich notes"), awaitUntil { it.query == "tom & jerry visit the moon" }.episodes.map { it.title })
+            assertEquals(listOf("Rich notes"), awaitUntil { it.query == "tom & jerry visit the moon" && it.episodes.size == 1 }.episodes.map { it.title })
         }
     }
 
@@ -136,7 +206,7 @@ class PodcastDetailViewModelTest {
             awaitUntil { it.episodes.isNotEmpty() }
             vm.onIntent(PodcastDetailIntent.SetQuery("space"))
             vm.onIntent(PodcastDetailIntent.SetFilter(EpisodeFilter.UNPLAYED))
-            assertEquals(listOf("Cooking basics"), awaitUntil { it.filter == EpisodeFilter.UNPLAYED && it.query == "space" }.episodes.map { it.title })
+            assertEquals(listOf("Cooking basics"), awaitUntil { it.filter == EpisodeFilter.UNPLAYED && it.query == "space" && it.episodes.size == 1 }.episodes.map { it.title })
         }
     }
 
@@ -202,7 +272,7 @@ class PodcastDetailViewModelTest {
             assertEquals(setOf(b), awaitUntil { it.selectedIds.size == 1 }.selectedIds)
             // Filtering the selected episode out of view drops it from the selection.
             vm.onIntent(PodcastDetailIntent.SetQuery("Cooking"))
-            assertEquals(emptySet<Long>(), awaitUntil { it.query == "Cooking" }.selectedIds)
+            assertEquals(emptySet<Long>(), awaitUntil { it.query == "Cooking" && it.episodes.size == 1 }.selectedIds)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -214,7 +284,7 @@ class PodcastDetailViewModelTest {
         vm.uiState.test {
             awaitUntil { it.episodes.isNotEmpty() }
             vm.onIntent(PodcastDetailIntent.SetFilter(EpisodeFilter.UNPLAYED))
-            awaitUntil { it.filter == EpisodeFilter.UNPLAYED }
+            awaitUntil { it.filter == EpisodeFilter.UNPLAYED && it.episodes.size == 2 }
             vm.onIntent(PodcastDetailIntent.SelectAll)
             val all = awaitUntil { it.selectedIds.isNotEmpty() }
             assertEquals(all.episodes.map { it.id }.toSet(), all.selectedIds)
@@ -423,13 +493,45 @@ class PodcastDetailViewModelTest {
     }
 
     @Test
-    fun `refresh asks for a background sync`() = runTest {
+    fun `refresh fetches and merges only this feed, without a whole-library sync`() = runTest {
         seed()
+        feedResult = {
+            ParsedFeed(
+                "Show", null, null, null, null,
+                listOf(ParsedEpisode("4", "Fresh episode", null, "https://e/4", "audio/mpeg", null, 60, 400, null)),
+            )
+        }
         val vm = vm()
-        vm.onIntent(PodcastDetailIntent.Refresh)
-        testScheduler.advanceUntilIdle()
-        assertEquals(1, sync.requests)
-        assertNotNull(vm)
+        vm.uiState.test {
+            awaitUntil { it.episodes.size == 3 }
+
+            vm.onIntent(PodcastDetailIntent.Refresh)
+
+            assertEquals(4, awaitUntil { it.episodes.size == 4 }.episodes.size)
+            assertEquals(listOf("https://f/feed"), fetched)
+            assertEquals(0, sync.requests)
+            testScheduler.advanceUntilIdle()
+            assertFalse(vm.uiState.value.isRefreshing)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a failed refresh says so and stops the spinner`() = runTest {
+        seed()
+        feedResult = { throw java.io.IOException("offline") }
+        val vm = vm()
+        vm.events.test {
+            vm.uiState.test {
+                awaitUntil { it.episodes.size == 3 }
+                vm.onIntent(PodcastDetailIntent.Refresh)
+                assertEquals(true, awaitUntil { it.isRefreshing }.isRefreshing)
+                assertFalse(awaitUntil { !it.isRefreshing }.isRefreshing)
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertTrue((awaitItem() as PodcastDetailEvent.Message).text.contains("offline"))
+        }
+        assertEquals(0, sync.requests)
     }
 
     @Test

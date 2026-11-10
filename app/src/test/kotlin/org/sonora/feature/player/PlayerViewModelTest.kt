@@ -109,12 +109,29 @@ class PlayerViewModelTest {
             assertEquals("Show", state.episode?.podcastTitle)
             assertEquals("https://art/ep1.png", state.episode?.artworkUrl)
             assertTrue(state.isPlaying)
-            assertEquals(12_000, state.positionMs)
-            assertEquals(40_000, state.bufferedMs)
-            assertEquals(600_000, state.durationMs)
             assertEquals(1.5f, state.speed)
             assertTrue(state.skipSilence)
             assertEquals(90_000L, state.sleepTimerRemainingMs)
+        }
+    }
+
+    @Test
+    fun `progress is its own flow, so a tick does not change the player state`() = runTest {
+        val (first) = seed()
+        port.stateFlow.value = port.stateFlow.value.copy(episodeId = first, isPlaying = true)
+        port.progressFlow.value = PlaybackProgress(positionMs = 12_000, bufferedMs = 40_000, durationMs = 600_000)
+        val vm = vm()
+
+        vm.progress.test {
+            assertEquals(PlaybackProgress(12_000, 40_000, 600_000), awaitUntil { it.durationMs > 0 })
+            port.progressFlow.value = PlaybackProgress(13_000, 41_000, 600_000)
+            assertEquals(13_000, awaitUntil { it.positionMs == 13_000L }.positionMs)
+        }
+        vm.uiState.test {
+            awaitUntil { it.episode != null }
+            port.progressFlow.value = PlaybackProgress(14_000, 42_000, 600_000)
+            testScheduler.advanceUntilIdle()
+            expectNoEvents()
         }
     }
 
@@ -131,8 +148,8 @@ class PlayerViewModelTest {
     fun `position updates flow through as they happen`() = runTest {
         val (first) = seed()
         port.stateFlow.value = port.stateFlow.value.copy(episodeId = first, isPlaying = true)
-        vm().uiState.test {
-            awaitUntil { it.episode != null }
+        vm().progress.test {
+            awaitItem()
             port.progressFlow.value = PlaybackProgress(30_000, 50_000, 600_000)
             assertEquals(30_000, awaitUntil { it.positionMs == 30_000L }.positionMs)
         }
@@ -196,7 +213,7 @@ class PlayerViewModelTest {
         port.progressFlow.value = PlaybackProgress(0, 0, 600_000)
         val vm = vm()
         vm.uiState.test {
-            awaitUntil { it.durationMs == 600_000L }
+            awaitUntil { it.episode != null }
             vm.onIntent(PlayerIntent.SeekTo(120_000))
             vm.onIntent(PlayerIntent.SeekTo(-5))
             vm.onIntent(PlayerIntent.SeekTo(9_999_999))
@@ -212,7 +229,7 @@ class PlayerViewModelTest {
         port.progressFlow.value = PlaybackProgress(100_000, 0, 600_000)
         val vm = vm()
         vm.uiState.test {
-            awaitUntil { it.positionMs == 100_000L }
+            awaitUntil { it.episode != null }
             vm.onIntent(PlayerIntent.SkipForward)
             vm.onIntent(PlayerIntent.Rewind)
             testScheduler.advanceUntilIdle()
@@ -227,11 +244,11 @@ class PlayerViewModelTest {
         port.progressFlow.value = PlaybackProgress(590_000, 0, 600_000)
         val vm = vm()
         vm.uiState.test {
-            awaitUntil { it.positionMs == 590_000L }
+            awaitUntil { it.episode != null }
             vm.onIntent(PlayerIntent.SkipForward)
             testScheduler.advanceUntilIdle()
             port.progressFlow.value = PlaybackProgress(5_000, 0, 600_000)
-            awaitUntil { it.positionMs == 5_000L }
+            testScheduler.advanceUntilIdle()
             vm.onIntent(PlayerIntent.Rewind)
             testScheduler.advanceUntilIdle()
         }
