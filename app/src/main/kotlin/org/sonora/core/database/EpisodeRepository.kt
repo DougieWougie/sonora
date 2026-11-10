@@ -14,7 +14,7 @@ class EpisodeRepository(
     private val transactions: TransactionRunner,
     private val clock: Clock,
 ) {
-    fun observeEpisodes(podcastId: Long): Flow<List<EpisodeEntity>> = episodeDao.observeForPodcast(podcastId)
+    fun observeEpisodes(podcastId: Long): Flow<List<EpisodeRow>> = episodeDao.observeForPodcast(podcastId)
 
     suspend fun recordPlayback(episodeId: Long, startedSeconds: Long, positionSeconds: Long) = transactions.run {
         val episode = requireEpisode(episodeId)

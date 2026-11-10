@@ -14,17 +14,22 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import org.sonora.core.download.EpisodeDownloadManager
 import org.sonora.core.sync.DownloadCanceller
 import org.sonora.core.sync.DownloadScheduler
 
 /** Schedules the periodic background sync (requires a network connection). */
+/** Running only: a sync waiting for a network is queued, not in progress, and must not keep pull-to-refresh spinning. */
+internal fun List<WorkInfo>.isSyncing(): Boolean = any { it.state == WorkInfo.State.RUNNING }
+
 class WorkManagerSyncScheduler(context: Context) : SyncController {
     private val workManager = WorkManager.getInstance(context)
 
     override val syncing: Flow<Boolean> = workManager.getWorkInfosForUniqueWorkFlow(SYNC_NOW_WORK_NAME)
-        .map { infos -> infos.any { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED } }
+        .map { it.isSyncing() }
+        .distinctUntilChanged()
 
     /** Runs one sync as soon as the network allows; a request while one is pending is ignored. */
     override fun syncNow() {

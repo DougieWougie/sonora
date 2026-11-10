@@ -99,6 +99,8 @@ object AppModule {
 
     @Provides @Singleton fun clock(): Clock = Clock.systemUTC()
 
+    @Provides @DefaultDispatcher fun defaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
+
     @Provides @IoDispatcher fun ioDispatcher(): CoroutineDispatcher = Dispatchers.IO
 
     /** The one client every network call shares, with the transport policy (HTTPS redirects) applied here once. */

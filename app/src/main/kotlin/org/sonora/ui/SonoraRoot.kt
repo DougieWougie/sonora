@@ -82,6 +82,7 @@ import org.sonora.feature.episodes.EpisodeSegment
 import org.sonora.feature.episodes.EpisodesScreen
 import org.sonora.feature.subscriptions.SubscriptionsScreen
 import kotlinx.coroutines.flow.Flow
+import org.sonora.core.media.PlaybackProgress
 import org.sonora.feature.player.FullPlayer
 import org.sonora.feature.player.PlayerEvent
 import org.sonora.feature.player.PlayerIntent
@@ -137,10 +138,12 @@ fun SonoraRoot(
 ) {
     val theme by themeViewModel.state.collectAsStateWithLifecycle()
     val player by playerViewModel.uiState.collectAsStateWithLifecycle()
+    // Only the State is held here; it is read inside the players, so the root does not recompose on each tick.
+    val progress = playerViewModel.progress.collectAsStateWithLifecycle()
     val badges by badgesViewModel.badges.collectAsStateWithLifecycle()
     SonoraRootContent(
         theme, player, playerViewModel.events, playerViewModel::onIntent, themeViewModel::onArtworkSeed, HiltAppScreens,
-        badges,
+        badges, progress = { progress.value },
     )
 }
 
@@ -154,6 +157,7 @@ internal fun SonoraRootContent(
     onArtworkSeed: (Int?) -> Unit,
     screens: AppScreens,
     badges: NavBadges = NavBadges(),
+    progress: () -> PlaybackProgress = { PlaybackProgress.None },
 ) {
     // Re-tint from the playing episode's artwork. Keep the last palette while the next cover loads.
     val seed = ArtworkColorExtractor.rememberSeed(player.episode?.artworkUrl)
@@ -162,7 +166,7 @@ internal fun SonoraRootContent(
     }
 
     PodcastExpressiveTheme(theme) {
-        SonoraScaffold(player, playerEvents, onPlayerIntent, badges = badges) { navController, snackbar, modifier ->
+        SonoraScaffold(player, playerEvents, onPlayerIntent, badges = badges, progress = progress) { navController, snackbar, modifier ->
             AppNavHost(navController, snackbar, modifier, screens)
         }
     }
@@ -182,6 +186,7 @@ internal fun SonoraScaffold(
     onPlayerIntent: (org.sonora.feature.player.PlayerIntent) -> Unit,
     layout: NavigationLayout = currentNavigationLayout(),
     badges: NavBadges = NavBadges(),
+    progress: () -> PlaybackProgress = { PlaybackProgress.None },
     navHost: @Composable (NavHostController, SnackbarHostState, Modifier) -> Unit,
 ) {
     val navController = rememberNavController()
@@ -223,7 +228,7 @@ internal fun SonoraScaffold(
                     bottomBar = {
                         Column {
                             AnimatedVisibility(visible = hasEpisode && !expanded, enter = fadeIn(), exit = fadeOut()) {
-                                MiniPlayer(player, this, onPlayerIntent, onExpand = { expanded = true })
+                                MiniPlayer(player, progress, this, onPlayerIntent, onExpand = { expanded = true })
                             }
                             when (layout) {
                                 NavigationLayout.BottomBar -> TopLevelBar(navController, badges)
@@ -242,7 +247,7 @@ internal fun SonoraScaffold(
                 }
             }
             AnimatedVisibility(visible = hasEpisode && expanded, enter = fadeIn(), exit = fadeOut()) {
-                FullPlayer(player, this, onPlayerIntent, onCollapse = { expanded = false }, onShare = { onPlayerIntent(PlayerIntent.Share) })
+                FullPlayer(player, progress, this, onPlayerIntent, onCollapse = { expanded = false }, onShare = { onPlayerIntent(PlayerIntent.Share) })
             }
             SnackbarHost(
                 fullPlayerSnackbar,
