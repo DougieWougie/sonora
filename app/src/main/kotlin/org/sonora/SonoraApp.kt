@@ -15,6 +15,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+import org.sonora.core.download.DownloadsMigration
+import org.sonora.core.network.withTransportPolicy
 import org.sonora.core.work.WorkManagerSyncScheduler
 import org.sonora.core.settings.AppSettings
 import org.sonora.feature.discover.DirectorySuggestions
@@ -27,6 +29,7 @@ class SonoraApp : Application(), Configuration.Provider, SingletonImageLoader.Fa
     @Inject lateinit var settings: AppSettings
     @Inject lateinit var okHttpClient: OkHttpClient
     @Inject lateinit var suggestions: DirectorySuggestions
+    @Inject lateinit var downloadsMigration: DownloadsMigration
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
@@ -46,6 +49,7 @@ class SonoraApp : Application(), Configuration.Provider, SingletonImageLoader.Fa
     override fun onCreate() {
         super.onCreate()
         syncScheduler.setPeriodicInterval(settings.syncIntervalHours)
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { runCatching { downloadsMigration.run() } }
         // Warm Discover's suggestions so the tab has them by the time it is opened; failures are fine.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { runCatching { suggestions.suggestions() } }
     }

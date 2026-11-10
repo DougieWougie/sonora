@@ -110,6 +110,11 @@ class FakeEpisodeDao : EpisodeDao {
         rows.value = rows.value.map { if (it.id == id) it.copy(playbackPositionSeconds = positionSeconds) else it }
         return if (found) 1 else 0
     }
+    override suspend fun updateDownloadPath(id: Long, path: String): Int {
+        val found = rows.value.any { it.id == id }
+        rows.value = rows.value.map { if (it.id == id) it.copy(downloadPath = path) else it }
+        return if (found) 1 else 0
+    }
     override suspend fun updateDownload(id: Long, state: org.sonora.core.model.DownloadState, bytes: Long, keepPath: Boolean): Int {
         val found = rows.value.any { it.id == id }
         rows.value = rows.value.map {

@@ -93,6 +93,10 @@ interface EpisodeDao {
     @Query("UPDATE episode SET playbackPositionSeconds = :positionSeconds WHERE id = :id")
     suspend fun updatePosition(id: Long, positionSeconds: Long): Int
 
+    /** Repoints a finished download at a new file location, touching nothing else. */
+    @Query("UPDATE episode SET downloadPath = :path WHERE id = :id")
+    suspend fun updateDownloadPath(id: Long, path: String): Int
+
     /**
      * Writes the transfer columns alone, so progress ticks cannot overwrite a played mark or position saved
      * meanwhile. The path is kept only when [keepPath] is set (the file is complete); otherwise it is cleared.
