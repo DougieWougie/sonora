@@ -71,10 +71,13 @@ the same transaction, so they are pushed to the server on the next sync and neve
 - `RssFeedParser` and `OpmlParser` stream from an `InputStream` using `XmlPullParser` and never
   hold a whole document as a string. The parser factory is injected, and parsers are built through
   `newHardenedParser` (`core/parser/XmlSupport.kt`) to block XXE.
-- HTTPS is the default. `isTransportAllowed` rejects cleartext unless the user opts in, and
-  `withTransportPolicy` adds `HttpsRedirectInterceptor` so an `https` to `http` redirect is rewritten
-  to `https` rather than followed in cleartext. Playback and downloads apply the same policy via
-  `upgradedToHttps`, and artwork requests are upgraded by a Coil interceptor (`HttpsUpgradeInterceptor`).
+- HTTPS is the default. Cleartext is a debug-build capability only: the manifest sets `usesCleartextTraffic="false"`
+  (OkHttp honours the platform policy whatever the app flag says), and `app/src/debug` adds a network security
+  config that permits it. The "Allow cleartext (HTTP)" setting is shown only in debug builds and
+  `AppSettings.allowCleartext` is always false in release. `isTransportAllowed` rejects cleartext unless the user opts in, and
+  `AppModule` applies `withTransportPolicy` once to the shared `OkHttpClient`, adding `HttpsRedirectInterceptor` so an
+  `https` to `http` redirect is rewritten to `https` rather than followed in cleartext; every consumer takes that
+  client as is. Playback and downloads also rewrite enclosure URLs via `upgradedToHttps`, and artwork requests are upgraded by a Coil interceptor (`HttpsUpgradeInterceptor`).
 - Directory search (Apple, PodcastIndex) sits behind `DirectorySearch`; the Nextcloud login uses
   Login Flow v2, so the app never sees the user's password.
 - Before the user types anything, Discover shows `DirectorySuggestions`: `ChartSuggestions` takes

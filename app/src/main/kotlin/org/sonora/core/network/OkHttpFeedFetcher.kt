@@ -2,6 +2,7 @@
 package org.sonora.core.network
 
 import java.io.IOException
+import java.time.Duration
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -20,8 +21,10 @@ class OkHttpFeedFetcher(
     private val ioDispatcher: CoroutineDispatcher,
     private val userAgent: String,
     private val allowCleartext: Boolean = false,
+    callTimeout: Duration = FEED_CALL_TIMEOUT,
 ) : FeedFetcher {
-    private val client = client.withTransportPolicy(allowCleartext)
+    // The whole call (connect, headers and body) is bounded, so a feed that trickles bytes cannot hold a worker forever.
+    private val client = client.newBuilder().callTimeout(callTimeout).build()
 
     override suspend fun fetch(feedUrl: String): ParsedFeed {
         if (!isTransportAllowed(feedUrl, allowCleartext)) {
@@ -39,3 +42,6 @@ class OkHttpFeedFetcher(
         }
     }
 }
+
+/** Generous for a slow link and a large feed, but finite. */
+private val FEED_CALL_TIMEOUT: Duration = Duration.ofMinutes(2)

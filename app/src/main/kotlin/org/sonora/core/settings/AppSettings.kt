@@ -5,6 +5,7 @@ import android.content.Context
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import org.sonora.BuildConfig
 import org.sonora.core.download.DownloadPolicy
 import org.sonora.core.network.discovery.DiscoveryCredentialsSource
 import org.sonora.core.network.discovery.PodcastIndexCredentials
@@ -13,12 +14,20 @@ import org.sonora.core.security.SecretStore
 data class NextcloudAccount(val serverUrl: String, val loginName: String, val appPassword: String)
 
 /** User preferences. Secrets go to [SecretStore]; everything else to plain SharedPreferences. */
-class AppSettings(context: Context, private val secrets: SecretStore) : DiscoveryCredentialsSource, SettingsStore {
+class AppSettings(
+    context: Context,
+    private val secrets: SecretStore,
+    /** Only debug builds carry the network security config that lets cleartext through; release builds never do. */
+    private val cleartextAllowedInThisBuild: Boolean = BuildConfig.DEBUG,
+) : DiscoveryCredentialsSource, SettingsStore {
     private val prefs = context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
-    /** Cleartext is off unless the user opts in for local development. Read when networking is set up. */
+    /**
+     * Cleartext is off unless the user opts in for local development, and only debug builds can opt in
+     * (the platform refuses cleartext elsewhere). Read when networking is set up.
+     */
     override var allowCleartext: Boolean
-        get() = prefs.getBoolean(ALLOW_CLEARTEXT, false)
+        get() = cleartextAllowedInThisBuild && prefs.getBoolean(ALLOW_CLEARTEXT, false)
         set(value) = prefs.edit().putBoolean(ALLOW_CLEARTEXT, value).apply()
 
     override var debugTools: Boolean

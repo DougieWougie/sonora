@@ -24,6 +24,9 @@ class FakeTransactionRunner : TransactionRunner {
 }
 
 /** [episodes], when given, receive the cascade that the foreign key performs on delete in Room. */
+/** SQLite before API 31 rejects statements with more bound variables than this. */
+const val SQLITE_MAX_VARIABLES = 999
+
 class FakePodcastDao(private val episodes: FakeEpisodeDao? = null) : PodcastDao {
     val rows = MutableStateFlow<List<PodcastEntity>>(emptyList())
     private var nextId = 1L
@@ -49,6 +52,12 @@ class FakePodcastDao(private val episodes: FakeEpisodeDao? = null) : PodcastDao 
     override fun observeAll(): Flow<List<PodcastEntity>> = rows.map { all -> all.sortedBy { it.title.lowercase() } }
     override fun observeById(id: Long): Flow<PodcastEntity?> = rows.map { all -> all.firstOrNull { it.id == id } }
     override suspend fun getAll() = rows.value
+    override suspend fun toggleAutoDownload(id: Long) {
+        rows.value = rows.value.map { if (it.id == id) it.copy(autoDownload = !it.autoDownload) else it }
+    }
+    override suspend fun toggleNotifyNewEpisodes(id: Long) {
+        rows.value = rows.value.map { if (it.id == id) it.copy(notifyNewEpisodes = !it.notifyNewEpisodes) else it }
+    }
 }
 
 class FakeEpisodeDao : EpisodeDao {
@@ -93,6 +102,13 @@ class FakeEpisodeDao : EpisodeDao {
         rows.value = rows.value.map { if (it.id == id) it.copy(playbackPositionSeconds = positionSeconds) else it }
         return if (found) 1 else 0
     }
+    override suspend fun updateDownload(id: Long, state: org.sonora.core.model.DownloadState, bytes: Long, keepPath: Boolean): Int {
+        val found = rows.value.any { it.id == id }
+        rows.value = rows.value.map {
+            if (it.id == id) it.copy(downloadState = state, downloadedBytes = bytes, downloadPath = it.downloadPath.takeIf { keepPath }) else it
+        }
+        return if (found) 1 else 0
+    }
     override suspend fun getByDownloadState(state: org.sonora.core.model.DownloadState) =
         rows.value.filter { it.downloadState == state }
     override suspend fun getOlderUnplayed(podcastId: Long, publishedBefore: Long) =
@@ -130,6 +146,7 @@ class FakeSyncQueueDao : SyncQueueDao {
     override suspend fun getAll() = rows.value.sortedWith(compareBy({ it.timestampUtcMillis }, { it.id }))
 
     override suspend fun deleteByIds(ids: List<Long>) {
+        check(ids.size <= SQLITE_MAX_VARIABLES) { "too many SQL variables: ${ids.size}" }
         rows.value = rows.value.filterNot { it.id in ids }
     }
 
@@ -156,6 +173,7 @@ class FakeSubscriptionChangeDao : SubscriptionChangeDao {
 
     override suspend fun getAll() = rows.values.toList()
     override suspend fun deleteByFeedUrls(feedUrls: List<String>) {
+        check(feedUrls.size <= SQLITE_MAX_VARIABLES) { "too many SQL variables: ${feedUrls.size}" }
         feedUrls.forEach { rows.remove(it) }
     }
 }

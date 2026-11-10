@@ -194,13 +194,15 @@ internal fun SettingsContent(
                     }
                     SettingsSection.Advanced -> {
                         SettingsCard("Advanced") {
-                            SwitchRow(
-                                "Allow cleartext (HTTP)",
-                                "For testing against servers on your own network. Streams, feeds and sync stay HTTPS-only otherwise.",
-                                state.allowCleartext,
-                            ) { onIntent(SettingsIntent.SetAllowCleartext(it)) }
-                            if (state.restartRequired) {
-                                Text("Restart Sonora for this change to take effect.", color = MaterialTheme.colorScheme.tertiary)
+                            if (BuildConfig.DEBUG) {
+                                SwitchRow(
+                                    "Allow cleartext (HTTP)",
+                                    "For testing against servers on your own network. Streams, feeds and sync stay HTTPS-only otherwise.",
+                                    state.allowCleartext,
+                                ) { onIntent(SettingsIntent.SetAllowCleartext(it)) }
+                                if (state.restartRequired) {
+                                    Text("Restart Sonora for this change to take effect.", color = MaterialTheme.colorScheme.tertiary)
+                                }
                             }
                             if (BuildConfig.DEBUG) {
                                 SwitchRow(
