@@ -31,7 +31,14 @@ class SettingsAndSyncViewModelTest {
     private val sync = FakeSyncController()
     private val creds = NextcloudCredentials("https://cloud.example", "alice", "app-pass")
 
-    private fun vm() = SettingsAndSyncViewModel(login, settings, sync)
+    private val io = kotlinx.coroutines.test.StandardTestDispatcher(main.dispatcher.scheduler)
+    private var ioActive = false
+    private val ioDispatcher = object : kotlinx.coroutines.CoroutineDispatcher() {
+        override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) =
+            io.dispatch(context, Runnable { ioActive = true; try { block.run() } finally { ioActive = false } })
+    }
+
+    private fun vm() = SettingsAndSyncViewModel(login, settings, sync, ioDispatcher)
     private val SettingsAndSyncViewModel.nextcloud get() = uiState.value.nextcloud
 
     // --- initial state -----------------------------------------------------------------------
@@ -303,7 +310,62 @@ class SettingsAndSyncViewModelTest {
     fun `loads saved podcastindex credentials`() = runTest {
         settings.podcastIndex = PodcastIndexCredentials("key", "secret")
         val vm = vm(); runCurrent()
-        assertEquals(PodcastIndexForm("key", "secret", saved = true), vm.uiState.value.podcastIndex)
+        assertEquals(PodcastIndexForm("key", "", saved = true), vm.uiState.value.podcastIndex)
+    }
+
+    @Test
+    fun `the saved podcastindex secret is never loaded into the ui state`() = runTest {
+        settings.podcastIndex = PodcastIndexCredentials("key", "top-secret")
+        val vm = vm(); runCurrent()
+
+        assertFalse(vm.uiState.value.toString().contains("top-secret"))
+        assertTrue(vm.uiState.value.podcastIndex.saved)
+    }
+
+    @Test
+    fun `secrets are read and written off the main thread`() = runTest {
+        settings.account = NextcloudAccount("https://cloud.example", "alice", "pw")
+        settings.podcastIndex = PodcastIndexCredentials("key", "secret")
+        settings.onSecretAccess = { check(ioActive) { "secret access outside the IO dispatcher" } }
+        login.pollResults = mutableListOf(Result.success(creds))
+
+        val vm = vm(); runCurrent()
+        vm.onIntent(SettingsIntent.EditPodcastIndexKey("k"))
+        vm.onIntent(SettingsIntent.EditPodcastIndexSecret("s"))
+        vm.onIntent(SettingsIntent.SavePodcastIndex); runCurrent()
+        vm.onIntent(SettingsIntent.ClearPodcastIndex); runCurrent()
+        vm.onIntent(SettingsIntent.Disconnect); runCurrent()
+        vm.onIntent(SettingsIntent.StartLogin("https://cloud.example")); runCurrent()
+        vm.onIntent(SettingsIntent.BrowserLaunched)
+        advanceUntilIdle()
+
+        assertEquals(NextcloudState.Connected("alice", "https://cloud.example", null), vm.nextcloud)
+    }
+
+    @Test
+    fun `a failed credential save shows an error and does not claim to be connected`() = runTest {
+        settings.saveSucceeds = false
+        login.pollResults = mutableListOf(Result.success(creds))
+        val vm = vm(); runCurrent()
+
+        vm.onIntent(SettingsIntent.StartLogin("https://cloud.example")); runCurrent()
+        vm.onIntent(SettingsIntent.BrowserLaunched); advanceUntilIdle()
+
+        assertTrue(vm.nextcloud is NextcloudState.Error, "was ${vm.nextcloud}")
+        assertTrue(sync.requests == 0)
+    }
+
+    @Test
+    fun `a failed podcastindex save shows an error and is not marked saved`() = runTest {
+        settings.saveSucceeds = false
+        val vm = vm(); runCurrent()
+        vm.onIntent(SettingsIntent.EditPodcastIndexKey("k"))
+        vm.onIntent(SettingsIntent.EditPodcastIndexSecret("s"))
+
+        vm.onIntent(SettingsIntent.SavePodcastIndex); runCurrent()
+
+        assertFalse(vm.uiState.value.podcastIndex.saved)
+        assertTrue(vm.uiState.value.podcastIndex.error != null)
     }
 
     @Test

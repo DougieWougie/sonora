@@ -11,6 +11,7 @@ import dagger.hilt.components.SingletonComponent
 import java.io.File
 import java.time.Clock
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
 import org.sonora.BuildConfig
@@ -97,6 +98,8 @@ object AppModule {
     fun transactions(db: SonoraDatabase): TransactionRunner = RoomTransactionRunner(db)
 
     @Provides @Singleton fun clock(): Clock = Clock.systemUTC()
+
+    @Provides @IoDispatcher fun ioDispatcher(): CoroutineDispatcher = Dispatchers.IO
 
     /** The one client every network call shares, with the transport policy (HTTPS redirects) applied here once. */
     @Provides @Singleton

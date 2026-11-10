@@ -179,11 +179,15 @@ internal fun SettingsContent(
                                 value = state.podcastIndex.apiSecret,
                                 onValueChange = { onIntent(SettingsIntent.EditPodcastIndexSecret(it)) },
                                 label = { Text("API secret") },
+                                placeholder = {
+                                    if (state.podcastIndex.saved && state.podcastIndex.apiSecret.isEmpty()) Text("Saved. Type to replace it.")
+                                },
                                 singleLine = true,
                                 visualTransformation = PasswordVisualTransformation(),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                                 modifier = Modifier.fillMaxWidth(),
                             )
+                            state.podcastIndex.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Button(onClick = { onIntent(SettingsIntent.SavePodcastIndex) }, enabled = !state.podcastIndex.saved) {
                                     Text(if (state.podcastIndex.saved) "Saved" else "Save")

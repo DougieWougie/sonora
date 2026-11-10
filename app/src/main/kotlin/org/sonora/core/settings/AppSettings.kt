@@ -109,9 +109,10 @@ class AppSettings(
         return NextcloudAccount(server, login, password)
     }
 
-    override fun saveNextcloudAccount(account: NextcloudAccount) {
+    override fun saveNextcloudAccount(account: NextcloudAccount): Boolean {
+        if (!secrets.put(NC_PASSWORD, account.appPassword)) return false
         prefs.edit().putString(NC_SERVER, account.serverUrl).putString(NC_LOGIN, account.loginName).apply()
-        secrets.put(NC_PASSWORD, account.appPassword)
+        return true
     }
 
     override fun clearNextcloudAccount() {
@@ -119,14 +120,17 @@ class AppSettings(
         secrets.remove(NC_PASSWORD)
     }
 
-    override fun savePodcastIndexCredentials(credentials: PodcastIndexCredentials?) {
+    override fun savePodcastIndexCredentials(credentials: PodcastIndexCredentials?): Boolean {
         if (credentials == null || !credentials.isComplete) {
             secrets.remove(PI_KEY)
             secrets.remove(PI_SECRET)
-        } else {
-            secrets.put(PI_KEY, credentials.apiKey)
-            secrets.put(PI_SECRET, credentials.apiSecret)
+            return true
         }
+        if (!secrets.put(PI_KEY, credentials.apiKey)) return false // nothing changed
+        if (secrets.put(PI_SECRET, credentials.apiSecret)) return true
+        secrets.remove(PI_KEY) // never leave a new key paired with the old secret
+        secrets.remove(PI_SECRET)
+        return false
     }
 
     override suspend fun podcastIndexCredentials(): PodcastIndexCredentials? {
