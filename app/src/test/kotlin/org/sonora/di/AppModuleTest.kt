@@ -13,6 +13,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertSame
 import org.junit.Before
@@ -54,12 +56,26 @@ class AppModuleTest {
         return server.takeRequest().headers["User-Agent"]
     }
 
+    private fun settings() = module.settings(context, module.secretStore(context))
+
     @Test
     fun `requests identify the app unless they set their own user agent`() {
-        val client = module.okHttpClient()
+        val client = module.okHttpClient(settings())
 
-        assertEquals("Sonora/0.1 (+https://sonora.invalid)", userAgentSentBy(client))
+        assertEquals("Sonora/${org.sonora.BuildConfig.VERSION_NAME}", userAgentSentBy(client))
         assertEquals("Custom/1.0", userAgentSentBy(client) { header("User-Agent", "Custom/1.0") })
+    }
+
+    @Test
+    fun `the shared client carries the transport policy, which cleartext opt-in lifts`() {
+        val strict = settings().also { it.allowCleartext = false }
+        val strictClient = module.okHttpClient(strict)
+        assertFalse(strictClient.followSslRedirects)
+        assertTrue(strictClient.networkInterceptors.any { it is org.sonora.core.network.HttpsRedirectInterceptor })
+
+        val open = settings().also { it.allowCleartext = true }
+        val openClient = module.okHttpClient(open)
+        assertTrue(openClient.networkInterceptors.none { it is org.sonora.core.network.HttpsRedirectInterceptor })
     }
 
     @Test
@@ -83,7 +99,7 @@ class AppModuleTest {
         val clock = module.clock()
         val episodes = module.episodeRepository(module.podcastDao(db), module.episodeDao(db), module.syncQueueDao(db), tx, clock)
         val manager = module.downloadManager(
-            context, module.episodeDao(db), episodes, module.okHttpClient(), settings, module.evictionNotices(context),
+            context, module.episodeDao(db), episodes, module.okHttpClient(settings()), settings, module.evictionNotices(context),
         )
         val downloads = module.workManagerDownloads(context, manager)
 
@@ -93,7 +109,7 @@ class AppModuleTest {
 
     @Test
     fun `the whole object graph can be assembled`() {
-        val client = module.okHttpClient()
+        val client = module.okHttpClient(settings())
         val clock = module.clock()
         val secrets = module.secretStore(context)
         val settings = module.settings(context, secrets)

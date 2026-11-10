@@ -24,7 +24,7 @@ class OkHttpFeedFetcher(
     callTimeout: Duration = FEED_CALL_TIMEOUT,
 ) : FeedFetcher {
     // The whole call (connect, headers and body) is bounded, so a feed that trickles bytes cannot hold a worker forever.
-    private val client = client.withTransportPolicy(allowCleartext).newBuilder().callTimeout(callTimeout).build()
+    private val client = client.newBuilder().callTimeout(callTimeout).build()
 
     override suspend fun fetch(feedUrl: String): ParsedFeed {
         if (!isTransportAllowed(feedUrl, allowCleartext)) {

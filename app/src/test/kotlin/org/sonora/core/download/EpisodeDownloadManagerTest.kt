@@ -104,9 +104,9 @@ class EpisodeDownloadManagerTest {
 
     private class CountingEpisodeDao(private val real: FakeEpisodeDao) : org.sonora.core.database.EpisodeDao by real {
         var progressWrites = 0
-        override suspend fun update(episode: org.sonora.core.database.EpisodeEntity) {
-            if (episode.downloadState == DownloadState.DOWNLOADING) progressWrites++
-            real.update(episode)
+        override suspend fun updateDownload(id: Long, state: DownloadState, bytes: Long, keepPath: Boolean): Int {
+            if (state == DownloadState.DOWNLOADING) progressWrites++
+            return real.updateDownload(id, state, bytes, keepPath)
         }
     }
 

@@ -23,7 +23,6 @@ import org.sonora.core.database.EpisodeRepository
 import org.sonora.core.model.DownloadState
 import org.sonora.core.network.isTransportAllowed
 import org.sonora.core.network.upgradedToHttps
-import org.sonora.core.network.withTransportPolicy
 
 /** [keepPerPodcast] and [maxStorageBytes] are both "0 means unlimited". */
 data class DownloadPolicy(
@@ -46,7 +45,7 @@ class DownloadException(message: String, val retryable: Boolean, cause: Throwabl
 class EpisodeDownloadManager(
     private val episodeDao: EpisodeDao,
     private val episodeRepository: EpisodeRepository,
-    client: OkHttpClient,
+    private val client: OkHttpClient,
     private val downloadsDir: File,
     private val policy: suspend () -> DownloadPolicy,
     private val ioDispatcher: CoroutineDispatcher,
@@ -56,7 +55,6 @@ class EpisodeDownloadManager(
     private val clock: Clock = Clock.systemUTC(),
     private val notices: EvictionNotices = NoEvictionNotices,
 ) {
-    private val client = client.withTransportPolicy(allowCleartext)
 
     /** Episodes whose running download was cancelled on purpose, so its unwinding must not re-queue them. */
     private val cancelRequested = ConcurrentHashMap.newKeySet<Long>()
