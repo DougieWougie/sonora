@@ -196,10 +196,10 @@ class PodcastDetailViewModel @Inject constructor(
             }
             PodcastDetailIntent.ToggleSubscription -> attempt { toggleSubscription() }
             PodcastDetailIntent.ToggleAutoDownload -> attempt {
-                podcastDao.findById(podcastId.value)?.let { podcastDao.update(it.copy(autoDownload = !it.autoDownload)) }
+                podcastDao.toggleAutoDownload(podcastId.value)
             }
             PodcastDetailIntent.ToggleNotifications -> attempt {
-                podcastDao.findById(podcastId.value)?.let { podcastDao.update(it.copy(notifyNewEpisodes = !it.notifyNewEpisodes)) }
+                podcastDao.toggleNotifyNewEpisodes(podcastId.value)
             }
             PodcastDetailIntent.DropNewestEpisode -> attempt {
                 episodeDao.getForPodcast(podcastId.value)
