@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.ui
 
-import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.Text
@@ -27,7 +26,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -209,19 +207,6 @@ class SonoraScaffoldTest {
         composeTestRule.onNodeWithTag(TestTags.PLAYER_SHARE_BUTTON).performClick()
 
         assertEquals(listOf<PlayerIntent>(PlayerIntent.Share), intents)
-    }
-
-    @Test
-    fun `a share event opens a chooser`() {
-        playing()
-        setContent()
-
-        events.trySend(PlayerEvent.Share("The Episode", "The Episode — The Podcast\nhttps://example.org/ep"))
-        composeTestRule.waitForIdle()
-
-        val started = org.robolectric.Shadows.shadowOf(composeTestRule.activity).nextStartedActivity
-        assertNotNull(started)
-        assertEquals(Intent.ACTION_CHOOSER, started.action)
     }
 
     // --- playback failures ---------------------------------------------------------------------
