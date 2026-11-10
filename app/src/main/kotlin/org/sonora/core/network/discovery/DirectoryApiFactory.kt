@@ -6,7 +6,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import org.sonora.core.network.isTransportAllowed
 import org.sonora.core.network.syncJson
-import org.sonora.core.network.withTransportPolicy
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
@@ -45,7 +44,7 @@ object DirectoryApiFactory {
         require(isTransportAllowed(baseUrl, allowCleartext)) { "Refusing non-HTTPS directory URL" }
         return Retrofit.Builder()
             .baseUrl(if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/")
-            .client(client.withTransportPolicy(allowCleartext))
+            .client(client)
             .addConverterFactory(syncJson.asConverterFactory("application/json".toMediaType()))
             .build()
     }

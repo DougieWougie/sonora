@@ -60,7 +60,7 @@ import org.sonora.feature.downloads.DownloadsLink
 import org.sonora.ui.components.ScreenHeading
 import org.sonora.ui.components.SonoraLogo
 import org.sonora.ui.theme.ThemeIntent
-import org.sonora.ui.theme.ThemeMode
+import org.sonora.core.settings.ThemeMode
 import org.sonora.ui.theme.ThemeState
 import org.sonora.ui.theme.ThemeViewModel
 
@@ -198,13 +198,15 @@ internal fun SettingsContent(
                     }
                     SettingsSection.Advanced -> {
                         SettingsCard("Advanced") {
-                            SwitchRow(
-                                "Allow cleartext (HTTP)",
-                                "For testing against servers on your own network. Streams, feeds and sync stay HTTPS-only otherwise.",
-                                state.allowCleartext,
-                            ) { onIntent(SettingsIntent.SetAllowCleartext(it)) }
-                            if (state.restartRequired) {
-                                Text("Restart Sonora for this change to take effect.", color = MaterialTheme.colorScheme.tertiary)
+                            if (BuildConfig.DEBUG) {
+                                SwitchRow(
+                                    "Allow cleartext (HTTP)",
+                                    "For testing against servers on your own network. Streams, feeds and sync stay HTTPS-only otherwise.",
+                                    state.allowCleartext,
+                                ) { onIntent(SettingsIntent.SetAllowCleartext(it)) }
+                                if (state.restartRequired) {
+                                    Text("Restart Sonora for this change to take effect.", color = MaterialTheme.colorScheme.tertiary)
+                                }
                             }
                             if (BuildConfig.DEBUG) {
                                 SwitchRow(

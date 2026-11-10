@@ -13,11 +13,18 @@ import org.xmlpull.v1.XmlPullParserException
 import org.xmlpull.v1.XmlPullParserFactory
 
 /** Streaming RSS 2.0 / iTunes parser. Items without an enclosure are not playable and are skipped. */
-class RssFeedParser(private val factory: XmlPullParserFactory) {
+class RssFeedParser(
+    private val factory: XmlPullParserFactory,
+    private val maxBytes: Long = FeedLimits.MAX_BYTES,
+    private val maxFieldChars: Int = FeedLimits.MAX_FIELD_CHARS,
+    private val maxItems: Int = FeedLimits.MAX_ITEMS,
+) {
+    private fun XmlPullParser.readField(): String = readText(maxFieldChars)
+
 
     fun parse(input: InputStream): ParsedFeed {
         val parser = newHardenedParser(factory)
-        parser.setInput(input, null)
+        parser.setInput(LimitedInputStream(input, maxBytes), null)
 
         while (parser.next() != XmlPullParser.START_TAG) {
             if (parser.eventType == XmlPullParser.END_DOCUMENT) throw notRss(parser)
@@ -43,25 +50,29 @@ class RssFeedParser(private val factory: XmlPullParserFactory) {
         var itunesImage: String? = null
         var rssImage: String? = null
         val episodes = mutableListOf<ParsedEpisode>()
+        var itemsSeen = 0
 
         while (p.next() != XmlPullParser.END_TAG) {
             if (p.eventType == XmlPullParser.END_DOCUMENT) throw notRss(p)
             if (p.eventType != XmlPullParser.START_TAG) continue
             when {
-                p.name == "title" && p.namespace.isEmpty() -> title = p.readText()
-                p.name == "link" && p.namespace.isEmpty() -> link = p.readText().ifEmpty { null }
-                p.name == "description" -> description = p.readText().ifEmpty { null }
+                p.name == "title" && p.namespace.isEmpty() -> title = p.readField()
+                p.name == "link" && p.namespace.isEmpty() -> link = p.readField().ifEmpty { null }
+                p.name == "description" -> description = p.readField().ifEmpty { null }
                 p.name == "summary" && p.namespace == ITUNES_NS -> {
-                    val summary = p.readText().ifEmpty { null }
+                    val summary = p.readField().ifEmpty { null }
                     description = description ?: summary
                 }
-                p.name == "author" && p.namespace == ITUNES_NS -> author = p.readText().ifEmpty { null }
+                p.name == "author" && p.namespace == ITUNES_NS -> author = p.readField().ifEmpty { null }
                 p.name == "image" && p.namespace == ITUNES_NS -> {
                     itunesImage = p.getAttributeValue(null, "href")
                     p.skipElement()
                 }
                 p.name == "image" -> rssImage = parseRssImage(p)
-                p.name == "item" -> parseItem(p)?.let(episodes::add)
+                p.name == "item" -> {
+                    if (++itemsSeen > maxItems) throw FeedLimitExceededException("Feed has more than $maxItems items")
+                    parseItem(p)?.let(episodes::add)
+                }
                 else -> p.skipElement()
             }
         }
@@ -72,7 +83,7 @@ class RssFeedParser(private val factory: XmlPullParserFactory) {
         var url: String? = null
         while (p.next() != XmlPullParser.END_TAG) {
             if (p.eventType != XmlPullParser.START_TAG) continue
-            if (p.name == "url") url = p.readText().ifEmpty { null } else p.skipElement()
+            if (p.name == "url") url = p.readField().ifEmpty { null } else p.skipElement()
         }
         return url
     }
@@ -94,17 +105,17 @@ class RssFeedParser(private val factory: XmlPullParserFactory) {
             if (p.eventType == XmlPullParser.END_DOCUMENT) throw notRss(p)
             if (p.eventType != XmlPullParser.START_TAG) continue
             when {
-                p.name == "guid" -> guid = p.readText().ifEmpty { null }
-                p.name == "title" && p.namespace.isEmpty() -> title = p.readText()
-                p.name == "link" && p.namespace.isEmpty() -> link = p.readText().trim().ifEmpty { null }
-                p.name == "description" -> description = p.readText().ifEmpty { null }
+                p.name == "guid" -> guid = p.readField().ifEmpty { null }
+                p.name == "title" && p.namespace.isEmpty() -> title = p.readField()
+                p.name == "link" && p.namespace.isEmpty() -> link = p.readField().trim().ifEmpty { null }
+                p.name == "description" -> description = p.readField().ifEmpty { null }
                 p.name == "summary" && p.namespace == ITUNES_NS -> {
-                    val summary = p.readText().ifEmpty { null }
+                    val summary = p.readField().ifEmpty { null }
                     description = description ?: summary
                 }
-                p.name == "encoded" && p.namespace == CONTENT_NS -> showNotes = p.readText().ifEmpty { null }
-                p.name == "pubDate" -> published = parseDate(p.readText())
-                p.name == "duration" && p.namespace == ITUNES_NS -> duration = parseDuration(p.readText())
+                p.name == "encoded" && p.namespace == CONTENT_NS -> showNotes = p.readField().ifEmpty { null }
+                p.name == "pubDate" -> published = parseDate(p.readField())
+                p.name == "duration" && p.namespace == ITUNES_NS -> duration = parseDuration(p.readField())
                 p.name == "image" && p.namespace == ITUNES_NS -> {
                     image = p.getAttributeValue(null, "href")
                     p.skipElement()
