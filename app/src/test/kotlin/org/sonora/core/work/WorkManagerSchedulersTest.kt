@@ -57,15 +57,26 @@ class WorkManagerSchedulersTest {
     }
 
     @Test
-    fun `syncing is true while a sync is pending`() = runBlocking {
+    fun `a sync waiting for the network is not reported as syncing`() = runBlocking {
         val scheduler = WorkManagerSyncScheduler(context)
 
         scheduler.syncing.test {
             assertFalse(awaitItem())
             scheduler.syncNow()
-            assertTrue(awaitItem())
+            assertEquals(WorkInfo.State.ENQUEUED, infos("podcast-sync-now").single().state)
+            expectNoEvents() // pull-to-refresh must not spin until a connection arrives
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun `only a running sync counts as syncing`() {
+        fun info(state: WorkInfo.State) = WorkInfo(java.util.UUID.randomUUID(), state, emptySet())
+
+        assertTrue(listOf(info(WorkInfo.State.RUNNING)).isSyncing())
+        assertFalse(listOf(info(WorkInfo.State.ENQUEUED)).isSyncing())
+        assertFalse(listOf(info(WorkInfo.State.BLOCKED), info(WorkInfo.State.SUCCEEDED), info(WorkInfo.State.FAILED)).isSyncing())
+        assertFalse(emptyList<WorkInfo>().isSyncing())
     }
 
     @Test

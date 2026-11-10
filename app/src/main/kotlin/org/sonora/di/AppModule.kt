@@ -11,8 +11,10 @@ import dagger.hilt.components.SingletonComponent
 import java.io.File
 import java.time.Clock
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
+import org.sonora.BuildConfig
 import org.sonora.core.database.EpisodeDao
 import org.sonora.core.database.EpisodeRepository
 import org.sonora.core.database.PodcastDao
@@ -55,7 +57,7 @@ import org.sonora.feature.discover.ChartSuggestions
 import org.sonora.feature.discover.PrefsSuggestionStore
 import org.sonora.feature.discover.DirectorySuggestions
 import org.sonora.feature.discover.DiscoveryRepository
-import org.sonora.feature.settings.AppSettings
+import org.sonora.core.settings.AppSettings
 import org.sonora.core.download.DefaultEpisodeActions
 import org.sonora.core.download.EpisodeActions
 import org.sonora.core.media.PersistentPlayQueue
@@ -65,17 +67,19 @@ import org.sonora.core.media.PlaybackPort
 import org.sonora.core.media.PrefsQueueStorage
 import org.sonora.core.network.LoginFlowApi
 import org.sonora.core.network.NextcloudLoginFlow
+import org.sonora.core.network.withTransportPolicy
 import org.sonora.core.parser.OpmlParser
 import org.sonora.core.parser.OpmlWriter
 import org.sonora.core.work.SyncController
 import org.sonora.feature.discover.DefaultOpmlTransfer
 import org.sonora.feature.discover.DirectorySearch
 import org.sonora.feature.discover.OpmlTransfer
-import org.sonora.feature.settings.SettingsStore
+import org.sonora.core.settings.SettingsStore
+import org.sonora.ui.theme.SettingsThemePreferenceStore
 import org.sonora.ui.theme.ThemePreferenceStore
 import org.xmlpull.v1.XmlPullParserFactory
 
-private const val USER_AGENT = "Sonora/0.1 (+https://sonora.invalid)"
+private val USER_AGENT = "Sonora/${BuildConfig.VERSION_NAME}"
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -95,8 +99,13 @@ object AppModule {
 
     @Provides @Singleton fun clock(): Clock = Clock.systemUTC()
 
+    @Provides @DefaultDispatcher fun defaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
+
+    @Provides @IoDispatcher fun ioDispatcher(): CoroutineDispatcher = Dispatchers.IO
+
+    /** The one client every network call shares, with the transport policy (HTTPS redirects) applied here once. */
     @Provides @Singleton
-    fun okHttpClient(): OkHttpClient = OkHttpClient.Builder()
+    fun okHttpClient(settings: AppSettings): OkHttpClient = OkHttpClient.Builder()
         .addInterceptor { chain ->
             val request = chain.request()
             chain.proceed(
@@ -104,6 +113,7 @@ object AppModule {
             )
         }
         .build()
+        .withTransportPolicy(settings.allowCleartext)
 
     @Provides @Singleton
     fun secretStore(@ApplicationContext context: Context): SecretStore = KeystoreSecretStore(context)
@@ -242,7 +252,7 @@ object AppModule {
     }
 
     @Provides @Singleton
-    fun themeStore(settings: AppSettings): ThemePreferenceStore = settings
+    fun themeStore(settings: AppSettings): ThemePreferenceStore = SettingsThemePreferenceStore(settings)
 
     @Provides @Singleton
     fun settingsStore(settings: AppSettings): SettingsStore = settings

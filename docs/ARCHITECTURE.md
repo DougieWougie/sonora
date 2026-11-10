@@ -21,6 +21,7 @@ org.sonora
 │   ├── media      PlaybackStateManager, PlayerEngine, Media3 session service, PlaybackHub, play queue
 │   ├── work       WorkManager workers and schedulers
 │   ├── security   SecretStore (Android Keystore)
+│   ├── settings   AppSettings, SettingsStore (preferences read by UI and background code alike)
 │   └── model      Plain data types shared across core
 └── di/        AppModule: the Hilt graph that wires everything together
 ```
@@ -40,10 +41,10 @@ flowchart TD
 - `feature` and `ui` depend on `core`; `core` does not depend on them.
 - `ui` (the navigation shell and shared components) and `feature` (the screens) reference each
   other: the shell hosts every screen, and screens use the shared components and theme.
-- **Known exceptions:** three `core` classes import `feature.settings`:
-  `PodcastMediaSessionService` and `NextcloudRemoteSync` use `AppSettings`, and `PodcastSyncWorker`
-  uses `SettingsStore`. Settings are stored by `feature/settings` but read by background code, so
-  they sit on the boundary. Moving the settings interfaces into `core` would remove the exception.
+- `core` has no imports from `ui` or `feature`; `LayeringTest` scans the sources and fails if one appears.
+  Settings (`AppSettings`, `SettingsStore`) live in `core/settings`, which is why background code can read
+  them. The theme choices that are stored (`ThemeMode`, `ThemePreferences`) are there too, while the UI-facing
+  `ThemePreferenceStore` stays in `ui/theme` and is backed by `SettingsThemePreferenceStore`.
 
 ## Data flow
 
@@ -70,10 +71,13 @@ the same transaction, so they are pushed to the server on the next sync and neve
 - `RssFeedParser` and `OpmlParser` stream from an `InputStream` using `XmlPullParser` and never
   hold a whole document as a string. The parser factory is injected, and parsers are built through
   `newHardenedParser` (`core/parser/XmlSupport.kt`) to block XXE.
-- HTTPS is the default. `isTransportAllowed` rejects cleartext unless the user opts in, and
-  `withTransportPolicy` adds `HttpsRedirectInterceptor` so an `https` to `http` redirect is rewritten
-  to `https` rather than followed in cleartext. Playback and downloads apply the same policy via
-  `upgradedToHttps`, and artwork requests are upgraded by a Coil interceptor (`HttpsUpgradeInterceptor`).
+- HTTPS is the default. Cleartext is a debug-build capability only: the manifest sets `usesCleartextTraffic="false"`
+  (OkHttp honours the platform policy whatever the app flag says), and `app/src/debug` adds a network security
+  config that permits it. The "Allow cleartext (HTTP)" setting is shown only in debug builds and
+  `AppSettings.allowCleartext` is always false in release. `isTransportAllowed` rejects cleartext unless the user opts in, and
+  `AppModule` applies `withTransportPolicy` once to the shared `OkHttpClient`, adding `HttpsRedirectInterceptor` so an
+  `https` to `http` redirect is rewritten to `https` rather than followed in cleartext; every consumer takes that
+  client as is. Playback and downloads also rewrite enclosure URLs via `upgradedToHttps`, and artwork requests are upgraded by a Coil interceptor (`HttpsUpgradeInterceptor`).
 - Directory search (Apple, PodcastIndex) sits behind `DirectorySearch`; the Nextcloud login uses
   Login Flow v2, so the app never sees the user's password.
 - Before the user types anything, Discover shows `DirectorySuggestions`: `ChartSuggestions` takes
@@ -163,7 +167,7 @@ storage limits (played before unplayed, older before newer, never the episode in
 `EvictionNotices` tells the user afterwards.
 
 ### Settings and secrets
-`AppSettings` implements `SettingsStore` (and the theme and discovery-credential interfaces) over
+`AppSettings` (`core/settings`) implements `SettingsStore` and the discovery-credential interface over
 SharedPreferences. Secrets, such as the Nextcloud app password, go through `SecretStore`, backed by
 the Android Keystore.
 
@@ -176,6 +180,10 @@ the Android Keystore.
   `QueueViewModel`; New is the newest unplayed episodes across subscriptions, capped at
   `NEW_EPISODES_LIMIT`) and Downloaded (`DownloadsViewModel`: usage, active, failed and downloaded
   episodes). Settings' "Manage downloads" opens the tab on the Downloaded segment.
+- List queries return `EpisodeRow` (no description); the podcast page reads descriptions only while a search is
+  active, debounces the query and filters on a default dispatcher. Playback progress is a separate flow
+  (`PlayerViewModel.progress`) so only the scrubber and the mini player's bar follow the position. Pull-to-refresh on
+  a podcast page fetches that feed alone; the library-wide sync is the background worker and the Subscriptions tab.
 - Each feature follows the same shape: a `@HiltViewModel` exposes immutable UI state as a
   `StateFlow` and accepts user actions as methods or `Intent` types, and a stateless-ish Composable
   renders it. ViewModels read DAOs and repositories directly; there is no separate use-case layer.

@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.sonora.core.database.EpisodeDao
 import org.sonora.core.database.PodcastDao
+import org.sonora.core.database.PodcastEntity
 import org.sonora.core.download.EpisodeActions
 import org.sonora.core.media.PlayQueue
 import org.sonora.core.media.PlaybackPort
@@ -104,7 +105,7 @@ class QueueViewModel @Inject constructor(
         val byId = podcasts.associateBy { it.id }
         val queuedIds = queued.toSet()
         QueueUiState(
-            queue = queued.mapNotNull { id -> episodeDao.findById(id)?.let { it.toItem(byId[it.podcastId], true) } },
+            queue = queuedItems(queued, byId),
             new = unplayed.map { it.toItem(byId[it.podcastId], it.id in queuedIds) },
             pendingMarkOlder = chrome.pendingMarkOlder,
             confirmingClear = chrome.confirmingClear,
@@ -112,6 +113,12 @@ class QueueViewModel @Inject constructor(
             isLoading = false,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), QueueUiState())
+
+    /** One batched query (chunked under SQLite's variable limit) re-ordered to the queue, instead of one lookup per id. */
+    private suspend fun queuedItems(queued: List<Long>, podcasts: Map<Long, PodcastEntity>): List<EpisodeItem> {
+        val rows = queued.chunked(QUERY_CHUNK).flatMap { episodeDao.getRowsByIds(it) }.associateBy { it.id }
+        return queued.mapNotNull { id -> rows[id]?.let { it.toItem(podcasts[it.podcastId], true) } }
+    }
 
     fun onIntent(intent: QueueIntent) {
         when (intent) {
@@ -167,5 +174,6 @@ class QueueViewModel @Inject constructor(
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
+        const val QUERY_CHUNK = 500
     }
 }
