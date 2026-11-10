@@ -3,6 +3,7 @@ package org.sonora.core.download
 
 import java.io.File
 import java.io.IOException
+import java.time.Clock
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -51,6 +52,8 @@ class EpisodeDownloadManager(
     private val ioDispatcher: CoroutineDispatcher,
     private val allowCleartext: Boolean = false,
     private val progressStepBytes: Long = 256 * 1024,
+    private val progressIntervalMillis: Long = 1_000,
+    private val clock: Clock = Clock.systemUTC(),
     private val notices: EvictionNotices = NoEvictionNotices,
 ) {
     private val client = client.withTransportPolicy(allowCleartext)
@@ -217,6 +220,7 @@ class EpisodeDownloadManager(
                 episodeRepository.updateDownload(episode.id, DownloadState.DOWNLOADING, offset)
                 var written = offset
                 var lastReported = offset
+                var lastReportedAt = clock.millis()
                 part.sink(append = resuming).buffer().use { sink ->
                     val source = body.source()
                     while (true) {
@@ -224,8 +228,9 @@ class EpisodeDownloadManager(
                         if (read == -1L) break
                         sink.emitCompleteSegments()
                         written += read
-                        if (written - lastReported >= progressStepBytes) {
+                        if (written - lastReported >= progressStepBytes && clock.millis() - lastReportedAt >= progressIntervalMillis) {
                             lastReported = written
+                            lastReportedAt = clock.millis()
                             episodeRepository.updateDownload(episode.id, DownloadState.DOWNLOADING, written)
                             emit(DownloadProgress(written, total))
                         }
