@@ -161,7 +161,11 @@ flowchart LR
 ### Downloads and retention
 `EpisodeDownloadManager` downloads enclosures to `*.part` files and updates Room. A resume sends `Range`
 plus `If-Range` with the ETag (or Last-Modified) of the response that began the partial file, kept in a
-`*.part.validator` sidecar; if the file changed, the server answers `200` and the download restarts from zero. `DownloadEpisodeWorker` runs it under WorkManager constraints (unmetered, charging).
+`*.part.validator` sidecar; if the file changed, the server answers `200` and the download restarts from zero.
+`DownloadEpisodeWorker` runs it under WorkManager constraints (unmetered, charging).
+Files live in internal app storage (`filesDir/episodes`). `DownloadsMigration` runs at start-up and moves
+downloads kept in external app storage by older versions: copy, repoint `downloadPath`, then delete, so a
+stored path always exists and a file that fails to copy simply stays put until the next start.
 `RetentionPlanner` is a pure function that picks what to evict under the keep-per-podcast and
 storage limits (played before unplayed, older before newer, never the episode in use);
 `EvictionNotices` tells the user afterwards.

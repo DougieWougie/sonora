@@ -59,6 +59,7 @@ import org.sonora.feature.discover.DirectorySuggestions
 import org.sonora.feature.discover.DiscoveryRepository
 import org.sonora.core.settings.AppSettings
 import org.sonora.core.download.DefaultEpisodeActions
+import org.sonora.core.download.DownloadsMigration
 import org.sonora.core.download.EpisodeActions
 import org.sonora.core.media.PersistentPlayQueue
 import org.sonora.core.media.PlayQueue
@@ -96,6 +97,17 @@ object AppModule {
 
     @Provides @Singleton
     fun transactions(db: SonoraDatabase): TransactionRunner = RoomTransactionRunner(db)
+
+    /** Downloads live in internal storage; see [DownloadsMigration] for how older ones get here. */
+    private fun downloadsDir(context: Context) = File(context.filesDir, "episodes")
+
+    @Provides @Singleton
+    fun downloadsMigration(@ApplicationContext context: Context, episodes: EpisodeDao) = DownloadsMigration(
+        episodeDao = episodes,
+        oldDir = context.getExternalFilesDir(null)?.let { File(it, "episodes") },
+        newDir = downloadsDir(context),
+        ioDispatcher = Dispatchers.IO,
+    )
 
     @Provides @Singleton fun clock(): Clock = Clock.systemUTC()
 
@@ -156,7 +168,7 @@ object AppModule {
         episodeDao = episodes,
         episodeRepository = repository,
         client = client,
-        downloadsDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "episodes"),
+        downloadsDir = downloadsDir(context),
         policy = { settings.downloadPolicy() },
         ioDispatcher = Dispatchers.IO,
         allowCleartext = settings.allowCleartext,

@@ -128,6 +128,18 @@ abstract class DaoContract {
     }
 
     @Test
+    fun `updateDownloadPath changes only the path and reports whether a row matched`() = runBlocking {
+        val id = podcast("https://a")
+        episodes.insertAll(listOf(episode(id, "e1", state = DownloadState.DOWNLOADED)))
+        val before = episodes.getForPodcast(id).single()
+
+        assertEquals(1, episodes.updateDownloadPath(before.id, "/new/e1.mp3"))
+        assertEquals(0, episodes.updateDownloadPath(before.id + 100, "/x"))
+
+        assertEquals(before.copy(downloadPath = "/new/e1.mp3"), episodes.getForPodcast(id).single())
+    }
+
+    @Test
     fun `updateDownload writes only the download columns and clears the path unless it is kept`() = runBlocking {
         val id = podcast("https://a")
         episodes.insertAll(listOf(episode(id, "e1", played = true)))
