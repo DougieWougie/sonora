@@ -23,6 +23,11 @@ interface PlaybackPort {
     suspend fun next()
     /** Restarts the episode if it is well under way, otherwise goes back to the one played before it. */
     suspend fun previous()
+    /**
+     * The listener is done with the loaded episode, wherever it has got to (closing adverts, say): marks it
+     * played and starts the head of the queue, or unloads the player when nothing is queued.
+     */
+    suspend fun finish()
     fun setSpeed(speed: Float)
     fun setSkipSilence(enabled: Boolean)
     fun startSleepTimer(durationMs: Long)

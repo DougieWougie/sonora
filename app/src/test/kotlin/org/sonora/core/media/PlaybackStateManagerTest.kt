@@ -870,6 +870,143 @@ class PlaybackStateManagerTest {
         assertEquals(a, m.state.value.episodeId)
     }
 
+    // --- finishing early -------------------------------------------------------------------
+
+    @Test
+    fun `finishing marks the episode played from wherever it has got to`() = runTest {
+        val id = seed(duration = 600)
+        val m = manager()
+        m.play(id)
+        engine.positionMs = 400_000
+
+        m.finish()
+
+        val episode = episodeDao.findById(id)!!
+        assertTrue(episode.played)
+        assertEquals(600L, episode.playbackPositionSeconds)
+        val action = queue.getAll().single()
+        assertEquals(SyncActionType.PLAY, action.type)
+        assertEquals(600L, action.positionSeconds)
+        assertEquals(listOf(id), completed)
+    }
+
+    @Test
+    fun `finishing starts the next queued episode and leaves the finished one at its end`() = runTest {
+        val a = seed(guid = "a"); val b = seed(guid = "b")
+        playQueue.enqueue(b)
+        val m = manager()
+        m.play(a)
+        engine.positionMs = 400_000
+
+        m.finish()
+
+        assertEquals(b, m.state.value.episodeId)
+        assertTrue(m.state.value.isPlaying)
+        assertEquals("https://cdn/b.mp3", engine.preparedUri)
+        assertTrue(playQueue.items.value.isEmpty())
+        assertEquals(600L, episodeDao.findById(a)!!.playbackPositionSeconds)
+        assertEquals(600L, queue.getAll().single { it.episodeUrl == "https://cdn/a.mp3" }.positionSeconds)
+    }
+
+    @Test
+    fun `finishing with nothing queued unloads the player`() = runTest {
+        val id = seed()
+        val m = manager()
+        m.play(id)
+        m.onPlayerOutputChanged(true)
+        engine.positionMs = 400_000
+
+        m.finish()
+
+        val state = m.state.value
+        assertNull(state.episodeId)
+        assertFalse(state.isPlaying)
+        assertFalse(state.isAudioFlowing)
+        assertNull(state.source)
+        assertEquals("stop", engine.calls.last())
+    }
+
+    @Test
+    fun `nothing is persisted for an episode after it was finished`() = runTest {
+        val id = seed(duration = 600)
+        val m = manager()
+        m.play(id)
+        engine.positionMs = 400_000
+        m.finish()
+
+        advanceTimeBy(30_000)
+        runCurrent()
+        m.pause()
+
+        assertEquals(600L, episodeDao.findById(id)!!.playbackPositionSeconds)
+        assertEquals(1, queue.getAll().size)
+    }
+
+    @Test
+    fun `finishing an episode of unknown length still marks it played`() = runTest {
+        val id = seed(duration = null)
+        val m = manager()
+        m.play(id)
+        engine.positionMs = 400_000
+
+        m.finish()
+
+        assertTrue(episodeDao.findById(id)!!.played)
+        assertEquals(listOf(id), completed)
+    }
+
+    @Test
+    fun `finishing an episode that was already played does not announce it again`() = runTest {
+        val id = seed(duration = 600)
+        episodeDao.update(episodeDao.findById(id)!!.copy(played = true))
+        val m = manager()
+        m.play(id)
+
+        m.finish()
+
+        assertTrue(completed.isEmpty())
+    }
+
+    @Test
+    fun `finishing with nothing loaded does nothing`() = runTest {
+        manager().finish()
+
+        assertTrue(engine.calls.isEmpty())
+        assertTrue(queue.getAll().isEmpty())
+    }
+
+    @Test
+    fun `a finished episode is in the history too`() = runTest {
+        val a = seed(guid = "a"); val b = seed(guid = "b")
+        playQueue.enqueue(b)
+        val m = manager()
+        m.play(a)
+        engine.positionMs = 400_000
+        m.finish()
+
+        m.previous()
+
+        assertEquals(a, m.state.value.episodeId)
+        assertEquals(0L, engine.preparedStartMs)
+        assertEquals(3, engine.calls.count { it == "prepare" })
+        assertEquals(listOf(b), playQueue.items.value)
+    }
+
+    @Test
+    fun `when the next episode cannot start after finishing the player is left unloaded`() = runTest {
+        val a = seed(guid = "a"); val b = seed(guid = "b")
+        episodeDao.update(episodeDao.findById(b)!!.copy(enclosureUrl = "rtmp://h/s"))
+        playQueue.enqueue(b)
+        val m = manager()
+        m.play(a)
+
+        assertThrows<IllegalStateException> { m.finish() }
+
+        assertNull(m.state.value.episodeId)
+        assertFalse(m.state.value.isPlaying)
+        assertTrue(episodeDao.findById(a)!!.played)
+    }
+
     // --- progress ----------------------------------------------------------------------------
 
     @Test
