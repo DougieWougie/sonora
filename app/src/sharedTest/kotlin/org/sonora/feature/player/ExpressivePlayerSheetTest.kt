@@ -266,6 +266,16 @@ class ExpressivePlayerSheetTest {
         tagged(TestTags.SKIP_SILENCE_CHIP).assert(hasText("Gap"))
         tagged(TestTags.SLEEP_TIMER_BUTTON).assert(hasText("Sleep"))
         tagged(TestTags.QUEUE_CHIP).assert(hasText("Queue"))
+        tagged(TestTags.MARK_PLAYED_CHIP).assert(hasText("Mark played"))
+    }
+
+    @Test
+    fun markPlayedChipEmitsItsIntent() {
+        setContent(expanded = true)
+
+        tagged(TestTags.MARK_PLAYED_CHIP).performClick()
+
+        assertEquals(listOf<PlayerIntent>(PlayerIntent.MarkPlayed), intents)
     }
 
     @Test

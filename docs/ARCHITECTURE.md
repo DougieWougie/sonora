@@ -149,6 +149,10 @@ flowchart LR
   The session's `ForwardingPlayer` maps Media3's seek-to-previous/next onto these, so the notification,
   lock screen and Bluetooth controls behave like the in-app buttons. Next is only advertised while the
   queue is non-empty, and the player re-announces its available commands whenever the queue changes.
+- `finish()` ("Mark played" in the full player) is for leaving an episode early, typically at its closing
+  adverts: it marks the loaded episode played wherever it has got to and then behaves like the natural
+  end, starting the head of the queue. With nothing queued it unloads the player instead of leaving a
+  finished episode paused part-way through.
 - Queue edits are plain `PlayQueue` operations: `enqueue` (add to end), `enqueueNext` (play next),
   `move`, `remove`, `replaceAll`. Undo is just `replaceAll` with the previous order, which the
   Queue view model hands to the screen in `QueueEvent.QueueChanged`. Reordering is drag on

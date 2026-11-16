@@ -27,6 +27,7 @@ object TestTags {
     const val PLAYER_COLLAPSE_BUTTON = "player_collapse_button"
     const val PLAYER_SHARE_BUTTON = "player_share_button"
     const val QUEUE_CHIP = "queue_chip"
+    const val MARK_PLAYED_CHIP = "mark_played_chip"
     const val SOURCE_CHIP = "source_chip"
     const val MINI_SOURCE_ICON = "mini_source_icon"
     const val BUFFERED_TRACK = "buffered_track"

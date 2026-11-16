@@ -53,6 +53,7 @@ class PlaybackHub(private val timeoutMs: Long = 5_000) : PlaybackPort {
     override suspend fun seekTo(positionMs: Long) = awaitManager().seekTo(positionMs)
     override suspend fun next() = awaitManager().next()
     override suspend fun previous() = awaitManager().previous()
+    override suspend fun finish() = awaitManager().finish()
     override fun setSpeed(speed: Float) { manager.value?.setSpeed(speed) }
     override fun setSkipSilence(enabled: Boolean) { manager.value?.setSkipSilence(enabled) }
     override fun startSleepTimer(durationMs: Long) { manager.value?.startSleepTimer(durationMs) }

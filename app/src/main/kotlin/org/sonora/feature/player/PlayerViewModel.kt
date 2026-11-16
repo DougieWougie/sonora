@@ -57,6 +57,8 @@ sealed interface PlayerIntent {
     data object Rewind : PlayerIntent
     data object Next : PlayerIntent
     data object Previous : PlayerIntent
+    /** Done with what is playing, wherever it has got to: mark it played and move on to the queue. */
+    data object MarkPlayed : PlayerIntent
     /** [direction] is +1 or -1 tenths of a speed step. */
     data class StepSpeed(val direction: Int) : PlayerIntent
     data class SetSpeed(val speed: Float) : PlayerIntent
@@ -141,6 +143,7 @@ class PlayerViewModel @Inject constructor(
             }
             PlayerIntent.Next -> launch { port.next() }
             PlayerIntent.Previous -> launch { port.previous() }
+            PlayerIntent.MarkPlayed -> launch { port.finish() }
             is PlayerIntent.StepSpeed -> {
                 val tenths = (state.speed * 10).roundToInt() + intent.direction
                 port.setSpeed((tenths / 10f).coerceIn(PlaybackStateManager.MIN_SPEED, PlaybackStateManager.MAX_SPEED))

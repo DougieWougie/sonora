@@ -280,6 +280,17 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `marking what is playing as played finishes it`() = runTest {
+        val vm = vm()
+        vm.uiState.test {
+            vm.onIntent(PlayerIntent.MarkPlayed)
+            testScheduler.advanceUntilIdle()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(listOf("finish"), port.calls)
+    }
+
+    @Test
     fun `there is a next episode only while the queue has one`() = runTest {
         val (first, second) = seed()
         port.stateFlow.value = port.stateFlow.value.copy(episodeId = first)

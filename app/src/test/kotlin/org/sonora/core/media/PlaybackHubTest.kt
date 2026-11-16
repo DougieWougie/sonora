@@ -65,6 +65,18 @@ class PlaybackHubTest {
     }
 
     @Test
+    fun `finishing goes to the attached manager`() = runTest {
+        val hub = PlaybackHub(timeoutMs = 1_000)
+        val id = seedEpisode()
+        hub.attach(manager())
+        hub.play(id)
+
+        hub.finish()
+
+        assertTrue(episodeDao.findById(id)!!.played)
+    }
+
+    @Test
     fun `forwards the attached manager's playback errors`() = runTest {
         val hub = PlaybackHub(timeoutMs = 1_000)
         val id = seedEpisode()

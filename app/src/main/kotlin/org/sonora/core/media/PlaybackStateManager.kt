@@ -139,9 +139,13 @@ class PlaybackStateManager(
     suspend fun stop() {
         if (loadedId == null) return
         progressJob?.cancel()
-        downloadWatch?.cancel()
         engine.pause()
         checkpoint()
+        unload()
+    }
+
+    private fun unload() {
+        downloadWatch?.cancel()
         engine.stop()
         loadedId = null
         loadedDurationMs = 0
@@ -215,6 +219,29 @@ class PlaybackStateManager(
             history.addLast(before)
             queue?.remove(current)
             throw e
+        }
+    }
+
+    /**
+     * The listener is done with the loaded episode wherever it has got to (closing adverts, say): marks it
+     * played, then starts the head of the queue. With nothing queued, or if that episode cannot start,
+     * the player is left unloaded. The finished episode stays reachable through [previous].
+     */
+    suspend fun finish() {
+        val id = loadedId ?: return
+        progressJob?.cancel()
+        engine.pause()
+        _state.update { it.copy(isPlaying = false, isAudioFlowing = false) }
+        val wasPlayed = episodeDao.findById(id)?.played ?: return unload()
+        episodeRepository.markPlayed(id)
+        if (!wasPlayed) onEpisodeCompleted(id)
+        remember(id)
+        // Already flushed at its end: starting the next one must not checkpoint it at the abandoned position.
+        loadedId = null
+        try {
+            playNextInQueue()
+        } finally {
+            if (loadedId == null) unload()
         }
     }
 

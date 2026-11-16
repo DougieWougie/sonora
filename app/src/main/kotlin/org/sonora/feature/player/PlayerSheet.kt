@@ -43,6 +43,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -306,7 +307,7 @@ private fun ShowNotes(html: String) {
     }
 }
 
-/** Speed, silence trimming, sleep timer and the queue, each a chip with a visible label. */
+/** Speed, silence trimming, sleep timer, the queue and "mark played", each a chip with a visible label. */
 @Composable
 private fun SecondaryControls(state: PlayerUiState, onIntent: (PlayerIntent) -> Unit, onOpenQueue: () -> Unit) {
     FlowRow(
@@ -322,6 +323,12 @@ private fun SecondaryControls(state: PlayerUiState, onIntent: (PlayerIntent) -> 
             modifier = Modifier.testTag(TestTags.QUEUE_CHIP),
             label = { Text("Queue") },
             leadingIcon = { Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = null, Modifier.size(18.dp)) },
+        )
+        AssistChip(
+            onClick = { onIntent(PlayerIntent.MarkPlayed) },
+            modifier = Modifier.testTag(TestTags.MARK_PLAYED_CHIP),
+            label = { Text("Mark played") },
+            leadingIcon = { Icon(Icons.Rounded.TaskAlt, contentDescription = null, Modifier.size(18.dp)) },
         )
     }
 }
