@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.feature.discover
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
@@ -11,6 +12,7 @@ import org.sonora.core.model.DirectoryPodcast
 import org.sonora.core.network.discovery.DirectoryException
 import org.sonora.core.network.discovery.PodcastChartProvider
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ChartSuggestionsTest {
     private fun pod(title: String, feed: String = "https://f/$title") = DirectoryPodcast(title, null, feed, null)
 

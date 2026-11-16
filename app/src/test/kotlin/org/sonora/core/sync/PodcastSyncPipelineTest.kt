@@ -3,6 +3,7 @@ package org.sonora.core.sync
 
 import org.sonora.testutil.episodeEntity
 import java.io.IOException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -21,6 +22,7 @@ import org.xmlpull.v1.XmlPullParserException
 import retrofit2.HttpException
 import retrofit2.Response
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class PodcastSyncPipelineTest {
     private val podcastDao = FakePodcastDao()
     private val episodeDao = FakeEpisodeDao()

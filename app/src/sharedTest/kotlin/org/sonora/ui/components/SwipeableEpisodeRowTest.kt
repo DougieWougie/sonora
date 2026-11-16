@@ -4,7 +4,7 @@ package org.sonora.ui.components
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft

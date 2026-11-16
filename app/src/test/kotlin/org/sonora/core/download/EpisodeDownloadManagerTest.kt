@@ -188,7 +188,7 @@ class EpisodeDownloadManagerTest {
             awaitItem()
             assertEquals(DownloadState.DOWNLOADING, episodeDao.findById(id)!!.downloadState)
             assertTrue(episodeDao.findById(id)!!.downloadedBytes > 0)
-            while (awaitEvent() is app.cash.turbine.Event.Item) Unit
+            while (awaitEvent() is app.cash.turbine.Event.Item) { /* drain the remaining progress items */ }
         }
         assertEquals(DownloadState.DOWNLOADED, episodeDao.findById(id)!!.downloadState)
     }

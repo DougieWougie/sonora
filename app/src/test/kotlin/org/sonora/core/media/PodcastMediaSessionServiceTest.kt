@@ -4,7 +4,6 @@ package org.sonora.core.media
 import android.content.Context
 import android.os.Bundle
 import android.os.Looper
-import androidx.core.os.bundleOf
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
@@ -126,19 +125,19 @@ class PodcastMediaSessionServiceTest {
         assertEquals(SessionResult.RESULT_SUCCESS, send(c, PlaybackCommands.CANCEL_SLEEP_TIMER).resultCode)
         assertEquals(
             SessionResult.RESULT_SUCCESS,
-            send(c, PlaybackCommands.SET_SPEED, bundleOf(PlaybackCommands.EXTRA_SPEED to 1.5f)).resultCode,
+            send(c, PlaybackCommands.SET_SPEED, Bundle().apply { putFloat(PlaybackCommands.EXTRA_SPEED, 1.5f) }).resultCode,
         )
         assertEquals(
             SessionResult.RESULT_SUCCESS,
-            send(c, PlaybackCommands.SET_SKIP_SILENCE, bundleOf(PlaybackCommands.EXTRA_ENABLED to true)).resultCode,
+            send(c, PlaybackCommands.SET_SKIP_SILENCE, Bundle().apply { putBoolean(PlaybackCommands.EXTRA_ENABLED, true) }).resultCode,
         )
         assertEquals(
             SessionResult.RESULT_SUCCESS,
-            send(c, PlaybackCommands.START_SLEEP_TIMER, bundleOf(PlaybackCommands.EXTRA_DURATION_MS to 60_000L)).resultCode,
+            send(c, PlaybackCommands.START_SLEEP_TIMER, Bundle().apply { putLong(PlaybackCommands.EXTRA_DURATION_MS, 60_000L) }).resultCode,
         )
         assertEquals(
             SessionResult.RESULT_SUCCESS,
-            send(c, PlaybackCommands.PLAY_EPISODE, bundleOf(PlaybackCommands.EXTRA_EPISODE_ID to 99L)).resultCode,
+            send(c, PlaybackCommands.PLAY_EPISODE, Bundle().apply { putLong(PlaybackCommands.EXTRA_EPISODE_ID, 99L) }).resultCode,
         )
     }
 

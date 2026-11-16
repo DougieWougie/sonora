@@ -2,6 +2,7 @@
 package org.sonora.feature.downloads
 
 import app.cash.turbine.test
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -24,6 +25,7 @@ import org.sonora.testutil.FakeSettingsStore
 import org.sonora.testutil.MainDispatcherExtension
 import org.sonora.testutil.awaitUntil
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class DownloadsViewModelTest {
     @JvmField @RegisterExtension
     val main = MainDispatcherExtension()
