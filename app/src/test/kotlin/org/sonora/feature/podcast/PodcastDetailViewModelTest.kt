@@ -3,6 +3,7 @@ package org.sonora.feature.podcast
 
 import app.cash.turbine.test
 import androidx.lifecycle.SavedStateHandle
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -34,6 +35,7 @@ import org.sonora.testutil.FakeSyncController
 import org.sonora.testutil.MainDispatcherExtension
 import org.sonora.testutil.awaitUntil
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class PodcastDetailViewModelTest {
     @JvmField @RegisterExtension
     val main = MainDispatcherExtension()

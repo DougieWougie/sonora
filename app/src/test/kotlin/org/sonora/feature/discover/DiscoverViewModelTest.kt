@@ -3,6 +3,7 @@ package org.sonora.feature.discover
 
 import java.io.ByteArrayInputStream
 import java.io.IOException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -35,6 +36,7 @@ import org.sonora.testutil.FakeSettingsStore
 import org.sonora.testutil.FakeSyncController
 import org.sonora.testutil.MainDispatcherExtension
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class DiscoverViewModelTest {
     @JvmField @RegisterExtension
     val main = MainDispatcherExtension()
