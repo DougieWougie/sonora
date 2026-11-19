@@ -10,6 +10,8 @@
     <string name="widget_pause">Pause</string>
     <string name="widget_previous">Previous</string>
     <string name="widget_next">Next</string>
+    <string name="widget_rewind">Back 10 seconds</string>
+    <string name="widget_forward">Forward 30 seconds</string>
     <string name="widget_preview_episode">Episode title</string>
     <string name="widget_preview_podcast">Podcast name</string>
 </resources>

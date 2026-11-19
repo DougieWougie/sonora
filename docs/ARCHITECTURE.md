@@ -163,7 +163,7 @@ flowchart LR
   not displaced and the invariant above holds. Tapping a row inside the Queue segment plays it directly.
 
 ### Home-screen widget
-`feature/widget` holds a Jetpack Glance mini player (current episode, artwork, previous / play-pause / next).
+`feature/widget` holds a Jetpack Glance mini player: current episode and artwork on top, and a row of five controls underneath (previous, back 10 s, play-pause, forward 30 s, next).
 - `miniPlayerWidgetStates` maps `PlaybackHub.state` plus the episode and podcast rows to a
   `MiniPlayerWidgetState` (`Idle` or `Loaded`). Only the loaded episode and play/pause feed it, so progress
   ticks never redraw the widget.
@@ -178,6 +178,9 @@ flowchart LR
   background dispatcher but the player may only be touched from Main, so they hop to `Dispatchers.Main.immediate`
   first. They are only offered while an episode is loaded, which means the service is running;
   `widgetPlaybackPort` is the test seam.
+- Back and forward go through `seekBy`, which reads `PlaybackPort.progress()`, clamps to the episode's bounds
+  and calls `seekTo`, as the player screen does. The 10 s and 30 s intervals are `SEEK_BACK_MS` and
+  `SEEK_FORWARD_MS` in `core/media`, shared with the notification and lock-screen controls.
 
 ### Downloads and retention
 `EpisodeDownloadManager` downloads enclosures to `*.part` files and updates Room. A resume sends `Range`

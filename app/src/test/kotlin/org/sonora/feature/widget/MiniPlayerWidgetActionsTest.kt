@@ -67,6 +67,20 @@ class MiniPlayerWidgetCallbacksTest {
         NextAction().onAction(context, glanceId, noParameters)
         assertEquals(listOf("next"), port.calls)
     }
+
+    @org.junit.Test
+    fun `rewind callback goes back ten seconds`() = runTest {
+        port.progressFlow.value = org.sonora.core.media.PlaybackProgress(60_000, 60_000, 600_000)
+        RewindAction().onAction(context, glanceId, noParameters)
+        assertEquals(listOf("seek:50000"), port.calls)
+    }
+
+    @org.junit.Test
+    fun `forward callback skips thirty seconds`() = runTest {
+        port.progressFlow.value = org.sonora.core.media.PlaybackProgress(60_000, 60_000, 600_000)
+        ForwardAction().onAction(context, glanceId, noParameters)
+        assertEquals(listOf("seek:90000"), port.calls)
+    }
 }
 
 /** Glance runs callbacks on a background dispatcher, but the player may only be touched from Main. */
@@ -82,6 +96,8 @@ class MiniPlayerWidgetThreadingTest {
         override suspend fun pause() { dispatchers += kotlin.coroutines.coroutineContext[kotlin.coroutines.ContinuationInterceptor] }
         override suspend fun previous() { dispatchers += kotlin.coroutines.coroutineContext[kotlin.coroutines.ContinuationInterceptor] }
         override suspend fun next() { dispatchers += kotlin.coroutines.coroutineContext[kotlin.coroutines.ContinuationInterceptor] }
+        override fun progress() = kotlinx.coroutines.flow.flowOf(org.sonora.core.media.PlaybackProgress(60_000, 60_000, 600_000))
+        override suspend fun seekTo(positionMs: Long) { dispatchers += kotlin.coroutines.coroutineContext[kotlin.coroutines.ContinuationInterceptor] }
     }
 
     @org.junit.Before fun drivePort() { widgetPlaybackPort = { port } }
@@ -92,6 +108,56 @@ class MiniPlayerWidgetThreadingTest {
         PlayPauseAction().onAction(context, glanceId, noParameters)
         PreviousAction().onAction(context, glanceId, noParameters)
         NextAction().onAction(context, glanceId, noParameters)
-        assertEquals(List(3) { kotlinx.coroutines.Dispatchers.Main.immediate }, dispatchers)
+        RewindAction().onAction(context, glanceId, noParameters)
+        ForwardAction().onAction(context, glanceId, noParameters)
+        assertEquals(List(5) { kotlinx.coroutines.Dispatchers.Main.immediate }, dispatchers)
+    }
+}
+
+class MiniPlayerSeekTest {
+    private val port = FakePlaybackPort()
+
+    private fun at(positionMs: Long, durationMs: Long = 600_000) {
+        port.progressFlow.value = org.sonora.core.media.PlaybackProgress(positionMs, positionMs, durationMs)
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `rewinds by the given amount`() = runTest {
+        at(60_000)
+        port.seekBy(-10_000)
+        assertEquals(listOf("seek:50000"), port.calls)
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `skips forward by the given amount`() = runTest {
+        at(60_000)
+        port.seekBy(30_000)
+        assertEquals(listOf("seek:90000"), port.calls)
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `does not rewind past the start`() = runTest {
+        at(4_000)
+        port.seekBy(-10_000)
+        assertEquals(listOf("seek:0"), port.calls)
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `does not skip past the end`() = runTest {
+        at(590_000, durationMs = 600_000)
+        port.seekBy(30_000)
+        assertEquals(listOf("seek:600000"), port.calls)
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `does nothing when nothing is loaded`() = runTest {
+        port.seekBy(30_000)
+        assertEquals(emptyList<String>(), port.calls)
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `uses the same intervals as the notification`() {
+        assertEquals(10_000L, REWIND_MS)
+        assertEquals(30_000L, FORWARD_MS)
     }
 }
