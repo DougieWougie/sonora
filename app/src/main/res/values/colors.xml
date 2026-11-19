@@ -2,4 +2,9 @@
 <resources>
     <color name="window_background">#FFFBFF</color>
     <color name="ic_launcher_background">#EEF2FA</color>
+    <!-- The widget-picker preview. Android 12+ overrides these with the system's dynamic colours (values-v31). -->
+    <color name="widget_preview_surface">#E1E2EC</color>
+    <color name="widget_preview_on_surface">#1B1B21</color>
+    <color name="widget_preview_on_surface_variant">#45464F</color>
+    <color name="widget_preview_artwork">#B1C5FF</color>
 </resources>
