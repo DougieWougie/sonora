@@ -4,4 +4,10 @@
     <string name="playback_channel_name">Playback</string>
     <string name="download_channel_name">Downloads</string>
     <string name="new_episodes_channel_name">New episodes</string>
+    <string name="widget_description">Current episode with playback controls</string>
+    <string name="widget_idle">Nothing playing</string>
+    <string name="widget_play">Play</string>
+    <string name="widget_pause">Pause</string>
+    <string name="widget_previous">Previous</string>
+    <string name="widget_next">Next</string>
 </resources>

@@ -2,11 +2,13 @@
 package org.sonora
 
 import android.app.Application
+import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import androidx.glance.appwidget.updateAll
 import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -15,11 +17,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+import org.sonora.core.database.EpisodeDao
+import org.sonora.core.database.PodcastDao
 import org.sonora.core.download.DownloadsMigration
+import org.sonora.core.media.PlaybackHub
 import org.sonora.core.network.withTransportPolicy
 import org.sonora.core.work.WorkManagerSyncScheduler
 import org.sonora.core.settings.AppSettings
 import org.sonora.feature.discover.DirectorySuggestions
+import org.sonora.feature.widget.MiniPlayerWidget
+import org.sonora.feature.widget.miniPlayerWidgetStates
+import org.sonora.feature.widget.redrawOnChange
 import org.sonora.ui.HttpsUpgradeInterceptor
 
 @HiltAndroidApp
@@ -30,6 +38,9 @@ class SonoraApp : Application(), Configuration.Provider, SingletonImageLoader.Fa
     @Inject lateinit var okHttpClient: OkHttpClient
     @Inject lateinit var suggestions: DirectorySuggestions
     @Inject lateinit var downloadsMigration: DownloadsMigration
+    @Inject lateinit var playbackHub: PlaybackHub
+    @Inject lateinit var episodeDao: EpisodeDao
+    @Inject lateinit var podcastDao: PodcastDao
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
@@ -50,6 +61,14 @@ class SonoraApp : Application(), Configuration.Provider, SingletonImageLoader.Fa
         super.onCreate()
         syncScheduler.setPeriodicInterval(settings.syncIntervalHours)
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { runCatching { downloadsMigration.run() } }
+        // Redraw the home-screen mini player as playback changes. The hub reports idle when the media
+        // service goes away, so the widget also stops offering controls then.
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            miniPlayerWidgetStates(playbackHub.state, episodeDao, podcastDao)
+                .redrawOnChange(onFailure = { Log.w("MiniPlayerWidget", "Redraw failed", it) }) {
+                    MiniPlayerWidget().updateAll(this@SonoraApp)
+                }
+        }
         // Warm Discover's suggestions so the tab has them by the time it is opened; failures are fine.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { runCatching { suggestions.suggestions() } }
     }
