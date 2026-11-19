@@ -280,10 +280,12 @@ class PodcastMediaSessionService : MediaSessionService() {
     private companion object {
         const val TAG = "PodcastMediaSession"
         const val NOTIFICATION_CHANNEL_ID = "playback"
-        const val SEEK_BACK_MS = 10_000L
-        const val SEEK_FORWARD_MS = 30_000L
     }
 }
+
+/** How far the notification, lock screen and home-screen widget rewind and skip forward. */
+internal const val SEEK_BACK_MS = 10_000L
+internal const val SEEK_FORWARD_MS = 30_000L
 
 /** Reads the HTTP status, if any, out of the player's error chain before reducing it to a [PlaybackFailure]. */
 private fun failureOf(error: PlaybackException): PlaybackFailure {

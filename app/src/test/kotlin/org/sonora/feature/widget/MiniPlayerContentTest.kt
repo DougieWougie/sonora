@@ -34,6 +34,8 @@ class MiniPlayerContentTest {
             onNode(hasText("Nothing playing")).assertExists()
             onNode(hasContentDescription("Pause")).assertDoesNotExist()
             onNode(hasContentDescription("Next")).assertDoesNotExist()
+            onNode(hasContentDescription("Back 10 seconds")).assertDoesNotExist()
+            onNode(hasContentDescription("Forward 30 seconds")).assertDoesNotExist()
         }
     }
 
@@ -48,6 +50,17 @@ class MiniPlayerContentTest {
             onNode(hasContentDescription("Pause")).assertExists()
             onNode(hasContentDescription("Previous")).assertExists()
             onNode(hasContentDescription("Next")).assertExists()
+        }
+    }
+
+    @Test
+    fun `loaded widget offers rewind and forward`() = runTest {
+        runGlanceAppWidgetUnitTest {
+            setContext(context)
+            provideComposable { GlanceTheme { MiniPlayerContent(playing, artwork = null) } }
+
+            onNode(hasContentDescription("Back 10 seconds")).assertExists()
+            onNode(hasContentDescription("Forward 30 seconds")).assertExists()
         }
     }
 
