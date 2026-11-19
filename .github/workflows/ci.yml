@@ -50,7 +50,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Run Unit Tests and enforce the coverage floor
-        run: ./gradlew testDebugUnitTest verifyCoverage --stacktrace --info
+        run: bash .github/scripts/gradle-retry.sh testDebugUnitTest verifyCoverage
 
       - name: Upload Test Reports on Failure
         if: failure()
@@ -87,7 +87,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Run Android Lint
-        run: ./gradlew lintDebug --stacktrace --info
+        run: bash .github/scripts/gradle-retry.sh lintDebug
 
       - name: Upload Lint Reports on Failure
         if: failure()
@@ -124,7 +124,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Assemble Debug APK
-        run: ./gradlew assembleDebug --stacktrace --info
+        run: bash .github/scripts/gradle-retry.sh assembleDebug
 
       - name: Upload Debug APK
         if: success()
