@@ -162,6 +162,23 @@ flowchart LR
   plays at once; otherwise the user picks "Play next" or "Add to end", so the playing episode is
   not displaced and the invariant above holds. Tapping a row inside the Queue segment plays it directly.
 
+### Home-screen widget
+`feature/widget` holds a Jetpack Glance mini player (current episode, artwork, previous / play-pause / next).
+- `miniPlayerWidgetStates` maps `PlaybackHub.state` plus the episode and podcast rows to a
+  `MiniPlayerWidgetState` (`Idle` or `Loaded`). Only the loaded episode and play/pause feed it, so progress
+  ticks never redraw the widget.
+- `MiniPlayerWidget.provideGlance` collects those states *inside* `provideContent`. While a Glance session is
+  running, `update()` re-composes without calling `provideGlance` again, so a state read once outside the
+  composition goes stale (the play/pause icon stuck after pausing).
+- `SonoraApp` also collects the states for the life of the process and calls `updateAll`, which starts a session
+  for a widget that has none. It uses `collectLatest` so a redraw that hangs cannot hold up the next state. The
+  hub reports idle when the media service goes away, so the widget falls back to "Nothing playing" without a
+  teardown hook. The updater lives in the app layer because `core` may not import `feature` (`LayeringTest`).
+- The button callbacks drive `PlaybackHub` through a Hilt entry point. Glance runs `ActionCallback`s on a
+  background dispatcher but the player may only be touched from Main, so they hop to `Dispatchers.Main.immediate`
+  first. They are only offered while an episode is loaded, which means the service is running;
+  `widgetPlaybackPort` is the test seam.
+
 ### Downloads and retention
 `EpisodeDownloadManager` downloads enclosures to `*.part` files and updates Room. A resume sends `Range`
 plus `If-Range` with the ETag (or Last-Modified) of the response that began the partial file, kept in a
