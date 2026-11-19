@@ -5,13 +5,18 @@
 # before any of our code is built. A test, lint or coverage failure, or a dependency checksum mismatch,
 # is a real result and fails at once without a retry.
 #
+# The wait doubles after each failed attempt (60 s, then 120 s by default): a 15 s wait was tried first and
+# the 404 outlasted all three attempts, about 40 s.
+#
 # Usage: gradle-retry.sh <gradle tasks...>
-# Env:   GRADLEW (default ./gradlew), GRADLE_ATTEMPTS (default 3), GRADLE_RETRY_DELAY seconds (default 15)
+# Env:   GRADLEW (default ./gradlew), GRADLE_ATTEMPTS (default 3), GRADLE_RETRY_DELAY first wait in
+#        seconds (default 60), GRADLE_RETRY_SLEEP the sleep command (default sleep; lets tests skip the wait)
 set -uo pipefail
 
 gradlew=${GRADLEW:-./gradlew}
 attempts=${GRADLE_ATTEMPTS:-3}
-delay=${GRADLE_RETRY_DELAY:-15}
+delay=${GRADLE_RETRY_DELAY:-60}
+sleeper=${GRADLE_RETRY_SLEEP:-sleep}
 # Failures to download or resolve. "Resource missing" is deliberately absent: --info logs it for routine
 # misses too. "Dependency verification failed" is absent on purpose, so a checksum mismatch stays loud.
 transient='Could not resolve|Could not find|Could not GET|was not found in any of the following sources|Read timed out|Connection reset|Received status code 5'
@@ -27,7 +32,8 @@ for attempt in $(seq 1 "$attempts"); do
   fi
   if [ "$attempt" -lt "$attempts" ] && grep -E -q "$transient" "$log"; then
     echo "::warning::Gradle could not fetch a dependency (attempt $attempt of $attempts); retrying in ${delay}s"
-    sleep "$delay"
+    "$sleeper" "$delay"
+    delay=$((delay * 2))
   else
     exit "$status"
   fi
