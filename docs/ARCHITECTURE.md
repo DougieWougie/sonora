@@ -163,20 +163,28 @@ flowchart LR
   not displaced and the invariant above holds. Tapping a row inside the Queue segment plays it directly.
 
 ### Home-screen widget
-`feature/widget` holds a Jetpack Glance mini player: current episode and artwork on top, and a row of five controls underneath (previous, back 10 s, play-pause, forward 30 s, next).
+`feature/widget` holds a Jetpack Glance mini player with two layouts, picked from the widget's size
+(`SizeMode.Responsive`, `layoutFor`): 2x2 is `Compact` (artwork, title, back 10 s, play-pause, forward 30 s, no queue) and
+4x4 is `Large` (adds previous and next, and an "Up next" list of the first few queued episodes plus a "+N more" line).
+A widget that is wide but short stays compact.
 - `miniPlayerWidgetStates` maps `PlaybackHub.state` plus the episode and podcast rows to a
   `MiniPlayerWidgetState` (`Idle` or `Loaded`). Only the loaded episode and play/pause feed it, so progress
-  ticks never redraw the widget.
+  ticks never redraw the widget. The queue (`PlayQueue.items`) feeds it too.
+- When the player is empty the widget offers the episode last loaded (`LastPlayedStore`, SharedPreferences; written
+  whenever an episode is loaded) as a `Loaded` state with `active = false`. It shows only Play, because the other
+  controls need a loaded player. Play passes the id in `RECALLED_EPISODE_KEY`; `PlayPauseAction` first binds the media
+  service (`bindMediaService`, as `MainActivity` does) since nothing else would have started it. `Idle` now means
+  nothing has ever been played, or the episode was deleted.
 - `MiniPlayerWidget.provideGlance` collects those states *inside* `provideContent`. While a Glance session is
   running, `update()` re-composes without calling `provideGlance` again, so a state read once outside the
   composition goes stale (the play/pause icon stuck after pausing).
 - `SonoraApp` also collects the states for the life of the process and calls `updateAll`, which starts a session
   for a widget that has none. It uses `collectLatest` so a redraw that hangs cannot hold up the next state. The
-  hub reports idle when the media service goes away, so the widget falls back to "Nothing playing" without a
+  hub reports idle when the media service goes away, so the widget falls back to the last episode played without a
   teardown hook. The updater lives in the app layer because `core` may not import `feature` (`LayeringTest`).
 - The button callbacks drive `PlaybackHub` through a Hilt entry point. Glance runs `ActionCallback`s on a
   background dispatcher but the player may only be touched from Main, so they hop to `Dispatchers.Main.immediate`
-  first. They are only offered while an episode is loaded, which means the service is running;
+  first. The transport buttons are only offered while an episode is loaded, which means the service is running;
   `widgetPlaybackPort` is the test seam.
 - Back and forward go through `seekBy`, which reads `PlaybackPort.progress()`, clamps to the episode's bounds
   and calls `seekTo`, as the player screen does. The 10 s and 30 s intervals are `SEEK_BACK_MS` and
