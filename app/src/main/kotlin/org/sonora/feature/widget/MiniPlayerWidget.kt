@@ -7,19 +7,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.action.ActionParameters
+import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.provideContent
@@ -59,6 +63,7 @@ import org.sonora.R
 import org.sonora.core.database.EpisodeDao
 import org.sonora.core.database.PodcastDao
 import org.sonora.core.media.PlaybackHub
+import org.sonora.core.media.PlayQueue
 import org.sonora.core.media.PlaybackPort
 import org.sonora.core.media.PlaybackProgress
 import org.sonora.core.media.SEEK_BACK_MS
@@ -70,6 +75,8 @@ interface MiniPlayerWidgetEntryPoint {
     fun hub(): PlaybackHub
     fun episodeDao(): EpisodeDao
     fun podcastDao(): PodcastDao
+    fun playQueue(): PlayQueue
+    fun lastPlayed(): LastPlayedStore
 }
 
 private fun Context.entryPoint() =
@@ -83,11 +90,23 @@ internal var widgetPlaybackPort: ((Context) -> PlaybackPort)? = null
 
 private fun Context.playbackPort(): PlaybackPort = widgetPlaybackPort?.invoke(this) ?: entryPoint().hub()
 
-/** Home-screen mini player: current episode, artwork, previous / play-pause / next. */
+/** What the widget draws at a given size: 2x2 is the player alone, 4x4 adds the queue. */
+enum class WidgetLayout { Compact, Large }
+
+private val COMPACT_SIZE = DpSize(110.dp, 110.dp)
+private val LARGE_SIZE = DpSize(250.dp, 250.dp)
+
+/** The queue needs room for the player and a few rows, so a wide but short widget stays compact. */
+internal fun layoutFor(size: DpSize): WidgetLayout =
+    if (size.width >= LARGE_SIZE.width - 30.dp && size.height >= LARGE_SIZE.height - 30.dp) WidgetLayout.Large else WidgetLayout.Compact
+
+/** Home-screen mini player: current episode and artwork with controls, plus the queue when it is large enough. */
 class MiniPlayerWidget : GlanceAppWidget() {
+    override val sizeMode = SizeMode.Responsive(setOf(COMPACT_SIZE, LARGE_SIZE))
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val entry = context.entryPoint()
-        val states = miniPlayerWidgetStates(entry.hub().state, entry.episodeDao(), entry.podcastDao())
+        val states = miniPlayerWidgetStates(entry.hub().state, entry.playQueue().items, entry.episodeDao(), entry.podcastDao(), entry.lastPlayed())
         // Draw the real state first so the widget never flashes "Nothing playing" on the way in.
         val first = states.first()
         val firstUrl = (first as? MiniPlayerWidgetState.Loaded)?.artworkUrl
@@ -100,7 +119,7 @@ class MiniPlayerWidget : GlanceAppWidget() {
             val artwork by produceState(initialValue = firstArtwork.takeIf { url == firstUrl }, url) {
                 value = url?.let { loadArtwork(context, it) }
             }
-            GlanceTheme { MiniPlayerContent(state, artwork) }
+            GlanceTheme { MiniPlayerContent(state, artwork, layoutFor(LocalSize.current)) }
         }
     }
 }
@@ -117,15 +136,16 @@ private suspend fun loadArtwork(context: Context, url: String): Bitmap? = withTi
 }
 
 @Composable
-internal fun MiniPlayerContent(state: MiniPlayerWidgetState, artwork: Bitmap?) {
+internal fun MiniPlayerContent(state: MiniPlayerWidgetState, artwork: Bitmap?, layout: WidgetLayout = WidgetLayout.Large) {
     val context = LocalContext.current
+    val compact = layout == WidgetLayout.Compact
     // MainActivity is singleTask, so this brings the existing task forward rather than starting another.
     val openApp = actionStartActivity<MainActivity>()
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
             .background(GlanceTheme.colors.widgetBackground)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = if (compact) 8.dp else 12.dp, vertical = 8.dp)
             .clickable(openApp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -140,38 +160,85 @@ internal fun MiniPlayerContent(state: MiniPlayerWidgetState, artwork: Bitmap?) {
                         Image(
                             provider = ImageProvider(artwork),
                             contentDescription = null,
-                            modifier = GlanceModifier.size(48.dp).semantics { testTag = MINI_PLAYER_ARTWORK_TAG },
+                            modifier = GlanceModifier.size(if (compact) 36.dp else 48.dp).semantics { testTag = MINI_PLAYER_ARTWORK_TAG },
                         )
-                        Spacer(GlanceModifier.width(12.dp))
+                        Spacer(GlanceModifier.width(if (compact) 8.dp else 12.dp))
                     }
                     Column(modifier = GlanceModifier.defaultWeight()) {
                         Text(
                             text = state.episodeTitle,
                             maxLines = 2,
-                            style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                            style = TextStyle(
+                                color = GlanceTheme.colors.onSurface,
+                                fontSize = if (compact) 12.sp else 14.sp,
+                                fontWeight = FontWeight.Medium,
+                            ),
                         )
-                        state.podcastTitle?.let {
-                            Text(
-                                text = it,
-                                maxLines = 1,
-                                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp),
-                            )
+                        // The 2x2 has no room for a third line.
+                        if (!compact) {
+                            state.podcastTitle?.let {
+                                Text(
+                                    text = it,
+                                    maxLines = 1,
+                                    style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp),
+                                )
+                            }
                         }
                     }
                 }
-                // Five equal cells, each icon centred in its own.
+                // Equal cells, each icon centred in its own.
                 Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    ControlButton(R.drawable.ic_widget_previous, context.getString(R.string.widget_previous), actionRunCallback<PreviousAction>())
-                    ControlButton(R.drawable.ic_widget_replay_10, context.getString(R.string.widget_rewind), actionRunCallback<RewindAction>())
-                    ControlButton(
+                    val playPause = ControlSpec(
                         if (state.isPlaying) R.drawable.ic_widget_pause else R.drawable.ic_widget_play,
-                        context.getString(if (state.isPlaying) R.string.widget_pause else R.string.widget_play),
-                        actionRunCallback<PlayPauseAction>(),
+                        if (state.isPlaying) R.string.widget_pause else R.string.widget_play,
+                        // An episode the player has let go of is started from the id the widget remembers.
+                        actionRunCallback<PlayPauseAction>(
+                            if (state.active) actionParametersOf() else actionParametersOf(RECALLED_EPISODE_KEY to state.episodeId),
+                        ),
                     )
-                    ControlButton(R.drawable.ic_widget_forward_30, context.getString(R.string.widget_forward), actionRunCallback<ForwardAction>())
-                    ControlButton(R.drawable.ic_widget_next, context.getString(R.string.widget_next), actionRunCallback<NextAction>())
+                    val controls = when {
+                        !state.active -> listOf(playPause)
+                        compact -> listOf(rewind, playPause, forward)
+                        else -> listOf(previous, rewind, playPause, forward, next)
+                    }
+                    controls.forEach { ControlButton(it.icon, context.getString(it.description), it.action) }
                 }
+                if (!compact && state.active && state.queue.isNotEmpty()) Queue(state)
             }
+        }
+    }
+}
+
+private class ControlSpec(val icon: Int, val description: Int, val action: androidx.glance.action.Action)
+
+private val previous get() = ControlSpec(R.drawable.ic_widget_previous, R.string.widget_previous, actionRunCallback<PreviousAction>())
+private val rewind get() = ControlSpec(R.drawable.ic_widget_replay_10, R.string.widget_rewind, actionRunCallback<RewindAction>())
+private val forward get() = ControlSpec(R.drawable.ic_widget_forward_30, R.string.widget_forward, actionRunCallback<ForwardAction>())
+private val next get() = ControlSpec(R.drawable.ic_widget_next, R.string.widget_next, actionRunCallback<NextAction>())
+
+@Composable
+private fun Queue(state: MiniPlayerWidgetState.Loaded) {
+    val context = LocalContext.current
+    Column(modifier = GlanceModifier.fillMaxWidth().padding(top = 8.dp)) {
+        Text(
+            text = context.getString(R.string.widget_up_next),
+            style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Medium),
+        )
+        state.queue.forEach {
+            Text(
+                text = it.title,
+                maxLines = 1,
+                modifier = GlanceModifier.padding(top = 2.dp),
+                style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 13.sp),
+            )
+        }
+        val more = state.queueSize - state.queue.size
+        if (more > 0) {
+            Text(
+                text = context.getString(R.string.widget_queue_more, more),
+                modifier = GlanceModifier.padding(top = 2.dp),
+                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp),
+            )
         }
     }
 }
@@ -187,17 +254,40 @@ private fun RowScope.ControlButton(icon: Int, description: String, onClick: andr
     )
 }
 
-/** Toggles playback of whatever the player has loaded. The widget only offers it while the service is running. */
+/** The episode the widget offers while the player is empty, passed with the click that starts it. */
+internal val RECALLED_EPISODE_KEY = ActionParameters.Key<Long>("recalled-episode")
+
+/** Starts the media service when nothing has yet; null in the app, where it is bound the way the activity does. */
+internal var widgetServiceStarter: (suspend (Context) -> AutoCloseable)? = null
+
+/**
+ * Toggles playback of whatever the player has loaded. With nothing loaded it plays the episode the widget was
+ * showing, starting the media service first, because only the activity otherwise does.
+ */
+@androidx.media3.common.util.UnstableApi // references bindMediaService, which uses Media3 @UnstableApi
 class PlayPauseAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        onPlayerThread { context.playbackPort().togglePlayPause() }
+        val recalled = parameters[RECALLED_EPISODE_KEY]
+        onPlayerThread {
+            val port = context.playbackPort()
+            val binding = if (recalled != null && port.state.first().episodeId == null) {
+                (widgetServiceStarter ?: ::bindMediaService).invoke(context)
+            } else {
+                null
+            }
+            try {
+                port.togglePlayPause(recalled)
+            } finally {
+                binding?.close()
+            }
+        }
     }
 }
 
-/** Pauses what is playing, or resumes what is loaded; does nothing when the player is empty. */
-internal suspend fun PlaybackPort.togglePlayPause() {
+/** Pauses what is playing, or resumes what is loaded (or [recalled], when nothing is); does nothing otherwise. */
+internal suspend fun PlaybackPort.togglePlayPause(recalled: Long? = null) {
     val current = state.first()
-    val episodeId = current.episodeId ?: return
+    val episodeId = current.episodeId ?: recalled ?: return
     if (current.isPlaying) pause() else play(episodeId)
 }
 

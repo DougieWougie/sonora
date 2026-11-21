@@ -25,9 +25,22 @@ class MiniPlayerWidgetActionsTest {
     }
 
     @Test
-    fun `does nothing when nothing is loaded`() = runTest {
+    fun `does nothing when nothing is loaded and nothing is remembered`() = runTest {
         port.togglePlayPause()
         assertEquals(emptyList<String>(), port.calls)
+    }
+
+    @Test
+    fun `plays the remembered episode when the player is empty`() = runTest {
+        port.togglePlayPause(recalled = 5)
+        assertEquals(listOf("play:5"), port.calls)
+    }
+
+    @Test
+    fun `prefers the loaded episode over the remembered one`() = runTest {
+        port.stateFlow.value = PlaybackState(episodeId = 7, isPlaying = false)
+        port.togglePlayPause(recalled = 5)
+        assertEquals(listOf("play:7"), port.calls)
     }
 }
 
@@ -45,6 +58,7 @@ class MiniPlayerWidgetCallbacksTest {
     @org.junit.After
     fun restore() {
         widgetPlaybackPort = null
+        widgetServiceStarter = null
     }
 
     private val noParameters = androidx.glance.action.actionParametersOf()
@@ -53,6 +67,29 @@ class MiniPlayerWidgetCallbacksTest {
     fun `play pause callback toggles playback`() = runTest {
         port.stateFlow.value = PlaybackState(episodeId = 3, isPlaying = true)
         PlayPauseAction().onAction(context, glanceId, noParameters)
+        assertEquals(listOf("pause"), port.calls)
+    }
+
+    @org.junit.Test
+    fun `play pause callback starts the service, plays the recalled episode, then lets go of the service`() = runTest {
+        val events = mutableListOf<String>()
+        widgetServiceStarter = {
+            events += "bind"
+            AutoCloseable { events += "release" }
+        }
+        val recalled = androidx.glance.action.actionParametersOf(RECALLED_EPISODE_KEY to 5L)
+        PlayPauseAction().onAction(context, glanceId, recalled)
+        assertEquals(listOf("play:5"), port.calls)
+        assertEquals(listOf("bind", "release"), events)
+    }
+
+    @org.junit.Test
+    fun `play pause callback does not start the service when an episode is already loaded`() = runTest {
+        var bound = false
+        widgetServiceStarter = { bound = true; AutoCloseable {} }
+        port.stateFlow.value = PlaybackState(episodeId = 3, isPlaying = true)
+        PlayPauseAction().onAction(context, glanceId, androidx.glance.action.actionParametersOf(RECALLED_EPISODE_KEY to 5L))
+        assertEquals(false, bound)
         assertEquals(listOf("pause"), port.calls)
     }
 
@@ -159,5 +196,18 @@ class MiniPlayerSeekTest {
     fun `uses the same intervals as the notification`() {
         assertEquals(10_000L, REWIND_MS)
         assertEquals(30_000L, FORWARD_MS)
+    }
+}
+
+@org.junit.runner.RunWith(androidx.test.ext.junit.runners.AndroidJUnit4::class)
+class PrefsLastPlayedStoreTest {
+    private val context: android.content.Context = androidx.test.core.app.ApplicationProvider.getApplicationContext()
+
+    @org.junit.Test
+    fun `remembers nothing at first, then the last episode, across instances`() {
+        context.getSharedPreferences("widget", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        assertEquals(null, PrefsLastPlayedStore(context).recall())
+        PrefsLastPlayedStore(context).remember(42)
+        assertEquals(42L, PrefsLastPlayedStore(context).recall())
     }
 }

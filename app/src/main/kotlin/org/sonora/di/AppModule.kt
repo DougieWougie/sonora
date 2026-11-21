@@ -66,6 +66,8 @@ import org.sonora.core.media.PlayQueue
 import org.sonora.core.media.PlaybackHub
 import org.sonora.core.media.PlaybackPort
 import org.sonora.core.media.PrefsQueueStorage
+import org.sonora.feature.widget.LastPlayedStore
+import org.sonora.feature.widget.PrefsLastPlayedStore
 import org.sonora.core.network.LoginFlowApi
 import org.sonora.core.network.NextcloudLoginFlow
 import org.sonora.core.network.withTransportPolicy
@@ -280,6 +282,9 @@ object AppModule {
 
     @Provides @Singleton
     fun playQueue(@ApplicationContext context: Context): PlayQueue = PersistentPlayQueue(PrefsQueueStorage(context))
+
+    @Provides @Singleton
+    fun lastPlayed(@ApplicationContext context: Context): LastPlayedStore = PrefsLastPlayedStore(context)
 
     @Provides @Singleton
     fun episodeActions(

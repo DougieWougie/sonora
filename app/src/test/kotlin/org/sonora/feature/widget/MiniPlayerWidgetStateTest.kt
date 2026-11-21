@@ -19,7 +19,11 @@ class MiniPlayerWidgetStateTest {
     private val episodeDao = FakeEpisodeDao()
     private val playback = MutableStateFlow(PlaybackState())
 
-    private fun states() = miniPlayerWidgetStates(playback, episodeDao, podcastDao)
+    private val queue = MutableStateFlow<List<Long>>(emptyList())
+    private val lastPlayed = InMemoryLastPlayed()
+
+    private fun states() = miniPlayerWidgetStates(playback, queue, episodeDao, podcastDao, lastPlayed)
+
 
     private suspend fun seedEpisode(title: String = "Ep one", episodeImage: String? = null): Long {
         val podcastId = podcastDao.showId()
@@ -79,7 +83,8 @@ class MiniPlayerWidgetStateTest {
             playback.value = PlaybackState(episodeId = id, isPlaying = false)
             assertEquals(false, (awaitItem() as MiniPlayerWidgetState.Loaded).isPlaying)
             playback.value = PlaybackState()
-            assertEquals(MiniPlayerWidgetState.Idle, awaitItem())
+            // Unloading offers the episode again rather than going blank.
+            assertEquals(false, (awaitItem() as MiniPlayerWidgetState.Loaded).active)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -92,6 +97,124 @@ class MiniPlayerWidgetStateTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+}
+
+class MiniPlayerWidgetRecallTest {
+    private val podcastDao = FakePodcastDao()
+    private val episodeDao = FakeEpisodeDao()
+    private val playback = MutableStateFlow(PlaybackState())
+    private val queue = MutableStateFlow<List<Long>>(emptyList())
+    private val lastPlayed = InMemoryLastPlayed()
+
+    private fun states() = miniPlayerWidgetStates(playback, queue, episodeDao, podcastDao, lastPlayed)
+
+    private suspend fun seed(vararg titles: String): List<Long> {
+        val podcastId = podcastDao.showId()
+        episodeDao.insertAll(titles.map { episodeEntity(podcastId, "g-$it", title = it) })
+        return titles.map { t -> episodeDao.getForPodcast(podcastId).single { it.title == t }.id }
+    }
+
+    @Test
+    fun `the loaded episode is remembered`() = runTest {
+        val (a) = seed("A")
+        playback.value = PlaybackState(episodeId = a, isPlaying = true)
+        states().test {
+            awaitItem()
+            assertEquals(a, lastPlayed.recall())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `with nothing loaded it recalls the last episode, paused and not loaded in the player`() = runTest {
+        val (a) = seed("A")
+        lastPlayed.remember(a)
+        states().test {
+            val state = awaitItem() as MiniPlayerWidgetState.Loaded
+            assertEquals("A", state.episodeTitle)
+            assertEquals(false, state.isPlaying)
+            assertEquals(false, state.active)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a loaded episode is active`() = runTest {
+        val (a) = seed("A")
+        playback.value = PlaybackState(episodeId = a, isPlaying = true)
+        states().test {
+            assertEquals(true, (awaitItem() as MiniPlayerWidgetState.Loaded).active)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `unloading the player falls back to the episode that was playing`() = runTest {
+        val (a) = seed("A")
+        playback.value = PlaybackState(episodeId = a, isPlaying = true)
+        states().test {
+            awaitItem()
+            playback.value = PlaybackState()
+            val state = awaitItem() as MiniPlayerWidgetState.Loaded
+            assertEquals(a, state.episodeId)
+            assertEquals(false, state.active)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `is idle when the remembered episode is gone`() = runTest {
+        lastPlayed.remember(9_999)
+        states().test {
+            assertEquals(MiniPlayerWidgetState.Idle, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `carries the queue with titles, skipping episodes that no longer exist`() = runTest {
+        val (a, b, c) = seed("A", "B", "C")
+        playback.value = PlaybackState(episodeId = a, isPlaying = true)
+        queue.value = listOf(b, 9_999, c)
+        states().test {
+            val state = awaitItem() as MiniPlayerWidgetState.Loaded
+            assertEquals(listOf("B", "C"), state.queue.map { it.title })
+            assertEquals(listOf(b, c), state.queue.map { it.episodeId })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `follows queue changes`() = runTest {
+        val (a, b) = seed("A", "B")
+        playback.value = PlaybackState(episodeId = a, isPlaying = true)
+        states().test {
+            assertEquals(emptyList<QueuedEpisode>(), (awaitItem() as MiniPlayerWidgetState.Loaded).queue)
+            queue.value = listOf(b)
+            assertEquals(listOf("B"), (awaitItem() as MiniPlayerWidgetState.Loaded).queue.map { it.title })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `shows only the first few queued episodes`() = runTest {
+        val ids = seed("A", "B", "C", "D", "E", "F", "G", "H")
+        playback.value = PlaybackState(episodeId = ids[0], isPlaying = true)
+        queue.value = ids.drop(1)
+        states().test {
+            val state = awaitItem() as MiniPlayerWidgetState.Loaded
+            assertEquals(MAX_QUEUE_ROWS, state.queue.size)
+            assertEquals("B", state.queue.first().title)
+            assertEquals(ids.size - 1, state.queueSize)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+}
+
+class InMemoryLastPlayed : LastPlayedStore {
+    private var id: Long? = null
+    override fun recall(): Long? = id
+    override fun remember(episodeId: Long) { id = episodeId }
 }
 
 class RedrawOnChangeTest {

@@ -25,6 +25,8 @@ import org.sonora.core.network.withTransportPolicy
 import org.sonora.core.work.WorkManagerSyncScheduler
 import org.sonora.core.settings.AppSettings
 import org.sonora.feature.discover.DirectorySuggestions
+import org.sonora.core.media.PlayQueue
+import org.sonora.feature.widget.LastPlayedStore
 import org.sonora.feature.widget.MiniPlayerWidget
 import org.sonora.feature.widget.miniPlayerWidgetStates
 import org.sonora.feature.widget.redrawOnChange
@@ -41,6 +43,8 @@ class SonoraApp : Application(), Configuration.Provider, SingletonImageLoader.Fa
     @Inject lateinit var playbackHub: PlaybackHub
     @Inject lateinit var episodeDao: EpisodeDao
     @Inject lateinit var podcastDao: PodcastDao
+    @Inject lateinit var playQueue: PlayQueue
+    @Inject lateinit var lastPlayed: LastPlayedStore
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
@@ -62,9 +66,9 @@ class SonoraApp : Application(), Configuration.Provider, SingletonImageLoader.Fa
         syncScheduler.setPeriodicInterval(settings.syncIntervalHours)
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { runCatching { downloadsMigration.run() } }
         // Redraw the home-screen mini player as playback changes. The hub reports idle when the media
-        // service goes away, so the widget also stops offering controls then.
+        // service goes away, so the widget then falls back to the last episode played.
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
-            miniPlayerWidgetStates(playbackHub.state, episodeDao, podcastDao)
+            miniPlayerWidgetStates(playbackHub.state, playQueue.items, episodeDao, podcastDao, lastPlayed)
                 .redrawOnChange(onFailure = { Log.w("MiniPlayerWidget", "Redraw failed", it) }) {
                     MiniPlayerWidget().updateAll(this@SonoraApp)
                 }
