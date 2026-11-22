@@ -10,11 +10,11 @@ import org.sonora.core.database.SyncQueueDao
 import org.sonora.core.database.SyncStateDao
 import org.sonora.core.database.TransactionRunner
 import org.sonora.core.network.NextcloudApiFactory
-import org.sonora.core.settings.AppSettings
+import org.sonora.core.settings.SettingsStore
 
 /** Builds a [SyncCoordinator] for the account currently stored in settings, if any. */
 class NextcloudRemoteSync(
-    private val settings: AppSettings,
+    private val settings: SettingsStore,
     private val client: OkHttpClient,
     private val podcastDao: PodcastDao,
     private val episodeDao: EpisodeDao,

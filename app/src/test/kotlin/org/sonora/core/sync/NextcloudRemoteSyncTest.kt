@@ -1,19 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package org.sonora.core.sync
 
-import android.content.Context
-import androidx.test.core.app.ApplicationProvider
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
-import mockwebserver3.MockWebServer
 import okhttp3.OkHttpClient
-import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Before
-import org.junit.Test
-import org.junit.runner.RunWith
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.sonora.core.database.FakeEpisodeDao
 import org.sonora.core.database.FakePodcastDao
 import org.sonora.core.database.FakeSubscriptionChangeDao
@@ -21,15 +16,14 @@ import org.sonora.core.database.FakeSyncQueueDao
 import org.sonora.core.database.FakeSyncStateDao
 import org.sonora.core.database.FakeTransactionRunner
 import org.sonora.core.database.MutableClock
-import org.sonora.core.settings.AppSettings
 import org.sonora.core.settings.NextcloudAccount
-import org.sonora.testutil.FakeSecretStore
+import org.sonora.testutil.FakeSettingsStore
+import org.sonora.testutil.MockWebServerExtension
 
-@RunWith(AndroidJUnit4::class)
 class NextcloudRemoteSyncTest {
-    private val server = MockWebServer()
-    private val context: Context = ApplicationProvider.getApplicationContext()
-    private val settings = AppSettings(context, FakeSecretStore())
+    @JvmField @RegisterExtension val http = MockWebServerExtension()
+    private val server get() = http.server
+    private val settings = FakeSettingsStore()
     private val podcasts = FakePodcastDao()
 
     private fun remoteSync() = NextcloudRemoteSync(
@@ -40,23 +34,14 @@ class NextcloudRemoteSyncTest {
 
     private fun json(body: String) = MockResponse.Builder().addHeader("Content-Type", "application/json").body(body).build()
 
-    @Before
-    fun setUp() {
-        context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().clear().commit()
-        server.start()
-    }
-
-    @After
-    fun tearDown() = server.close()
-
     @Test
-    fun `without an account there is nothing to sync`() = runBlocking {
+    fun `without an account there is nothing to sync`() = runTest {
         assertNull(remoteSync().sync())
         assertEquals(0, server.requestCount)
     }
 
     @Test
-    fun `syncs against the stored account using its credentials`() = runBlocking {
+    fun `syncs against the stored account using its credentials`() = runTest {
         settings.allowCleartext = true
         settings.saveNextcloudAccount(NextcloudAccount(server.url("/").toString(), "alice", "app-pass"))
         server.enqueue(json("""{"add":["https://new/feed"],"remove":[],"timestamp":10}"""))
@@ -70,10 +55,10 @@ class NextcloudRemoteSyncTest {
         assertEquals("Basic YWxpY2U6YXBwLXBhc3M=", server.takeRequest().headers["Authorization"])
     }
 
-    @Test(expected = IllegalArgumentException::class)
-    fun `a cleartext server is refused unless the user opted in`() {
+    @Test
+    fun `a cleartext server is refused unless the user opted in`() = runTest {
         settings.saveNextcloudAccount(NextcloudAccount(server.url("/").toString(), "alice", "app-pass"))
 
-        runBlocking { remoteSync().sync() }
+        assertThrows<IllegalArgumentException> { remoteSync().sync() }
     }
 }

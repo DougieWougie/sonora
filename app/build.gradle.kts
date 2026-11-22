@@ -34,8 +34,13 @@ android {
         }
     }
 
+    val coverageRequested = providers.gradleProperty("coverage").isPresent ||
+        gradle.startParameter.taskNames.any {
+            it.contains("Coverage", ignoreCase = true) || it == "check" || it.endsWith(":check")
+        }
+
     buildTypes {
-        debug { enableUnitTestCoverage = true }
+        debug { enableUnitTestCoverage = coverageRequested }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -61,6 +66,7 @@ android {
             it.useJUnitPlatform()
             // Robolectric and the JaCoCo agent append to the boot classpath, which makes the JVM warn that class-data sharing is off anyway.
             it.jvmArgs("-Xshare:off")
+            it.maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
         }
     }
 
@@ -171,11 +177,11 @@ afterEvaluate {
 }
 
 // Fails when line coverage of the hand-written code drops below the floor; raise it as coverage improves.
-val minimumLineCoverage = 87.5
+val minimumLineCoverage = 91.0
 
 // Room, Hilt and Dagger output would otherwise count towards (and flatter) the figure.
 val generatedClass = Regex(
-    "_Impl|/Hilt_|_HiltModules|_GeneratedInjector|_Factory|_MembersInjector|^dagger/|hilt_aggregated_deps|/BuildConfig|ComposableSingletons",
+    "_Impl|/Hilt_|_HiltModules|_GeneratedInjector|_Factory|_MembersInjector|^dagger/|hilt_aggregated_deps|/BuildConfig|ComposableSingletons|/Dagger|_HiltComponents|_ComponentTreeDeps",
 )
 
 val verifyCoverage = tasks.register("verifyCoverage") {

@@ -99,7 +99,7 @@ class OkHttpFeedFetcherTest {
             ioDispatcher = Dispatchers.IO,
             userAgent = "Sonora/test",
             allowCleartext = true,
-            callTimeout = java.time.Duration.ofMillis(300),
+            callTimeout = java.time.Duration.ofMillis(50),
         )
         server.enqueue(MockResponse.Builder().headersDelay(5, java.util.concurrent.TimeUnit.SECONDS).body("<rss/>").build())
 

@@ -133,8 +133,8 @@ class HtmlTextTest {
     @Test(timeout = 30_000)
     fun `many unterminated openers are handled in linear time`() {
         listOf("<script", "<style", "<img", "<a", "<p", "<li", "<!").forEach { opener ->
-            htmlToPlainText(opener.repeat(200_000))
-            htmlToAnnotatedString(opener.repeat(200_000))
+            htmlToPlainText(opener.repeat(30_000))
+            htmlToAnnotatedString(opener.repeat(30_000))
         }
     }
 

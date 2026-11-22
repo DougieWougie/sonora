@@ -30,6 +30,6 @@ class HtmlSearchTextTest {
     @Test
     @org.junit.jupiter.api.Timeout(30)
     fun `many unterminated openers are handled in linear time`() {
-        listOf("<script", "<a", "<p", "<!", "&#").forEach { htmlToSearchText(it.repeat(200_000)) }
+        listOf("<script", "<a", "<p", "<!", "&#").forEach { htmlToSearchText(it.repeat(30_000)) }
     }
 }

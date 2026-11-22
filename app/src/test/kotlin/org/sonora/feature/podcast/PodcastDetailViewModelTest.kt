@@ -72,11 +72,14 @@ class PodcastDetailViewModelTest {
     private suspend fun feedFetch(url: String): ParsedFeed { fetched += url; return feedResult() }
 
     private var defaultDispatches = 0
-    private val defaultDispatcher = object : kotlinx.coroutines.CoroutineDispatcher() {
-        private val inner = kotlinx.coroutines.test.StandardTestDispatcher(main.dispatcher.scheduler)
-        override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
-            defaultDispatches++
-            inner.dispatch(context, block)
+    @OptIn(kotlinx.coroutines.InternalCoroutinesApi::class)
+    private val defaultDispatcher = run {
+        val inner = kotlinx.coroutines.test.StandardTestDispatcher(main.dispatcher.scheduler)
+        object : kotlinx.coroutines.CoroutineDispatcher(), kotlinx.coroutines.Delay by inner {
+            override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
+                defaultDispatches++
+                inner.dispatch(context, block)
+            }
         }
     }
 
