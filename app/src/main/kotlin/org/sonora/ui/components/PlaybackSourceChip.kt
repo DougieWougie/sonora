@@ -21,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,7 +76,14 @@ fun PlaybackSourceChip(
             .testTag(TestTags.SOURCE_CHIP)
             .semantics(mergeDescendants = true) {}
             .then(
-                if (tappable) Modifier.clip(CircleShape).clickable(onClickLabel = "Download episode", role = Role.Button) { onDownload() } else Modifier,
+                if (tappable) {
+                    Modifier
+                        .minimumInteractiveComponentSize()
+                        .clip(CircleShape)
+                        .clickable(onClickLabel = "Download episode", role = Role.Button) { onDownload() }
+                } else {
+                    Modifier
+                },
             ),
     ) {
         AnimatedContent(
@@ -119,7 +127,7 @@ fun PlaybackSourceIcon(source: PlaybackSource, modifier: Modifier = Modifier) {
             shown.icon,
             contentDescription = shown.label,
             modifier = Modifier.size(16.dp).testTag(TestTags.MINI_SOURCE_ICON),
-            tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+            tint = MaterialTheme.colorScheme.onSecondaryContainer,
         )
     }
 }

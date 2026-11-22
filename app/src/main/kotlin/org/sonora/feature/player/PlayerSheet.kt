@@ -141,7 +141,7 @@ fun SharedTransitionScope.MiniPlayer(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
                             )
                         }
                     }
@@ -340,7 +340,7 @@ private fun SpeedPill(speed: Float, onIntent: (PlayerIntent) -> Unit) {
         AssistChip(
             onClick = { open = true },
             modifier = Modifier.testTag(TestTags.SPEED_CONTROL_BUTTON),
-            label = { Text("%.1f×".format(speed), style = MaterialTheme.typography.labelLargeEmphasized.tabular()) },
+            label = { Text(formatSpeed(speed), style = MaterialTheme.typography.labelLargeEmphasized.tabular()) },
             leadingIcon = { Icon(Icons.Rounded.Speed, contentDescription = null, Modifier.size(18.dp)) },
         )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -349,7 +349,7 @@ private fun SpeedPill(speed: Float, onIntent: (PlayerIntent) -> Unit) {
             listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f).forEach { preset ->
                 DropdownMenuItem(
                     modifier = Modifier.testTag(TestTags.speedPreset(preset)),
-                    text = { Text("%.2f×".format(preset).replace(Regex("0$"), "")) },
+                    text = { Text(formatSpeed(preset)) },
                     trailingIcon = { if (preset == speed) Icon(Icons.Rounded.Check, null) },
                     onClick = { open = false; onIntent(PlayerIntent.SetSpeed(preset)) },
                 )
@@ -358,13 +358,18 @@ private fun SpeedPill(speed: Float, onIntent: (PlayerIntent) -> Unit) {
     }
 }
 
+private fun formatSpeed(speed: Float): String {
+    val formatted = "%.2f".format(speed)
+    return (if (formatted.endsWith("0")) formatted.dropLast(1) else formatted) + "×"
+}
+
 @Composable
 private fun SkipSilenceChip(enabled: Boolean, onToggle: () -> Unit) {
     FilterChip(
         selected = enabled,
         onClick = onToggle,
         modifier = Modifier.testTag(TestTags.SKIP_SILENCE_CHIP),
-        label = { Text(if (enabled) "No gap" else "Gap") },
+        label = { Text("Skip silence") },
         leadingIcon = {
             AnimatedContent(
                 targetState = enabled,
@@ -430,7 +435,7 @@ private fun QueueSheet(state: PlayerUiState, onIntent: (PlayerIntent) -> Unit, o
                         }
                     },
                     content = { Text(next.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                    supportingContent = next.podcastTitle?.let { { Text(it, maxLines = 1) } },
+                    supportingContent = next.podcastTitle?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
                     trailingContent = {
                         IconButton(onClick = { onIntent(PlayerIntent.RemoveFromQueue(next.id)) }) {
                             Icon(Icons.Rounded.Close, contentDescription = "Remove from queue")

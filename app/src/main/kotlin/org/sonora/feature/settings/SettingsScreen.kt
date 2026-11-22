@@ -240,7 +240,7 @@ internal fun OpenLoginUrlEffect(events: Flow<SettingsEvent>, open: (String) -> B
 
 @Composable
 internal fun NextcloudCard(state: SettingsUiState, onIntent: (SettingsIntent) -> Unit) {
-    var server by remember { mutableStateOf("") }
+    var server by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     SettingsCard("Nextcloud GPodder Sync") {
         when (val nc = state.nextcloud) {
             NextcloudState.Idle, is NextcloudState.Error -> {
