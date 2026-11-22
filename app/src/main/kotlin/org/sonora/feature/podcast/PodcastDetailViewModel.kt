@@ -157,14 +157,20 @@ class PodcastDetailViewModel @Inject constructor(
     /** What a search matches against: the query and, only while one is active, each episode's description text. */
     private class Search(val query: String, val texts: Map<Long, String>)
 
-    private val search: Flow<Search> = searchQuery.flatMapLatest { query ->
-        if (query.isEmpty()) {
-            flowOf(Search("", emptyMap()))
-        } else {
-            podcastId.flatMapLatest { episodeDao.observeDescriptions(it) }
-                .map { descriptions -> Search(query, descriptions.associate { it.id to htmlToSearchText(it.description) }) }
+    /** Only loaded while a search is active, and kept alive across query edits so HTML is stripped once per search session. */
+    private val searchTexts: Flow<Map<Long, String>> = searchQuery
+        .map { it.isNotEmpty() }
+        .distinctUntilChanged()
+        .flatMapLatest { searching ->
+            if (!searching) {
+                flowOf(emptyMap())
+            } else {
+                podcastId.flatMapLatest { episodeDao.observeDescriptions(it) }
+                    .map { descriptions -> descriptions.associate { it.id to htmlToSearchText(it.description) } }
+            }
         }
-    }
+
+    private val search: Flow<Search> = combine(searchQuery, searchTexts, ::Search)
 
     /** Filtering and text extraction cost time proportional to the list, so they stay off Main. */
     private val matching: Flow<List<EpisodeRow>> = combine(
@@ -184,10 +190,11 @@ class PodcastDetailViewModel @Inject constructor(
         val header = podcast?.toHeader()?.also { lastHeader = it } ?: lastHeader
         val subscribed = podcast != null
         val visible = if (subscribed) matching else emptyList()
+        val queuedSet = queued.toHashSet()
         PodcastDetailUiState(
             podcast = header,
             subscribed = subscribed,
-            episodes = visible.map { it.toItem(podcast, it.id in queued) },
+            episodes = visible.map { it.toItem(podcast, it.id in queuedSet) },
             filter = controls.filter,
             query = controls.query,
             pendingMarkOlder = controls.pendingMarkOlder,

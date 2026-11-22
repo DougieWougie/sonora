@@ -240,15 +240,29 @@ fun EpisodeRow(item: EpisodeItem, actions: EpisodeActionsUi, modifier: Modifier 
     )
 }
 
+private val EPISODE_DATE_FORMATTER: java.time.format.DateTimeFormatter =
+    java.time.format.DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM)
+
 @Composable
 private fun EpisodeSubtitle(item: EpisodeItem) {
-    val parts = buildList {
-        item.publishedAtMillis?.let { add(DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(it))) }
-        item.durationSeconds?.let { add(formatTimestamp(it * 1000)) }
-        if (item.positionSeconds > 0 && !item.played) add("${formatTimestamp(item.positionSeconds * 1000)} in")
+    val subtitle = remember(item.publishedAtMillis, item.durationSeconds, item.positionSeconds, item.played) {
+        buildList {
+            item.publishedAtMillis?.let {
+                val date = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                add(EPISODE_DATE_FORMATTER.format(date))
+            }
+            item.durationSeconds?.let { add(formatTimestamp(it * 1000)) }
+            if (item.positionSeconds > 0 && !item.played) add("${formatTimestamp(item.positionSeconds * 1000)} in")
+        }.joinToString(" · ")
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(parts.joinToString(" · "), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+        Text(
+            subtitle,
+            modifier = Modifier.weight(1f, fill = false),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodySmall,
+        )
         when (item.downloadState) {
             DownloadState.DOWNLOADED -> Icon(Icons.Rounded.DownloadDone, "Downloaded", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
             DownloadState.QUEUED, DownloadState.DOWNLOADING -> Text("Downloading…", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)

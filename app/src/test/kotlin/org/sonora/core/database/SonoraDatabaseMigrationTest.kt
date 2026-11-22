@@ -102,6 +102,39 @@ class SonoraDatabaseMigrationTest {
         }
     }
 
+    @Test
+    fun `migrates from schema v3 to current preserving episode link and defaulting validators to null`() = runBlocking {
+        val dbName = createDatabaseFromSchema(3) { db ->
+            db.execSQL(
+                """
+                INSERT INTO podcast (id, feedUrl, title, description, link, author, imageUrl, lastRefreshedAtMillis, autoDownload, notifyNewEpisodes)
+                VALUES (3, 'https://example.com/feed3.xml', 'Show 3', NULL, NULL, NULL, NULL, 5000, 1, 1)
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT INTO episode (id, podcastId, guid, title, description, enclosureUrl, mimeType, sizeBytes, durationSeconds, publishedAtMillis, imageUrl, playbackPositionSeconds, played, downloadState, downloadPath, downloadedBytes, link)
+                VALUES (30, 3, 'g3', 'Ep 3', NULL, 'https://example.com/ep3.mp3', NULL, NULL, 900, 6000, NULL, 10, 0, 'NONE', NULL, 0, 'https://example.com/ep3')
+                """.trimIndent(),
+            )
+        }
+
+        val migrated = Room.databaseBuilder(context, SonoraDatabase::class.java, dbName)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val podcast = migrated.podcastDao().findById(3L)!!
+            assertEquals("Show 3", podcast.title)
+            assertNull(podcast.etag)
+            assertNull(podcast.lastModified)
+
+            val episode = migrated.episodeDao().findById(30L)!!
+            assertEquals("https://example.com/ep3", episode.link)
+        } finally {
+            migrated.close()
+        }
+    }
+
     private fun createDatabaseFromSchema(version: Int, seed: (SQLiteDatabase) -> Unit): String {
         val name = "migration-v$version-${System.nanoTime()}.db"
         createdDbs += name

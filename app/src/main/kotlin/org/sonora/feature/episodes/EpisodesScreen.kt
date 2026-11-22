@@ -68,8 +68,6 @@ fun EpisodesScreen(
     downloadsViewModel: DownloadsViewModel = hiltViewModel(),
     episodesViewModel: EpisodesViewModel = hiltViewModel(),
 ) {
-    val queueState by queueViewModel.uiState.collectAsStateWithLifecycle()
-    val downloadsState by downloadsViewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(queueViewModel) {
         queueViewModel.events.collect {
             when (it) {
@@ -97,12 +95,24 @@ fun EpisodesScreen(
     }
 
     var segment by rememberSaveable { mutableStateOf(requestedSegment ?: episodesViewModel.lastSegment) }
+    LaunchedEffect(requestedSegment) {
+        if (requestedSegment != null) segment = requestedSegment
+    }
     EpisodesContent(
         segment = segment,
         onSegmentChange = { segment = it; episodesViewModel.remember(it) },
-        queue = { QueueContent(queueState, actions, queueViewModel::onIntent) },
-        new = { NewEpisodesContent(queueState, actions, queueViewModel::onIntent) },
-        downloaded = { DownloadsContent(downloadsState, downloadsViewModel::onIntent) },
+        queue = {
+            val queueState by queueViewModel.uiState.collectAsStateWithLifecycle()
+            QueueContent(queueState, actions, queueViewModel::onIntent)
+        },
+        new = {
+            val queueState by queueViewModel.uiState.collectAsStateWithLifecycle()
+            NewEpisodesContent(queueState, actions, queueViewModel::onIntent)
+        },
+        downloaded = {
+            val downloadsState by downloadsViewModel.uiState.collectAsStateWithLifecycle()
+            DownloadsContent(downloadsState, downloadsViewModel::onIntent)
+        },
         modifier = modifier,
     )
 }

@@ -71,8 +71,10 @@ class FakeEpisodeDao : EpisodeDao {
     /** How many times whole episode rows were loaded for a podcast, to keep refreshes from loading them repeatedly. */
     var fullLoads = 0
 
-    override suspend fun insertAll(episodes: List<EpisodeEntity>) {
-        rows.value += episodes.map { it.copy(id = nextId++) }
+    override suspend fun insertAll(episodes: List<EpisodeEntity>): List<Long> {
+        val inserted = episodes.map { it.copy(id = nextId++) }
+        rows.value += inserted
+        return inserted.map { it.id }
     }
 
     override suspend fun update(episode: EpisodeEntity) {

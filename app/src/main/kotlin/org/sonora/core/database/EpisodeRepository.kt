@@ -47,12 +47,42 @@ class EpisodeRepository(
 
     /** Marks those episodes played in one transaction and returns their ids. */
     suspend fun markOlderPlayed(episodeId: Long): List<Long> = transactions.run {
-        olderUnplayed(requireEpisode(episodeId)).onEach { markPlayed(it) }.map { it.id }
+        val anchor = requireEpisode(episodeId)
+        markBatchPlayed(anchor.podcastId, olderUnplayed(anchor))
     }
 
     /** Marks every unplayed episode of the podcast played in one transaction and returns their ids. */
     suspend fun markAllPlayed(podcastId: Long): List<Long> = transactions.run {
-        episodeDao.getUnplayedForPodcast(podcastId).onEach { markPlayed(it) }.map { it.id }
+        markBatchPlayed(podcastId, episodeDao.getUnplayedForPodcast(podcastId))
+    }
+
+    private suspend fun markBatchPlayed(podcastId: Long, targets: List<EpisodeEntity>): List<Long> {
+        if (targets.isEmpty()) return emptyList()
+        val feedUrl = podcastDao.findById(podcastId)?.feedUrl
+            ?: throw NoSuchElementException("No podcast with id $podcastId")
+        val now = clock.millis()
+        val updated = targets.map { ep ->
+            val end = ep.durationSeconds ?: ep.playbackPositionSeconds
+            ep.copy(played = true, playbackPositionSeconds = end)
+        }
+        episodeDao.updateAll(updated)
+        for (ep in targets) {
+            val end = ep.durationSeconds ?: ep.playbackPositionSeconds
+            syncQueueDao.deleteByTypeAndEpisode(SyncActionType.PLAY, ep.enclosureUrl)
+            syncQueueDao.insert(
+                SyncQueueActionEntity(
+                    type = SyncActionType.PLAY,
+                    feedUrl = feedUrl,
+                    episodeUrl = ep.enclosureUrl,
+                    guid = ep.guid,
+                    timestampUtcMillis = now,
+                    startedSeconds = 0,
+                    positionSeconds = end,
+                    totalSeconds = ep.durationSeconds,
+                ),
+            )
+        }
+        return targets.map { it.id }
     }
 
     /** Episodes without a publish date have no place in the order, so they are never "older". */

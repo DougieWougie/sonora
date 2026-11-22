@@ -111,6 +111,7 @@ class PlaybackStateManager(
             engine.prepare(uri, startSeconds * 1000, metadata)
             loadedMetadata = metadata
             loadedSource = if (uri.startsWith("file:")) PlaybackSource.OFFLINE else PlaybackSource.STREAMING
+            engine.setWakeMode(loadedSource == PlaybackSource.STREAMING)
             watchForDownload(episodeId)
             failed = false
             sessionStartSeconds = startSeconds

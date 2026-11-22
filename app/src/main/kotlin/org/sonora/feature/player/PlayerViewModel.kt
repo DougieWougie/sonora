@@ -91,12 +91,15 @@ class PlayerViewModel @Inject constructor(
     private val settings: SettingsStore,
     private val actions: EpisodeActions,
 ) : ViewModel() {
-    private val episodeCache = HashMap<Long, PlayerEpisode>()
+    private val episodeCache = object : LinkedHashMap<Long, PlayerEpisode>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, PlayerEpisode>): Boolean = size > 64
+    }
 
     private val downloadState: Flow<DownloadState> = port.state.map { it.episodeId }.distinctUntilChanged()
         .flatMapLatest { id ->
             if (id == null) flowOf(DownloadState.NONE) else episodeDao.observeById(id).map { it?.downloadState ?: DownloadState.NONE }
         }
+        .distinctUntilChanged()
 
     /**
      * The 500 ms position poll lives apart from [uiState] on purpose: only the scrubber and the mini-player's
