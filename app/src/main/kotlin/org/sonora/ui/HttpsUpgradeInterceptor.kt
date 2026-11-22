@@ -2,18 +2,24 @@
 package org.sonora.ui
 
 import coil3.intercept.Interceptor
+import coil3.request.ErrorResult
 import coil3.request.ImageResult
+import org.sonora.core.network.isTransportAllowed
 import org.sonora.core.network.upgradedToHttps
 
 /**
- * Many feeds still list `http://` artwork. With cleartext off, ask for the `https://` address instead
- * of failing outright (or, worse, loading it unencrypted).
+ * Guards artwork loads from untrusted RSS feeds: rejects non-HTTP(S) schemes (such as `file://`,
+ * `content://`, or `data:`) and, when cleartext is disallowed, upgrades `http://` artwork URLs to
+ * `https://` instead of failing outright.
  */
-class HttpsUpgradeInterceptor : Interceptor {
+class HttpsUpgradeInterceptor(val allowCleartext: Boolean = false) : Interceptor {
     override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
-        val data = chain.request.data
-        val upgraded = (data as? String)?.let(::upgradedToHttps)
-            ?: return chain.proceed()
-        return chain.withRequest(chain.request.newBuilder().data(upgraded).build()).proceed()
+        val url = chain.request.data as? String ?: return chain.proceed()
+        val candidate = if (allowCleartext) url else upgradedToHttps(url) ?: url
+        if (!isTransportAllowed(candidate, allowCleartext)) {
+            return ErrorResult(null, chain.request, IllegalArgumentException("Refusing artwork URL scheme"))
+        }
+        if (candidate == url) return chain.proceed()
+        return chain.withRequest(chain.request.newBuilder().data(candidate).build()).proceed()
     }
 }

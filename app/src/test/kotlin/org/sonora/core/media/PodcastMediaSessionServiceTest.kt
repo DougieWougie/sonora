@@ -161,7 +161,10 @@ class PodcastMediaSessionServiceTest {
         c.seekForward()
         c.seekBack()
         c.play()
-        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(200))
+        idle()
+
+        assertFalse(c.isPlaying)
+        assertEquals(null, c.currentMediaItem)
     }
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(200))
@@ -197,10 +200,15 @@ class PodcastMediaSessionServiceTest {
         c.seekToNext()
         c.seekToPrevious()
         idle()
+
+        assertFalse(c.isPlaying)
+        assertTrue(playQueue.items.value.isEmpty())
     }
 
     @Test
     fun `swiping the app away stops an idle service`() {
         service.onTaskRemoved(null)
+
+        assertTrue(shadowOf(service).isStoppedBySelf)
     }
 }

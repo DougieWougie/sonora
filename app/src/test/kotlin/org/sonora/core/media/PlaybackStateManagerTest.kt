@@ -34,6 +34,9 @@ class FakePlayerEngine : PlayerEngine {
     override var bufferedMs: Long = 0
     var appliedSpeed = 1f
     var silenceSkipping = false
+    var networkWakeMode: Boolean? = null
+
+    override fun setWakeMode(network: Boolean) { networkWakeMode = network }
 
     override fun prepare(uri: String, startPositionMs: Long, metadata: PlaybackMetadata) {
         preparedUri = uri

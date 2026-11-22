@@ -41,7 +41,8 @@ class DownloadsMigration(
             }
         }
         // Partial downloads and their validators carry no database state, so they simply move.
-        old.listFiles()?.filter { it.isFile }?.forEach { leftover ->
+        // Skip symlinks and unexpected filenames since external app storage is shared on older Android.
+        old.listFiles()?.filter { it.isFile && !java.nio.file.Files.isSymbolicLink(it.toPath()) && ALLOWED_LEFTOVER.matches(it.name) }?.forEach { leftover ->
             val target = File(newDir, leftover.name)
             try {
                 if (!target.isFile) copy(leftover, target)
@@ -52,6 +53,10 @@ class DownloadsMigration(
         }
         old.delete() // only succeeds when empty
         moved
+    }
+
+    private companion object {
+        val ALLOWED_LEFTOVER = Regex("^episode-\\d+\\.[a-z0-9]{2,4}\\.part(\\.validator)?$")
     }
 
     /** Copies through a temporary name so an interrupted copy is never mistaken for a finished file. */

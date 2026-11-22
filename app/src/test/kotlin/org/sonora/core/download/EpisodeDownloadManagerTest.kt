@@ -181,7 +181,7 @@ class EpisodeDownloadManagerTest {
         // Throttled so the transfer is still running when the first progress item is observed.
         server.enqueue(
             MockResponse.Builder().body(Buffer().write(payload))
-                .throttleBody(64 * 1024, 100, java.util.concurrent.TimeUnit.MILLISECONDS).build(),
+                .throttleBody(64 * 1024, 15, java.util.concurrent.TimeUnit.MILLISECONDS).build(),
         )
 
         manager.download(id).test(timeout = kotlin.time.Duration.parse("10s")) {
@@ -575,7 +575,7 @@ class EpisodeDownloadManagerTest {
         val id = seed()
         server.enqueue(
             MockResponse.Builder().body(Buffer().write(payload))
-                .throttleBody(64 * 1024, 100, java.util.concurrent.TimeUnit.MILLISECONDS).build(),
+                .throttleBody(64 * 1024, 15, java.util.concurrent.TimeUnit.MILLISECONDS).build(),
         )
         val progressed = kotlinx.coroutines.CompletableDeferred<Unit>()
         val job = kotlinx.coroutines.CoroutineScope(Dispatchers.Default).launch {
@@ -714,5 +714,28 @@ class EpisodeDownloadManagerTest {
 
         assertTrue(finalFile(a).exists())
         assertTrue(episodeDao.findById(a)!!.played)
+    }
+
+    @Test
+    fun `a response exceeding maxEpisodeBytes fails permanently and removes partial files`() = runTest {
+        val capped = EpisodeDownloadManager(
+            episodeDao = episodeDao,
+            episodeRepository = repo,
+            client = OkHttpClient(),
+            downloadsDir = dir,
+            policy = { policy },
+            ioDispatcher = Dispatchers.IO,
+            allowCleartext = true,
+            maxEpisodeBytes = 1_000L,
+        )
+        val id = seed()
+        server.enqueue(MockResponse.Builder().body(Buffer().write(ByteArray(5_000))).build())
+
+        val error = assertThrows<DownloadException> { capped.download(id).collect {} }
+
+        assertFalse(error.retryable)
+        assertFalse(partFile(id).exists())
+        assertFalse(validatorFile(id).exists())
+        assertEquals(DownloadState.FAILED, episodeDao.findById(id)!!.downloadState)
     }
 }

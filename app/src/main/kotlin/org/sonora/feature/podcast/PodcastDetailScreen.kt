@@ -2,6 +2,8 @@
 package org.sonora.feature.podcast
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -225,12 +227,27 @@ private fun Controls(state: PodcastDetailUiState, onIntent: (PodcastDetailIntent
             value = state.query,
             onValueChange = { onIntent(PodcastDetailIntent.SetQuery(it)) },
             leadingIcon = { Icon(Icons.Rounded.Search, null) },
+            trailingIcon = if (state.query.isNotEmpty()) {
+                {
+                    IconButton(onClick = { onIntent(PodcastDetailIntent.SetQuery("")) }) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Clear search")
+                    }
+                }
+            } else {
+                null
+            },
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                imeAction = androidx.compose.ui.text.input.ImeAction.Search,
+            ),
             placeholder = { Text("Search episodes") },
             singleLine = true,
             shape = RoundedCornerShape(28.dp),
             modifier = Modifier.fillMaxWidth(),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             EpisodeFilter.entries.forEach { filter ->
                 FilterChip(
                     selected = state.filter == filter,

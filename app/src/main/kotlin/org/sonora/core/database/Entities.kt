@@ -23,6 +23,10 @@ data class PodcastEntity(
     /** Post a notification when a refresh finds new episodes of this podcast. */
     /** New subscriptions notify; the column default of 0 keeps rows that existed before the feature quiet. */
     @ColumnInfo(defaultValue = "0") val notifyNewEpisodes: Boolean = true,
+    /** HTTP ETag from the last successful feed fetch, for conditional GET. */
+    val etag: String? = null,
+    /** HTTP Last-Modified from the last successful feed fetch, for conditional GET. */
+    val lastModified: String? = null,
 )
 
 @Entity(
@@ -38,6 +42,8 @@ data class PodcastEntity(
     indices = [
         Index(value = ["podcastId", "guid"], unique = true),
         Index(value = ["enclosureUrl"]),
+        Index(value = ["podcastId", "publishedAtMillis"]),
+        Index(value = ["played", "publishedAtMillis"]),
     ],
 )
 data class EpisodeEntity(

@@ -250,7 +250,7 @@ private fun RowScope.ControlButton(icon: Int, description: String, onClick: andr
         contentDescription = description,
         contentScale = ContentScale.Fit,
         colorFilter = androidx.glance.ColorFilter.tint(GlanceTheme.colors.onSurface),
-        modifier = GlanceModifier.defaultWeight().height(40.dp).padding(8.dp).clickable(onClick),
+        modifier = GlanceModifier.defaultWeight().height(48.dp).padding(8.dp).clickable(onClick),
     )
 }
 

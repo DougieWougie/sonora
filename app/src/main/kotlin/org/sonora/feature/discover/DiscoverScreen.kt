@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.Link
@@ -33,6 +34,7 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
@@ -114,6 +116,18 @@ internal fun DiscoverContent(
                 onValueChange = { onIntent(DiscoverIntent.QueryChanged(it)) },
                 placeholder = { Text("Search podcasts") },
                 leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                trailingIcon = if (state.query.isNotEmpty()) {
+                    {
+                        IconButton(onClick = { onIntent(DiscoverIntent.QueryChanged("")) }) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Clear search")
+                        }
+                    }
+                } else {
+                    null
+                },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Search,
+                ),
                 singleLine = true,
                 shape = RoundedCornerShape(28.dp),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -181,6 +195,9 @@ internal fun DiscoverContent(
         }
         if (state.query.isBlank() && state.results.isEmpty() && state.suggestions.isEmpty()) {
             item { Text("Search a directory, paste a feed address, or import your subscriptions.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        if (state.query.isNotBlank() && !state.isSearching && state.results.isEmpty() && state.error == null) {
+            item { Text("No podcasts found.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 

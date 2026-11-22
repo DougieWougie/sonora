@@ -139,6 +139,13 @@ class PodcastMediaSessionService : MediaSessionService() {
         session = MediaSession.Builder(this, managedPlayer)
             .setCallback(SessionCallback())
             .setSessionActivity(openAppIntent())
+            .setBitmapLoader(
+                androidx.media3.session.CacheBitmapLoader(
+                    androidx.media3.datasource.DataSourceBitmapLoader.Builder(this)
+                        .setDataSourceFactory(OkHttpDataSource.Factory(okHttpClient))
+                        .build(),
+                ),
+            )
             .build()
     }
 

@@ -45,4 +45,8 @@ class ExoPlayerEngine(private val player: ExoPlayer) : PlayerEngine {
     override fun setSkipSilence(enabled: Boolean) {
         player.skipSilenceEnabled = enabled
     }
+
+    override fun setWakeMode(network: Boolean) {
+        player.setWakeMode(if (network) C.WAKE_MODE_NETWORK else C.WAKE_MODE_LOCAL)
+    }
 }

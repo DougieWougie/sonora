@@ -99,10 +99,44 @@ class OkHttpFeedFetcherTest {
             ioDispatcher = Dispatchers.IO,
             userAgent = "Sonora/test",
             allowCleartext = true,
-            callTimeout = java.time.Duration.ofMillis(300),
+            callTimeout = java.time.Duration.ofMillis(50),
         )
         server.enqueue(MockResponse.Builder().headersDelay(5, java.util.concurrent.TimeUnit.SECONDS).body("<rss/>").build())
 
         assertThrows<java.io.IOException> { impatient.fetch(server.url("/slow").toString()) }
+    }
+
+    @Test
+    fun `fetchConditional sends validators and returns NotModified on 304`() = runTest {
+        server.enqueue(MockResponse.Builder().code(304).build())
+
+        val result = fetcher(allowCleartext = true).fetchConditional(
+            server.url("/feed").toString(),
+            etag = "\"v1\"",
+            lastModified = "Wed, 21 Oct 2015 07:28:00 GMT",
+        )
+
+        assertEquals(org.sonora.core.sync.FeedFetchResult.NotModified, result)
+        val req = server.takeRequest()
+        assertEquals("\"v1\"", req.headers["If-None-Match"])
+        assertEquals("Wed, 21 Oct 2015 07:28:00 GMT", req.headers["If-Modified-Since"])
+    }
+
+    @Test
+    fun `fetchConditional captures ETag and Last-Modified on 200`() = runTest {
+        server.enqueue(
+            MockResponse.Builder()
+                .addHeader("ETag", "\"v2\"")
+                .addHeader("Last-Modified", "Thu, 22 Oct 2015 07:28:00 GMT")
+                .body(okio.Buffer().write(fixtureBytes()))
+                .build(),
+        )
+
+        val result = fetcher(allowCleartext = true).fetchConditional(server.url("/feed").toString(), etag = null, lastModified = null)
+            as org.sonora.core.sync.FeedFetchResult.Updated
+
+        assertEquals("\"v2\"", result.etag)
+        assertEquals("Thu, 22 Oct 2015 07:28:00 GMT", result.lastModified)
+        assertEquals("Example Show", result.feed.title)
     }
 }

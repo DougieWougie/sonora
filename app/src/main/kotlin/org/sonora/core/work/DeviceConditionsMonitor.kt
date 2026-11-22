@@ -39,12 +39,14 @@ class DeviceConditionsMonitor(context: Context) {
             override fun onReceive(context: Context, intent: Intent) = publish()
         }
         connectivity.registerDefaultNetworkCallback(networkCallback)
-        appContext.registerReceiver(
+        androidx.core.content.ContextCompat.registerReceiver(
+            appContext,
             powerReceiver,
             IntentFilter().apply {
                 addAction(Intent.ACTION_POWER_CONNECTED)
                 addAction(Intent.ACTION_POWER_DISCONNECTED)
             },
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         publish()
         awaitClose {

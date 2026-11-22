@@ -96,7 +96,7 @@ fun ExpressiveScrubber(
                 enabled = enabled,
                 modifier = Modifier.testTag(TestTags.SEEK_SLIDER).semantics {
                     contentDescription = "Seek"
-                    stateDescription = "${formatTimestamp(positionMs)} of ${formatTimestamp(durationMs)}"
+                    stateDescription = "${formatTimestamp(shownPosition)} of ${formatTimestamp(durationMs)}"
                 },
                 thumb = {
                     Box(

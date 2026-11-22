@@ -29,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ShortNavigationBar
 import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.SnackbarHost
@@ -214,6 +215,15 @@ internal fun SonoraScaffold(
         }
     }
     val hasEpisode = player.episode != null
+    val activity = androidx.activity.compose.LocalActivity.current as? androidx.activity.ComponentActivity
+    androidx.compose.runtime.DisposableEffect(activity, navController) {
+        if (activity == null) return@DisposableEffect onDispose {}
+        val listener = androidx.core.util.Consumer<android.content.Intent> { intent ->
+            navController.handleDeepLink(intent)
+        }
+        activity.addOnNewIntentListener(listener)
+        onDispose { activity.removeOnNewIntentListener(listener) }
+    }
 
     LaunchedEffect(hasEpisode) { if (!hasEpisode) expanded = false }
     BackHandler(enabled = expanded) { expanded = false }
@@ -226,7 +236,7 @@ internal fun SonoraScaffold(
                     modifier = Modifier.weight(1f),
                     snackbarHost = { SnackbarHost(snackbar) },
                     bottomBar = {
-                        Column {
+                        Column(if (layout == NavigationLayout.Rail) Modifier.navigationBarsPadding() else Modifier) {
                             AnimatedVisibility(visible = hasEpisode && !expanded, enter = fadeIn(), exit = fadeOut()) {
                                 MiniPlayer(player, progress, this, onPlayerIntent, onExpand = { expanded = true })
                             }
@@ -364,8 +374,9 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.tabDirection(): An
  */
 private fun Modifier.swipeBetweenTabs(onSwipe: (direction: Int) -> Unit): Modifier = composed {
     val current by rememberUpdatedState(onSwipe)
+    val isRtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
     val threshold = with(LocalDensity.current) { SWIPE_DISTANCE.toPx() }
-    pointerInput(threshold) {
+    pointerInput(threshold, isRtl) {
         awaitEachGesture {
             awaitFirstDown(requireUnconsumed = false)
             var dx = 0f
@@ -380,7 +391,8 @@ private fun Modifier.swipeBetweenTabs(onSwipe: (direction: Int) -> Unit): Modifi
                     dx += delta.x
                     dy += delta.y
                     if (abs(dx) > threshold && abs(dx) > 2 * abs(dy)) {
-                        current(if (dx < 0) 1 else -1)
+                        val step = if (dx < 0) 1 else -1
+                        current(if (isRtl) -step else step)
                         handled = true
                     }
                 }

@@ -25,4 +25,6 @@ interface PlayerEngine {
     fun seekTo(positionMs: Long)
     fun setSpeed(speed: Float)
     fun setSkipSilence(enabled: Boolean)
+    /** Holds a Wi-Fi lock only while streaming; offline playback only needs a CPU wake lock. */
+    fun setWakeMode(network: Boolean) {}
 }

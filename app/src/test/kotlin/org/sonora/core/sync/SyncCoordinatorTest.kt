@@ -375,4 +375,18 @@ class SyncCoordinatorTest {
         coordinator.sync()
         assertEquals(4242L, state.state!!.episodeActionsSince)
     }
+
+    @Test
+    fun `remote subscriptions with non-http schemes are ignored`() = runTest {
+        provider.subscriptions = SubscriptionChanges(
+            add = listOf("file:///etc/passwd", "javascript:alert(1)", "https://good.example/feed.xml"),
+            remove = emptyList(),
+            timestamp = 50,
+        )
+
+        val report = coordinator.sync()
+
+        assertEquals(1, report.subscriptionsAdded)
+        assertEquals(listOf("https://good.example/feed.xml"), podcastDao.getAll().map { it.feedUrl })
+    }
 }

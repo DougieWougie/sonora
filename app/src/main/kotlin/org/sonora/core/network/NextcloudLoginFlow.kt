@@ -9,6 +9,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
 import okhttp3.FormBody
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -46,15 +48,19 @@ class NextcloudLoginFlow(
 
     override suspend fun start(serverUrl: String): LoginFlowSession {
         val url = serverUrl.trimEnd('/') + "/index.php/login/v2"
-        val body = post(url, FormBody.Builder().build()) ?: throw LoginFlowException("Server does not support Login Flow v2")
-        val dto = decode<StartDto>(body)
+        val response = post(url, FormBody.Builder().build())
+            ?: throw LoginFlowException("Server does not support Login Flow v2")
+        val dto = decode<StartDto>(response.body)
+        requireSameOrigin(response.finalUrl, dto.login, "login URL")
+        requireSameOrigin(response.finalUrl, dto.poll.endpoint, "poll endpoint")
         return LoginFlowSession(dto.login, dto.poll.endpoint, dto.poll.token)
     }
 
     override suspend fun poll(session: LoginFlowSession): NextcloudCredentials? {
         val form = FormBody.Builder().add("token", session.pollToken).build()
-        val body = post(session.pollEndpoint, form) ?: return null
-        val dto = decode<CredentialsDto>(body)
+        val response = post(session.pollEndpoint, form) ?: return null
+        val dto = decode<CredentialsDto>(response.body)
+        requireSameOrigin(response.finalUrl, dto.server, "server URL")
         return NextcloudCredentials(dto.server, dto.loginName, dto.appPassword)
     }
 
@@ -72,18 +78,21 @@ class NextcloudLoginFlow(
         }
     }
 
+    private data class PostResponse(val finalUrl: HttpUrl, val body: String)
+
     /** Returns the response body on 200, null on 404 (not ready / not supported), and throws otherwise. */
-    private suspend fun post(url: String, body: okhttp3.RequestBody): String? {
+    private suspend fun post(url: String, body: okhttp3.RequestBody): PostResponse? {
         if (!isTransportAllowed(url, allowCleartext)) throw LoginFlowException("Refusing non-HTTPS URL: $url")
         val request = Request.Builder().url(url).header("User-Agent", userAgent).post(body).build()
         return withContext(ioDispatcher) {
             try {
                 client.newCall(request).execute().use { response ->
-                    if (!isTransportAllowed(response.request.url.toString(), allowCleartext)) {
+                    val finalUrl = response.request.url
+                    if (!isTransportAllowed(finalUrl.toString(), allowCleartext)) {
                         throw LoginFlowException("Refusing response served over cleartext")
                     }
                     when (response.code) {
-                        200 -> response.body.string()
+                        200 -> PostResponse(finalUrl, readBounded(response.body))
                         404 -> null
                         else -> throw LoginFlowException("Unexpected HTTP ${response.code} from $url")
                     }
@@ -94,9 +103,29 @@ class NextcloudLoginFlow(
         }
     }
 
+    private fun readBounded(body: okhttp3.ResponseBody): String {
+        val source = body.source()
+        if (source.request(MAX_RESPONSE_BYTES + 1L)) {
+            throw LoginFlowException("Login Flow response exceeded $MAX_RESPONSE_BYTES bytes")
+        }
+        return source.readUtf8()
+    }
+
+    private fun requireSameOrigin(expected: HttpUrl, actual: String, label: String) {
+        val parsed = actual.toHttpUrlOrNull()
+            ?: throw LoginFlowException("Invalid $label in Login Flow response")
+        if (parsed.scheme != expected.scheme || parsed.host != expected.host || parsed.port != expected.port) {
+            throw LoginFlowException("Refusing cross-origin $label in Login Flow response")
+        }
+    }
+
     private inline fun <reified T> decode(text: String): T = try {
         syncJson.decodeFromString<T>(text)
     } catch (e: SerializationException) {
         throw LoginFlowException("Malformed Login Flow response", e)
+    }
+
+    companion object {
+        private const val MAX_RESPONSE_BYTES = 64 * 1024L
     }
 }

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import org.sonora.core.database.EpisodeDao
@@ -104,7 +105,7 @@ class SubscriptionsViewModel @Inject constructor(
 
     val uiState: StateFlow<SubscriptionsUiState> = combine(
         podcastDao.observeAll(),
-        episodeDao.observeStats(),
+        episodeDao.observeStats().distinctUntilChanged(),
         combine(preferences.layout, preferences.sort, preferences.unplayedOnly, query, unsubscribeRequest, ::View),
         queue.items,
         sync.syncing,

@@ -178,7 +178,7 @@ class ExpressivePlayerSheetTest {
         assertEquals(listOf<PlayerIntent>(PlayerIntent.ToggleSkipSilence), intents)
 
         state = state.copy(skipSilence = true)
-        composeTestRule.onNodeWithTag(TestTags.SKIP_SILENCE_CHIP).assertIsSelected().assert(hasText("No gap"))
+        composeTestRule.onNodeWithTag(TestTags.SKIP_SILENCE_CHIP).assertIsSelected().assert(hasText("Skip silence"))
     }
 
     @Test
@@ -190,6 +190,9 @@ class ExpressivePlayerSheetTest {
         composeTestRule.onNodeWithTag(TestTags.speedPreset(1.25f)).performClick()
 
         assertEquals(listOf<PlayerIntent>(PlayerIntent.SetSpeed(1.25f)), intents)
+
+        state = state.copy(speed = 1.25f)
+        composeTestRule.onNodeWithTag(TestTags.SPEED_CONTROL_BUTTON).assertTextEquals("1.25×")
 
         state = state.copy(speed = 1.5f)
         composeTestRule.onNodeWithTag(TestTags.SPEED_CONTROL_BUTTON).assertTextEquals("1.5×")
@@ -263,7 +266,7 @@ class ExpressivePlayerSheetTest {
         setContent(expanded = true)
 
         tagged(TestTags.SPEED_CONTROL_BUTTON).assert(hasText("1.0×"))
-        tagged(TestTags.SKIP_SILENCE_CHIP).assert(hasText("Gap"))
+        tagged(TestTags.SKIP_SILENCE_CHIP).assert(hasText("Skip silence"))
         tagged(TestTags.SLEEP_TIMER_BUTTON).assert(hasText("Sleep"))
         tagged(TestTags.QUEUE_CHIP).assert(hasText("Queue"))
         tagged(TestTags.MARK_PLAYED_CHIP).assert(hasText("Mark played"))

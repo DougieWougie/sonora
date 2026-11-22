@@ -5,6 +5,12 @@ import java.time.Clock
 import org.sonora.core.model.ParsedEpisode
 import org.sonora.core.model.ParsedFeed
 
+data class RefreshResult(
+    val podcastId: Long,
+    val hadExistingEpisodes: Boolean,
+    val newEpisodes: List<EpisodeEntity>,
+)
+
 class PodcastRepository(
     private val podcastDao: PodcastDao,
     private val episodeDao: EpisodeDao,
@@ -12,15 +18,26 @@ class PodcastRepository(
     private val clock: Clock,
 ) {
     /** Merges a freshly parsed feed into the database, keeping all local episode state. Returns the podcast id. */
-    suspend fun refresh(feedUrl: String, feed: ParsedFeed): Long = transactions.run {
+    suspend fun refresh(feedUrl: String, feed: ParsedFeed): Long = refreshWithNew(feedUrl, feed).podcastId
+
+    /**
+     * Merges [feed] into the database, storing conditional-GET validators when provided, and returns the
+     * newly inserted episodes directly so callers do not need to re-read the episode table.
+     */
+    suspend fun refreshWithNew(
+        feedUrl: String,
+        feed: ParsedFeed,
+        etag: String? = null,
+        lastModified: String? = null,
+    ): RefreshResult = transactions.run {
         val now = clock.millis()
         val existing = podcastDao.findByFeedUrl(feedUrl)
         val podcastId = if (existing == null) {
-            podcastDao.insert(feed.toEntity(feedUrl, now))
+            podcastDao.insert(feed.toEntity(feedUrl, now, etag, lastModified))
         } else {
             // The feed knows nothing of the user's settings for it, and @Update replaces the whole row.
             podcastDao.update(
-                feed.toEntity(feedUrl, now).copy(
+                feed.toEntity(feedUrl, now, etag ?: existing.etag, lastModified ?: existing.lastModified).copy(
                     id = existing.id,
                     autoDownload = existing.autoDownload,
                     notifyNewEpisodes = existing.notifyNewEpisodes,
@@ -36,11 +53,22 @@ class PodcastRepository(
             parsed.mergeInto(stored).takeIf { it != stored }
         }
         if (changed.isNotEmpty()) episodeDao.updateAll(changed)
-        episodeDao.insertAll(fresh.map { it.toEntity(podcastId) })
-        podcastId
+        val freshEntities = fresh.map { it.toEntity(podcastId) }
+        val inserted = if (freshEntities.isEmpty()) {
+            emptyList()
+        } else {
+            val ids = episodeDao.insertAll(freshEntities)
+            freshEntities.zip(ids) { entity, id -> entity.copy(id = id) }
+        }
+        RefreshResult(podcastId, hadExistingEpisodes = local.isNotEmpty(), newEpisodes = inserted)
     }
 
-    private fun ParsedFeed.toEntity(feedUrl: String, refreshedAt: Long) = PodcastEntity(
+    private fun ParsedFeed.toEntity(
+        feedUrl: String,
+        refreshedAt: Long,
+        etag: String? = null,
+        lastModified: String? = null,
+    ) = PodcastEntity(
         feedUrl = feedUrl,
         title = title,
         description = description,
@@ -48,6 +76,8 @@ class PodcastRepository(
         author = author,
         imageUrl = imageUrl,
         lastRefreshedAtMillis = refreshedAt,
+        etag = etag,
+        lastModified = lastModified,
     )
 
     private fun ParsedEpisode.toEntity(podcastId: Long) = EpisodeEntity(

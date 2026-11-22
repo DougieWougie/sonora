@@ -56,21 +56,24 @@ class SonoraApp : Application(), Configuration.Provider, SingletonImageLoader.Fa
         return ImageLoader.Builder(context)
             .components {
                 add(OkHttpNetworkFetcherFactory(callFactory = { client }))
-                if (!allowCleartext) add(HttpsUpgradeInterceptor())
+                add(HttpsUpgradeInterceptor(allowCleartext = allowCleartext))
             }
             .build()
     }
 
     override fun onCreate() {
         super.onCreate()
-        syncScheduler.setPeriodicInterval(settings.syncIntervalHours)
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { runCatching { downloadsMigration.run() } }
-        // Redraw the home-screen mini player as playback changes. The hub reports idle when the media
-        // service goes away, so the widget then falls back to the last episode played.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            syncScheduler.setPeriodicInterval(settings.syncIntervalHours)
+            runCatching { downloadsMigration.run() }
+        }
+        // Redraw the home-screen mini player as playback changes, skipping work when no widget is placed.
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             miniPlayerWidgetStates(playbackHub.state, playQueue.items, episodeDao, podcastDao, lastPlayed)
                 .redrawOnChange(onFailure = { Log.w("MiniPlayerWidget", "Redraw failed", it) }) {
-                    MiniPlayerWidget().updateAll(this@SonoraApp)
+                    val ids = androidx.glance.appwidget.GlanceAppWidgetManager(this@SonoraApp)
+                        .getGlanceIds(MiniPlayerWidget::class.java)
+                    if (ids.isNotEmpty()) MiniPlayerWidget().updateAll(this@SonoraApp)
                 }
         }
         // Warm Discover's suggestions so the tab has them by the time it is opened; failures are fine.

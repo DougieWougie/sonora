@@ -46,4 +46,25 @@ class OpmlParserTest {
 
         org.junit.jupiter.api.assertThrows<FeedLimitExceededException> { limited.parse(ByteArrayInputStream(body.toByteArray())) }
     }
+
+    @Test
+    fun `an import over the entry cap stops at maxEntries`() {
+        val limited = OpmlParser(factory, maxEntries = 3)
+        val body = "<opml><body>" + (1..10).joinToString("") { """<outline title="Show $it" xmlUrl="https://f/$it"/>""" } + "</body></opml>"
+
+        val entries = limited.parse(ByteArrayInputStream(body.toByteArray()))
+
+        assertEquals(3, entries.size)
+        assertEquals("https://f/3", entries.last().feedUrl)
+    }
+
+    @Test
+    fun `overly long opml attributes are truncated to maxFieldChars`() {
+        val limited = OpmlParser(factory, maxFieldChars = 16)
+        val body = """<opml><body><outline title="${"a".repeat(100)}" xmlUrl="https://f/1"/></body></opml>"""
+
+        val entries = limited.parse(ByteArrayInputStream(body.toByteArray()))
+
+        assertEquals(16, entries.single().title.length)
+    }
 }

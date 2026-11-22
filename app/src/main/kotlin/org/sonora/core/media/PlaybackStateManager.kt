@@ -99,7 +99,8 @@ class PlaybackStateManager(
                 title = episode.title,
                 artist = podcast?.title,
                 artworkUrl = (episode.imageUrl ?: podcast?.imageUrl)
-                    ?.let { if (allowCleartext) it else upgradedToHttps(it) ?: it },
+                    ?.let { if (allowCleartext) it else upgradedToHttps(it) ?: it }
+                    ?.takeIf { isTransportAllowed(it, allowCleartext) },
             )
             val uri = try {
                 resolveUri(episode)
@@ -110,6 +111,7 @@ class PlaybackStateManager(
             engine.prepare(uri, startSeconds * 1000, metadata)
             loadedMetadata = metadata
             loadedSource = if (uri.startsWith("file:")) PlaybackSource.OFFLINE else PlaybackSource.STREAMING
+            engine.setWakeMode(loadedSource == PlaybackSource.STREAMING)
             watchForDownload(episodeId)
             failed = false
             sessionStartSeconds = startSeconds

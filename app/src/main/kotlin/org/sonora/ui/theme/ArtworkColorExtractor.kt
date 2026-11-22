@@ -28,22 +28,35 @@ object ArtworkColorExtractor {
 
     private const val PALETTE_COLORS = 16
     const val SAMPLE_SIZE_PX = 128
+    private val seedCache = android.util.LruCache<String, Int>(32)
 
     /** Loads [url] small and returns its seed colour, or null while loading / on failure. */
     @Composable
     fun rememberSeed(url: String?): Int? {
         val context = LocalContext.current
-        var seed by remember(url) { mutableStateOf<Int?>(null) }
+        var seed by remember(url) { mutableStateOf(url?.let { seedCache.get(it) }) }
         LaunchedEffect(url) {
+            if (url == null) {
+                seed = null
+                return@LaunchedEffect
+            }
+            seedCache.get(url)?.let {
+                seed = it
+                return@LaunchedEffect
+            }
             seed = null
-            if (url == null) return@LaunchedEffect
             val request = ImageRequest.Builder(context)
                 .data(url)
                 .size(Size(SAMPLE_SIZE_PX, SAMPLE_SIZE_PX))
                 .allowHardware(false) // Palette reads pixels
                 .build()
             val result = SingletonImageLoader.get(context).execute(request)
-            if (result is SuccessResult) seed = seedFrom(result.image.toBitmap())
+            if (result is SuccessResult) {
+                seedFrom(result.image.toBitmap())?.let { extracted ->
+                    seedCache.put(url, extracted)
+                    seed = extracted
+                }
+            }
         }
         return seed
     }

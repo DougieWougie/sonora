@@ -17,9 +17,22 @@ import org.sonora.core.model.ParsedFeed
 import org.sonora.core.network.FeedFetchException
 import retrofit2.HttpException
 
+/** Result of a conditional feed fetch: either HTTP 304 (unchanged) or a freshly parsed feed. */
+sealed interface FeedFetchResult {
+    data object NotModified : FeedFetchResult
+    data class Updated(
+        val feed: ParsedFeed,
+        val etag: String? = null,
+        val lastModified: String? = null,
+    ) : FeedFetchResult
+}
+
 /** Fetches and parses one feed. Implementations throw [java.io.IOException] for network problems. */
 fun interface FeedFetcher {
     suspend fun fetch(feedUrl: String): ParsedFeed
+
+    suspend fun fetchConditional(feedUrl: String, etag: String?, lastModified: String?): FeedFetchResult =
+        FeedFetchResult.Updated(fetch(feedUrl))
 }
 
 /** The server-sync step (Nextcloud). Returns null when no account is configured. */
@@ -173,33 +186,42 @@ class PodcastSyncPipeline(
     }
 
     private suspend fun refresh(podcast: PodcastEntity): FeedResult = try {
-        val knownGuids = episodeDao.getGuidsForPodcast(podcast.id).toHashSet()
-        val feed = feedFetcher.fetch(podcast.feedUrl)
-        podcastRepository.refresh(podcast.feedUrl, feed)
+        when (val fetched = feedFetcher.fetchConditional(podcast.feedUrl, podcast.etag, podcast.lastModified)) {
+            FeedFetchResult.NotModified -> FeedResult(podcast.feedUrl, null, emptyList())
+            is FeedFetchResult.Updated -> {
+                val feed = fetched.feed
+                val refreshed = podcastRepository.refreshWithNew(
+                    podcast.feedUrl,
+                    feed,
+                    etag = fetched.etag,
+                    lastModified = fetched.lastModified,
+                )
 
-        // An empty podcast is being fetched for the first time: don't pull its whole back catalogue.
-        val newest = if ((podcast.autoDownload || podcast.notifyNewEpisodes) && knownGuids.isNotEmpty()) {
-            episodeDao.getForPodcast(podcast.id)
-                .filter { it.guid !in knownGuids && !it.played }
-                .sortedByDescending { it.publishedAtMillis ?: Long.MIN_VALUE }
-        } else {
-            emptyList()
+                // An empty podcast is being fetched for the first time: don't pull its whole back catalogue.
+                val newest = if ((podcast.autoDownload || podcast.notifyNewEpisodes) && refreshed.hadExistingEpisodes) {
+                    refreshed.newEpisodes
+                        .filter { !it.played }
+                        .sortedByDescending { it.publishedAtMillis ?: Long.MIN_VALUE }
+                } else {
+                    emptyList()
+                }
+                val fresh = if (podcast.autoDownload) {
+                    newest.filter { it.downloadState == DownloadState.NONE }.take(maxAutoDownloadsPerPodcast()).map { it.id }
+                } else {
+                    emptyList()
+                }
+                val announcement = newest.firstOrNull()?.takeIf { podcast.notifyNewEpisodes }?.let { latest ->
+                    NewEpisodes(
+                        podcastId = podcast.id,
+                        podcastTitle = feed.title,
+                        titles = newest.map { it.title },
+                        latestDescription = latest.description,
+                        imageUrl = latest.imageUrl ?: feed.imageUrl,
+                    )
+                }
+                FeedResult(podcast.feedUrl, null, fresh, announcement)
+            }
         }
-        val fresh = if (podcast.autoDownload) {
-            newest.filter { it.downloadState == DownloadState.NONE }.take(maxAutoDownloadsPerPodcast()).map { it.id }
-        } else {
-            emptyList()
-        }
-        val announcement = newest.firstOrNull()?.takeIf { podcast.notifyNewEpisodes }?.let { latest ->
-            NewEpisodes(
-                podcastId = podcast.id,
-                podcastTitle = feed.title,
-                titles = newest.map { it.title },
-                latestDescription = latest.description,
-                imageUrl = latest.imageUrl ?: feed.imageUrl,
-            )
-        }
-        FeedResult(podcast.feedUrl, null, fresh, announcement)
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {

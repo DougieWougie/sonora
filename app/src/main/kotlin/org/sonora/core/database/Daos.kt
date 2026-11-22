@@ -74,7 +74,7 @@ interface PodcastDao {
 @Dao
 interface EpisodeDao {
     @Insert
-    suspend fun insertAll(episodes: List<EpisodeEntity>)
+    suspend fun insertAll(episodes: List<EpisodeEntity>): List<Long>
 
     @Update
     suspend fun update(episode: EpisodeEntity)
