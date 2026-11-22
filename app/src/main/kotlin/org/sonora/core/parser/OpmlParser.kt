@@ -11,6 +11,8 @@ import org.xmlpull.v1.XmlPullParserFactory
 class OpmlParser(
     private val factory: XmlPullParserFactory,
     private val maxBytes: Long = FeedLimits.MAX_BYTES,
+    private val maxEntries: Int = MAX_ENTRIES,
+    private val maxFieldChars: Int = MAX_FIELD_CHARS,
 ) {
 
     fun parse(input: InputStream): List<OpmlEntry> {
@@ -22,6 +24,7 @@ class OpmlParser(
             val feedUrl = parser.attr("xmlUrl") ?: continue
             val title = parser.attr("title") ?: parser.attr("text") ?: feedUrl
             entries += OpmlEntry(title, feedUrl, parser.attr("htmlUrl"))
+            if (entries.size >= maxEntries) break
         }
         return entries
     }
@@ -29,7 +32,12 @@ class OpmlParser(
     private fun XmlPullParser.attr(name: String): String? =
         (0 until attributeCount)
             .firstOrNull { getAttributeName(it).equals(name, ignoreCase = true) }
-            ?.let { getAttributeValue(it).trim().ifEmpty { null } }
+            ?.let { getAttributeValue(it).trim().take(maxFieldChars).ifEmpty { null } }
+
+    companion object {
+        const val MAX_ENTRIES = 5_000
+        const val MAX_FIELD_CHARS = 4_096
+    }
 }
 
 class OpmlWriter(private val factory: XmlPullParserFactory) {

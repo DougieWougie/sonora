@@ -99,7 +99,8 @@ class PlaybackStateManager(
                 title = episode.title,
                 artist = podcast?.title,
                 artworkUrl = (episode.imageUrl ?: podcast?.imageUrl)
-                    ?.let { if (allowCleartext) it else upgradedToHttps(it) ?: it },
+                    ?.let { if (allowCleartext) it else upgradedToHttps(it) ?: it }
+                    ?.takeIf { isTransportAllowed(it, allowCleartext) },
             )
             val uri = try {
                 resolveUri(episode)

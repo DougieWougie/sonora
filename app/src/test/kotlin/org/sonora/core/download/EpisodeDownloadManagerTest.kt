@@ -715,4 +715,27 @@ class EpisodeDownloadManagerTest {
         assertTrue(finalFile(a).exists())
         assertTrue(episodeDao.findById(a)!!.played)
     }
+
+    @Test
+    fun `a response exceeding maxEpisodeBytes fails permanently and removes partial files`() = runTest {
+        val capped = EpisodeDownloadManager(
+            episodeDao = episodeDao,
+            episodeRepository = repo,
+            client = OkHttpClient(),
+            downloadsDir = dir,
+            policy = { policy },
+            ioDispatcher = Dispatchers.IO,
+            allowCleartext = true,
+            maxEpisodeBytes = 1_000L,
+        )
+        val id = seed()
+        server.enqueue(MockResponse.Builder().body(Buffer().write(ByteArray(5_000))).build())
+
+        val error = assertThrows<DownloadException> { capped.download(id).collect {} }
+
+        assertFalse(error.retryable)
+        assertFalse(partFile(id).exists())
+        assertFalse(validatorFile(id).exists())
+        assertEquals(DownloadState.FAILED, episodeDao.findById(id)!!.downloadState)
+    }
 }

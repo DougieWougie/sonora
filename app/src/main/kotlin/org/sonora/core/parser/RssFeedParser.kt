@@ -82,6 +82,7 @@ class RssFeedParser(
     private fun parseRssImage(p: XmlPullParser): String? {
         var url: String? = null
         while (p.next() != XmlPullParser.END_TAG) {
+            if (p.eventType == XmlPullParser.END_DOCUMENT) throw notRss(p)
             if (p.eventType != XmlPullParser.START_TAG) continue
             if (p.name == "url") url = p.readField().ifEmpty { null } else p.skipElement()
         }

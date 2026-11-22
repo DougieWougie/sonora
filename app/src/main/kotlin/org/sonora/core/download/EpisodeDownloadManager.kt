@@ -54,6 +54,7 @@ class EpisodeDownloadManager(
     private val progressIntervalMillis: Long = 1_000,
     private val clock: Clock = Clock.systemUTC(),
     private val notices: EvictionNotices = NoEvictionNotices,
+    private val maxEpisodeBytes: Long = MAX_EPISODE_BYTES,
 ) {
 
     /** Episodes whose running download was cancelled on purpose, so its unwinding must not re-queue them. */
@@ -225,6 +226,11 @@ class EpisodeDownloadManager(
                 } else {
                     body.contentLength().takeIf { it >= 0 }
                 } ?: episode.sizeBytes
+                if (total != null && total > maxEpisodeBytes) {
+                    part.delete()
+                    validatorFile(episode).delete()
+                    throw DownloadException("Episode exceeds maximum size of $maxEpisodeBytes bytes", retryable = false)
+                }
 
                 episodeRepository.updateDownload(episode.id, DownloadState.DOWNLOADING, offset)
                 var written = offset
@@ -235,8 +241,13 @@ class EpisodeDownloadManager(
                     while (true) {
                         val read = source.read(sink.buffer, CHUNK_BYTES)
                         if (read == -1L) break
-                        sink.emitCompleteSegments()
                         written += read
+                        if (written > maxEpisodeBytes) {
+                            part.delete()
+                            validatorFile(episode).delete()
+                            throw DownloadException("Episode exceeds maximum size of $maxEpisodeBytes bytes", retryable = false)
+                        }
+                        sink.emitCompleteSegments()
                         if (written - lastReported >= progressStepBytes && clock.millis() - lastReportedAt >= progressIntervalMillis) {
                             lastReported = written
                             lastReportedAt = clock.millis()
@@ -307,8 +318,10 @@ class EpisodeDownloadManager(
         data class Done(val written: Long, val total: Long?, val reported: Boolean) : Outcome
     }
 
-    private companion object {
-        const val CHUNK_BYTES = 8L * 1024
-        val EXTENSION = Regex("[a-z0-9]{2,4}")
+    companion object {
+        private const val CHUNK_BYTES = 8L * 1024
+        /** Hard per-episode download ceiling (1 GiB) to protect internal storage from runaway streams. */
+        const val MAX_EPISODE_BYTES = 1024L * 1024L * 1024L
+        private val EXTENSION = Regex("[a-z0-9]{2,4}")
     }
 }

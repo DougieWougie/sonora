@@ -102,4 +102,19 @@ class DownloadsMigrationTest {
         assertTrue(File(elsewhere, "episode-b.mp3").isFile)
         assertEquals(File(elsewhere, "episode-b.mp3").absolutePath, episodes.findById(id)!!.downloadPath)
     }
+
+    @Test
+    fun `unexpected leftover files and symlinks in the old folder are not copied into internal storage`() = runTest {
+        oldDir.mkdirs()
+        File(oldDir, "stranger.txt").writeText("untrusted")
+        File(oldDir, "episode-7.mp3.part").writeBytes(ByteArray(4))
+        val secret = File(root, "secret.txt").apply { writeText("do not copy") }
+        java.nio.file.Files.createSymbolicLink(File(oldDir, "episode-8.mp3.part").toPath(), secret.toPath())
+
+        migration().run()
+
+        assertFalse(File(newDir, "stranger.txt").exists())
+        assertFalse(File(newDir, "episode-8.mp3.part").exists())
+        assertTrue(File(newDir, "episode-7.mp3.part").isFile)
+    }
 }

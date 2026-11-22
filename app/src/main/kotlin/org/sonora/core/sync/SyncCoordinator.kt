@@ -54,6 +54,7 @@ class SyncCoordinator(
         var removed = 0
         transactions.run {
             for (url in remote.add) {
+                if (!org.sonora.core.network.isTransportAllowed(url, allowCleartext = true)) continue
                 if (url in pendingUrls || podcastDao.findByFeedUrl(url) != null) continue
                 podcastDao.insert(PodcastEntity(feedUrl = url, title = url))
                 added++

@@ -35,6 +35,7 @@ object DirectoryApiFactory {
         allowCleartext: Boolean = false,
     ): PodcastIndexApi {
         val signed = client.newBuilder()
+            .followRedirects(false)
             .addInterceptor(PodcastIndexAuthInterceptor(credentials, userAgent, clock))
             .build()
         return retrofit(baseUrl, signed, allowCleartext).create(PodcastIndexApi::class.java)

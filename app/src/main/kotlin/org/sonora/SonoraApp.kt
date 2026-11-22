@@ -56,7 +56,7 @@ class SonoraApp : Application(), Configuration.Provider, SingletonImageLoader.Fa
         return ImageLoader.Builder(context)
             .components {
                 add(OkHttpNetworkFetcherFactory(callFactory = { client }))
-                if (!allowCleartext) add(HttpsUpgradeInterceptor())
+                add(HttpsUpgradeInterceptor(allowCleartext = allowCleartext))
             }
             .build()
     }

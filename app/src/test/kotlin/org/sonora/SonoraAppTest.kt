@@ -39,17 +39,21 @@ class SonoraAppTest {
     fun `artwork is upgraded to https unless cleartext is allowed`() {
         settings.allowCleartext = false
 
-        val interceptors = app.newImageLoader(context).components.interceptors
+        val interceptor = app.newImageLoader(context).components.interceptors
+            .filterIsInstance<HttpsUpgradeInterceptor>()
+            .single()
 
-        assertTrue(interceptors.any { it is HttpsUpgradeInterceptor })
+        assertTrue(!interceptor.allowCleartext)
     }
 
     @Test
     fun `artwork keeps cleartext urls when the user allows cleartext`() {
         settings.allowCleartext = true
 
-        val interceptors = app.newImageLoader(context).components.interceptors
+        val interceptor = app.newImageLoader(context).components.interceptors
+            .filterIsInstance<HttpsUpgradeInterceptor>()
+            .single()
 
-        assertTrue(interceptors.none { it is HttpsUpgradeInterceptor })
+        assertTrue(interceptor.allowCleartext)
     }
 }

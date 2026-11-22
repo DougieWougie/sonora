@@ -200,4 +200,11 @@ class RssFeedParserTest {
         assertEquals(200_000, FeedLimits.MAX_FIELD_CHARS)
         assertEquals(20_000, FeedLimits.MAX_ITEMS)
     }
+
+    @Test
+    @org.junit.jupiter.api.Timeout(5)
+    fun `a truncated rss image element fails instead of looping forever`() {
+        val truncated = "<rss><channel><title>Show</title><image><url>https://example.com/art.jpg</url>"
+        assertThrows(XmlPullParserException::class.java) { parser.parse(ByteArrayInputStream(truncated.toByteArray())) }
+    }
 }

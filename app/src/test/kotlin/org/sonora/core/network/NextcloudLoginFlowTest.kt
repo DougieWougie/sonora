@@ -120,4 +120,43 @@ class NextcloudLoginFlowTest {
         assertThrows<LoginFlowException> { strict.poll(session) }
         assertEquals(0, server.requestCount)
     }
+
+    @Test
+    fun `start rejects a login url on a different origin`() = runTest {
+        server.enqueue(
+            MockResponse.Builder().body(
+                """{"poll":{"token":"tok","endpoint":"$base/index.php/login/v2/poll"},
+                    "login":"https://evil.example/phish"}""",
+            ).build(),
+        )
+        assertThrows<LoginFlowException> { flow.start(base) }
+    }
+
+    @Test
+    fun `start rejects a poll endpoint on a different origin`() = runTest {
+        server.enqueue(
+            MockResponse.Builder().body(
+                """{"poll":{"token":"tok","endpoint":"https://evil.example/poll"},
+                    "login":"$base/index.php/login/v2/flow/abc"}""",
+            ).build(),
+        )
+        assertThrows<LoginFlowException> { flow.start(base) }
+    }
+
+    @Test
+    fun `poll rejects credentials pointing to a different origin`() = runTest {
+        server.enqueue(
+            MockResponse.Builder().body(
+                """{"server":"https://evil.example","loginName":"alice","appPassword":"pass"}""",
+            ).build(),
+        )
+        val session = LoginFlowSession("$base/login", "$base/index.php/login/v2/poll", "tok")
+        assertThrows<LoginFlowException> { flow.poll(session) }
+    }
+
+    @Test
+    fun `oversized login flow responses are rejected`() = runTest {
+        server.enqueue(MockResponse.Builder().body("x".repeat(100_000)).build())
+        assertThrows<LoginFlowException> { flow.start(base) }
+    }
 }
